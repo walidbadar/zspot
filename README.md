@@ -164,6 +164,36 @@ Stored Spotify credentials can be passed with
 `-DCONFIG_CSPOT_SAMPLE_CREDENTIALS_JSON='"..."'` (the JSON printed by the
 sample after its first connection) to skip the zeroconf hand-over.
 
+### native_sim
+
+The sample also builds for `native_sim`, using the Zephyr IP stack over the
+host TAP interface. Decoded audio is appended to `/tmp/cspot.pcm`
+(`CONFIG_CSPOT_SAMPLE_PCM_FILE`), playable with
+`aplay -f S16_LE -r 44100 -c 2 /tmp/cspot.pcm`.
+
+Create the TAP device once per boot (root required) and give the simulator
+internet access through NAT:
+
+```sh
+sudo tools/net-tools/net-setup.sh          # creates zeth, host side 192.0.2.2
+sudo sysctl -w net.ipv4.ip_forward=1
+sudo iptables -t nat -A POSTROUTING -s 192.0.2.0/24 -j MASQUERADE
+```
+
+Then build and run:
+
+```sh
+west build -p -b native_sim/native/64 samples/player
+./build/zephyr/zephyr.exe
+curl 'http://192.0.2.1:8080/spotify_info?action=getInfo'
+```
+
+The Spotify app only discovers devices through mDNS on its own network, so
+on native_sim either route the 192.0.2.0/24 subnet to the phone's LAN or
+provide credentials at build time: `CONFIG_CSPOT_SAMPLE_CREDENTIALS_JSON`
+(stored credentials) or, for protocol testing only,
+`CONFIG_CSPOT_SAMPLE_USERNAME` / `CONFIG_CSPOT_SAMPLE_PASSWORD`.
+
 ## Layout
 
 ```

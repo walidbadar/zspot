@@ -23,10 +23,14 @@
 #include <zephyr/net/dhcpv4.h>
 
 #include <cspot/cspot.h>
-#include <cspot/cspot_i2s_sink.h>
 
 #if defined(CONFIG_WIFI_CREDENTIALS_CONNECT_STORED)
 #include "wifi.h"
+#endif
+#if defined(CONFIG_CSPOT_I2S_SINK)
+#include <cspot/cspot_i2s_sink.h>
+#elif defined(CSPOT_SAMPLE_HAVE_PCM_FILE)
+#include "pcm_file_sink.h"
 #endif
 
 LOG_MODULE_REGISTER(cspot_player, LOG_LEVEL_INF);
@@ -50,7 +54,6 @@ static void net_event_handler(struct net_mgmt_event_callback *cb, uint64_t event
 static int network_connect(void)
 {
 	struct net_if *iface = net_if_get_default();
-	int ret;
 
 	if (iface == NULL) {
 		LOG_ERR("No network interface");
@@ -62,7 +65,8 @@ static int network_connect(void)
 
 #if defined(CONFIG_WIFI_CREDENTIALS_CONNECT_STORED)
 	/* Credentials come from the wifi_credentials library (settings or static). */
-	ret = wifi_init();
+	int ret = wifi_init();
+
 	if (ret != 0) {
 		LOG_ERR("Wi-Fi init failed (%d)", ret);
 		return ret;
@@ -74,10 +78,53 @@ static int network_connect(void)
 	net_dhcpv4_start(iface);
 #endif
 
-	LOG_INF("Waiting for an IPv4 address...");
-	k_sem_take(&ipv4_ready, K_FOREVER);
+	/* A static address (CONFIG_NET_CONFIG_SETTINGS) is assigned before main() runs. */
+	if (net_if_ipv4_get_global_addr(iface, NET_ADDR_PREFERRED) == NULL) {
+		LOG_INF("Waiting for an IPv4 address...");
+		k_sem_take(&ipv4_ready, K_FOREVER);
+	}
 	LOG_INF("Network ready");
 	return 0;
+}
+
+static void sink_flush(void)
+{
+#if defined(CONFIG_CSPOT_I2S_SINK)
+	sink_flush();
+#endif
+}
+
+static void sink_set_volume(uint16_t volume)
+{
+#if defined(CONFIG_CSPOT_I2S_SINK)
+	cspot_i2s_sink_set_volume(volume);
+#else
+	ARG_UNUSED(volume);
+#endif
+}
+
+static int sink_init(void)
+{
+#if defined(CONFIG_CSPOT_I2S_SINK)
+	return cspot_i2s_sink_init(DEVICE_DT_GET(DT_ALIAS(cspot_i2s)), 44100, 2, 16);
+#elif defined(CSPOT_SAMPLE_HAVE_PCM_FILE)
+	return pcm_file_sink_init(CONFIG_CSPOT_SAMPLE_PCM_FILE);
+#else
+	return 0;
+#endif
+}
+
+static size_t sink_write(const uint8_t *pcm, size_t len, void *user_data)
+{
+#if defined(CONFIG_CSPOT_I2S_SINK)
+	return cspot_i2s_sink_write(pcm, len, user_data);
+#elif defined(CSPOT_SAMPLE_HAVE_PCM_FILE)
+	return pcm_file_sink_write(pcm, len, user_data);
+#else
+	ARG_UNUSED(pcm);
+	ARG_UNUSED(user_data);
+	return len;
+#endif
 }
 
 static void on_event(const struct cspot_event *event, void *user_data)
@@ -91,7 +138,7 @@ static void on_event(const struct cspot_event *event, void *user_data)
 		break;
 	case CSPOT_EVENT_VOLUME:
 		LOG_INF("Volume %u", event->volume);
-		cspot_i2s_sink_set_volume(event->volume);
+		sink_set_volume(event->volume);
 		break;
 	case CSPOT_EVENT_TRACK_INFO:
 		LOG_INF("Now playing: %s - %s (%s)", event->track.artist, event->track.name,
@@ -99,19 +146,19 @@ static void on_event(const struct cspot_event *event, void *user_data)
 		break;
 	case CSPOT_EVENT_SEEK:
 		LOG_INF("Seek to %u ms", event->position_ms);
-		cspot_i2s_sink_flush();
+		sink_flush();
 		break;
 	case CSPOT_EVENT_FLUSH:
 	case CSPOT_EVENT_PLAYBACK_START:
-		cspot_i2s_sink_flush();
+		sink_flush();
 		break;
 	case CSPOT_EVENT_DISCONNECT:
 		LOG_INF("Playback moved to another device");
-		cspot_i2s_sink_flush();
+		sink_flush();
 		break;
 	case CSPOT_EVENT_NEXT:
 	case CSPOT_EVENT_PREV:
-		cspot_i2s_sink_flush();
+		sink_flush();
 		break;
 	case CSPOT_EVENT_DEPLETED:
 		LOG_INF("Queue finished");
@@ -124,7 +171,7 @@ static size_t on_pcm(const uint8_t *pcm, size_t len, void *user_data)
 	if (paused) {
 		return 0; /* player retries shortly */
 	}
-	return cspot_i2s_sink_write(pcm, len, user_data);
+	return sink_write(pcm, len, user_data);
 }
 
 int main(void)
@@ -146,15 +193,19 @@ int main(void)
 		return 0;
 	}
 
-	ret = cspot_i2s_sink_init(DEVICE_DT_GET(DT_ALIAS(cspot_i2s)), 44100, 2, 16);
+	ret = sink_init();
 	if (ret != 0) {
-		LOG_ERR("I2S sink init failed (%d)", ret);
+		LOG_ERR("Audio sink init failed (%d)", ret);
 		return 0;
 	}
 
 	if (strlen(CONFIG_CSPOT_SAMPLE_CREDENTIALS_JSON) > 0 &&
 	    cspot_credentials_load_json(CONFIG_CSPOT_SAMPLE_CREDENTIALS_JSON) == 0) {
 		LOG_INF("Using stored credentials");
+	} else if (strlen(CONFIG_CSPOT_SAMPLE_USERNAME) > 0 &&
+		   cspot_credentials_set_user_pass(CONFIG_CSPOT_SAMPLE_USERNAME,
+						   CONFIG_CSPOT_SAMPLE_PASSWORD) == 0) {
+		LOG_INF("Using username/password credentials");
 	} else {
 		ret = cspot_zeroconf_start();
 		if (ret != 0) {

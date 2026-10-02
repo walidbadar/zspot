@@ -13,3 +13,7 @@ project(cspot_player)
 
 target_sources(app PRIVATE src/main.c)
 target_sources_ifdef(CONFIG_WIFI_CREDENTIALS_CONNECT_STORED app PRIVATE src/wifi.c)
+if(NOT "${CONFIG_CSPOT_SAMPLE_PCM_FILE}" STREQUAL "")
+  target_sources(app PRIVATE src/pcm_file_sink.c)
+  target_compile_definitions(app PRIVATE CSPOT_SAMPLE_HAVE_PCM_FILE=1)
+endif()
