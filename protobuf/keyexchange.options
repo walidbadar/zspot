@@ -1,0 +1,9 @@
+# Copyright (c) 2020-2024 Filip Krzywda (feelfreelinux) and cspot contributors
+# SPDX-License-Identifier: GPL-3.0-only
+
+LoginCryptoDiffieHellmanHello.gc max_size:96, fixed_length:true
+LoginCryptoDiffieHellmanChallenge.gs max_size:96, fixed_length:true
+LoginCryptoDiffieHellmanResponse.hmac max_size:20, fixed_length:true
+ClientHello.cryptosuites_supported max_count:1, fixed_count:true
+ClientHello.client_nonce max_size:16, fixed_length:true
+ClientHello.padding max_size:1, fixed_length:true

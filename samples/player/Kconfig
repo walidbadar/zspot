@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Muhammad Waleed Badar
+# SPDX-License-Identifier: GPL-3.0-only
+
+mainmenu "cspot player sample"
+
+config CSPOT_SAMPLE_CREDENTIALS_JSON
+	string "Stored credentials (JSON)"
+	default ""
+	help
+	  Output of cspot_credentials_save_json() from a previous session. When
+	  set, the sample skips the zeroconf hand-over.
+
+source "Kconfig.zephyr"

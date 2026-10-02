@@ -1,0 +1,5 @@
+# Copyright (c) 2020-2024 Filip Krzywda (feelfreelinux) and cspot contributors
+# SPDX-License-Identifier: GPL-3.0-only
+
+Header.uri max_size:256, fixed_length:false
+Header.method max_size:64, fixed_length:false

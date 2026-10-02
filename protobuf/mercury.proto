@@ -1,0 +1,7 @@
+// Copyright (c) 2020-2024 Filip Krzywda (feelfreelinux) and cspot contributors
+// SPDX-License-Identifier: GPL-3.0-only
+
+message Header {
+    optional string uri = 0x01;
+    optional string method = 0x03;
+}

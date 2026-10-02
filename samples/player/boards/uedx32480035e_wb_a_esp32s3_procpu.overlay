@@ -1,0 +1,39 @@
+/*
+ * Copyright (c) 2026 Muhammad Waleed Badar
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
+
+/*
+ * VIEWE UEDX32480035E-WB-A (ESP32-S3): external I2S DAC on free GPIOs.
+ * BCK = GPIO5, WS (LRCK) = GPIO6, DATA = GPIO7. The remaining GPIOs are used
+ * by the display, touch, SD card, USB, RGB LED and buzzer.
+ */
+
+/ {
+	aliases {
+		cspot-i2s = &i2s0;
+	};
+};
+
+&pinctrl {
+	i2s0_cspot: i2s0_cspot {
+		group1 {
+			pinmux = <I2S0_O_BCK_GPIO5>,
+				 <I2S0_O_WS_GPIO6>,
+				 <I2S0_O_SD_GPIO7>;
+			output-low;
+		};
+	};
+};
+
+&i2s0 {
+	status = "okay";
+	pinctrl-0 = <&i2s0_cspot>;
+	pinctrl-names = "default";
+};
+
+/* Not needed by the player; frees the SDMMC pins and driver memory. */
+&sdhc0 {
+	status = "disabled";
+};
