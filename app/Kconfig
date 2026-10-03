@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Muhammad Waleed Badar
 # SPDX-License-Identifier: GPL-3.0-only
 
-mainmenu "zspot player sample"
+mainmenu "zspot player"
 
 config ZSPOT_CREDENTIALS_JSON
 	string "Stored credentials (JSON)"

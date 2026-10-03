@@ -3,7 +3,7 @@
 
 sample:
   name: zspot player
-  description: Spotify Connect receiver with I2S or file output
+  description: Spotify Connect player with a touchscreen UI (Now Playing, library, lyrics, Wi-Fi setup)
 tests:
   app.zspot.player:
     build_only: true

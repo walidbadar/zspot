@@ -4,8 +4,36 @@
   <img src="doc/images/zspot-banner.svg" alt="zspot: Zephyr RTOS and Spotify Connect" width="720">
 </p>
 
-Spotify Connect receiver library for [Zephyr RTOS](https://zephyrproject.org),
-packaged as a Zephyr module with a plain C API.
+Spotify Connect player for [Zephyr RTOS](https://zephyrproject.org): a
+touchscreen player application and the Spotify Connect receiver library it is
+built on, packaged as a Zephyr module.
+
+<p align="center">
+  <img src="doc/images/zspot-ui.png" alt="The player on native_sim: Now Playing, lyrics, a playlist from Your Library and the Wi-Fi password entry" width="840">
+</p>
+<p align="center"><em>Now Playing, lyrics, a playlist from Your Library and the Wi-Fi password entry, on native_sim with demo data.</em></p>
+
+**The player** (`app/`) turns a board with a display into a Spotify Connect
+speaker with a screen of its own:
+
+- Shows up as a device in the Spotify app and plays through an I2S DAC.
+- Now Playing screen with cover art, progress, seeking, transport and volume
+  controls.
+- Your Library: browse Liked Songs and playlists on the device and start a
+  track from there.
+- Lyrics that follow the music.
+- Wi-Fi setup on the screen: pick a network, type the password.
+- Runs on the ESP32-S3 (VIEWE UEDX32480035E-WB-A) and on `native_sim`, where
+  the screen is a window and the audio plays on the host.
+
+**The library** (`lib/zspot`, API in `include/zspot/zspot.h`) is the Spotify
+Connect receiver on its own, with a plain C API, for applications that bring
+their own user interface or none at all.
+
+Spotify Premium is required; see [Player application](#player-application)
+for the hardware and the setup, and [API](#api) for the library.
+
+## How it is built
 
 Naming: everything Zephyr-facing is `zspot` (module and library name,
 `CONFIG_ZSPOT_*`, the `zspot_*` C API, the `zspot` log module, the port
@@ -30,7 +58,7 @@ from Zephyr:
 | Protocol buffers   | Zephyr `nanopb` module (generated at build time)         |
 | Logging            | Zephyr logging, module `zspot`                           |
 | Audio output       | Zephyr I2S driver API (optional helper sink)             |
-| Display (sample)   | Zephyr `lvgl` module, display and input drivers          |
+| Display (player)   | Zephyr `lvgl` module, display and input drivers          |
 
 The only vendored third-party code is Tremor, the integer Ogg Vorbis decoder
 (`third_party/tremor`, BSD licence), because Zephyr has no Vorbis decoder.
@@ -52,13 +80,13 @@ directly on Zephyr sockets instead.
 - `protoc` on the `PATH` for the nanopb generator
   (`pip install grpcio-tools` and a small `protoc` wrapper, or a system
   package).
-- A board with IPv4 networking and, for the sample, an I2S DAC. The
+- A board with IPv4 networking and, for the player, an I2S DAC. The
   protocol needs roughly 300 KB of heap at runtime (TLS buffers, decoder,
   track buffers). With `CONFIG_ZSPOT_EXTERNAL_HEAP` (default when
   `CONFIG_SHARED_MULTI_HEAP` is available, e.g. `CONFIG_ESP_SPIRAM=y`) the
   C++ free store, the decoder buffers, the protocol thread stacks and the
   Mbed TLS heap are taken from external memory, which keeps the internal
-  RAM footprint of the sample small enough for the ESP32 family.
+  RAM footprint of the player small enough for the ESP32 family.
 
 A `protoc` is needed only at build time. Without a system package:
 
@@ -192,18 +220,18 @@ holds references) and `zspot_queue_play()` jumps to an entry.
 library's client, for example against the Spotify Web API. The session's own
 access token is of no use there: it belongs to Spotify's client and the
 public Web API answers it with HTTP 429, so the application has to bring an
-OAuth token of its own (see the sample).
+OAuth token of its own (see the player application).
 
 Callbacks run on the library's threads.
 
-## Sample
+## Player application
 
 `app/` is the player application. It joins Wi-Fi, advertises the device, waits for the Spotify
 app, plays through I2S and shows a "Now Playing" screen on the display. The supported board is the VIEWE
 UEDX32480035E-WB-A (`uedx32480035e_wb_a/esp32s3/procpu`, ESP32-S3 with 8 MB
 PSRAM). It has no audio DAC on board, so connect an external I2S DAC to
-BCK = GPIO5, WS/LRCK = GPIO6 and DATA = GPIO7. The console and shell are on
-the native USB serial port.
+BCK = GPIO5, WS/LRCK = GPIO6 and DATA = GPIO7. The console is on the native
+USB serial port.
 
 ```sh
 west build -p -b uedx32480035e_wb_a/esp32s3/procpu app
@@ -212,23 +240,16 @@ west flash
 
 Wi-Fi credentials are handled by Zephyr's `wifi_credentials` library with the
 settings/NVS backend. Add them once in the Wi-Fi settings of the screen (see
-below); they persist across reboots and the sample connects with
+below); they persist across reboots and the player connects with
 `NET_REQUEST_WIFI_CONNECT_STORED`, retrying whenever the link drops.
 
 Stored Spotify credentials can be passed with
 `-DCONFIG_ZSPOT_CREDENTIALS_JSON='"..."'` (the JSON printed by the
-sample after its first connection) to skip the zeroconf hand-over.
+player after its first connection) to skip the zeroconf hand-over.
 
 ### Now Playing screen
 
-<p align="center">
-  <img src="doc/images/zspot-ui.png" alt="The sample on native_sim: Now Playing, a playlist from Your Library and the Wi-Fi password entry" width="720">
-</p>
-
-The player, a playlist opened from Your Library and the Wi-Fi password entry,
-captured from `native_sim` with demo data.
-
-With `CONFIG_ZSPOT_UI=y` (the default in `app/prj.conf`) the sample
+With `CONFIG_ZSPOT_UI=y` (the default in `app/prj.conf`) the player
 drives the chosen display with LVGL. The screen is laid out for 320x480 and
 shows the cover art, title, artist and progress of the current track, with
 touch controls for play/pause, previous/next, seeking and the volume. Before
@@ -238,6 +259,12 @@ is not. Holding it for three seconds opens the Wi-Fi settings: the networks
 found by a scan, and after picking one a password entry with an on-screen
 keyboard. The credentials are stored with the `wifi_credentials` library and
 the device connects with them.
+
+The microphone button next to the speaker symbol switches between the cover
+and the lyrics of the track. Synced lyrics scroll with the music with the current
+line highlighted; when only plain lyrics exist they are shown as text. The
+lyrics come from [LRCLIB](https://lrclib.net), a free service that needs no
+account, looked up by title, artist and duration while the lyrics are shown.
 
 The list button in the top left corner opens "Your Library": Liked Songs
 and the user's playlists (up to 30 rows per list). Picking one lists its
@@ -264,6 +291,8 @@ Without them the library view only reports that it is not set up.
   it, and the touch handlers call the playback control API.
 - `src/cover.c` downloads the cover (a 300x300 baseline JPEG) on its own
   thread and decodes it with the TJpgDec copy that ships with LVGL.
+- `src/lyrics.c` fetches the lyrics on its own thread and splits them into
+  timed lines.
 - `src/library.c` talks to the Spotify Web API on its own thread:
   `/me/playlists`, `/me/tracks` and `/playlists/{id}/items` (or `/tracks`)
   for the listings, `/me/player/play` to start playback. `src/webapi.c`
@@ -272,8 +301,9 @@ Without them the library view only reports that it is not set up.
   responses.
 - The LVGL configuration lives in `app/prj.conf`. The memory pool
   (`CONFIG_LV_Z_MEM_POOL_SIZE`) holds the widgets and the cover art; the
-  ESP32-S3 board file places the pool, the render buffer and LVGL's globals
-  in PSRAM.
+  ESP32-S3 configuration (`app/socs/esp32s3_procpu.conf`) places the pool in
+  PSRAM. The render buffer stays in internal RAM, because the display's SPI
+  driver sends it with DMA, which cannot read from PSRAM.
 - The built-in Montserrat fonts cover Latin text only; titles in other
   scripts show placeholder glyphs.
 
@@ -283,7 +313,7 @@ exercised with simulated responses, not against the live Web API.
 
 ### native_sim
 
-The sample also builds for `native_sim`, using the Zephyr IP stack over the
+The player also builds for `native_sim`, using the Zephyr IP stack over the
 host TAP interface. The display is an SDL window (needs the SDL2 development
 package on the host) with the mouse acting as the touch screen. Decoded audio
 is played on the host: the simulator starts `aplay` (alsa-utils) and pipes the
@@ -330,7 +360,7 @@ testing only, `CONFIG_ZSPOT_USERNAME` / `CONFIG_ZSPOT_PASSWORD`.
 ## Layout
 
 ```
-app/                 player application (C): CMakeLists, Kconfig, prj.conf, boards/, src/
+app/                 player application (C): CMakeLists, Kconfig, prj.conf, boards/, socs/, src/
 include/zspot/       public C API
 lib/zspot/           the library: Kconfig, CMakeLists, src/core (cspot C++ protocol core),
                      src/port (Zephyr glue), src/api (C facade), src/audio (I2S sink),
