@@ -38,6 +38,7 @@
 #include "ui.h"
 #if defined(CONFIG_ZSPOT_UI)
 #include "library.h"
+#include "lyrics.h"
 #endif
 
 /* Decoded PCM: 44.1 kHz, 16 bit, stereo */
@@ -281,6 +282,7 @@ static const struct ui_ops ui_ops = {
 	.library_select = library_select,
 	.wifi_scan = wifi_scan,
 	.wifi_connect = wifi_join,
+	.lyrics_request = lyrics_request,
 };
 #endif
 
@@ -297,6 +299,7 @@ int main(void)
 #if defined(CONFIG_ZSPOT_UI)
 	if (ui_init(config.device_name, &ui_ops) == 0) {
 		library_init();
+		lyrics_init();
 	}
 #endif
 	ui_show_message("Connecting", "Waiting for the network");

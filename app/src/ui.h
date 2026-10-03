@@ -16,6 +16,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/** Longest title or artist kept by the UI, including the terminator */
+#define UI_TEXT_MAX 96
+
 /** Player hooks, invoked on the LVGL thread in response to touch input. */
 struct ui_ops {
 	void (*set_paused)(bool paused);
@@ -42,6 +45,27 @@ struct ui_ops {
 	void (*wifi_scan)(void);
 	/** A network was picked and its password entered (empty for an open one). */
 	void (*wifi_connect)(const char *ssid, const char *password);
+	/**
+	 * The lyrics of the current track are wanted (the lyrics button is on):
+	 * answer with ui_show_lyrics() or ui_set_lyrics_status().
+	 */
+	void (*lyrics_request)(const char *title, const char *artist, uint32_t duration_ms);
+};
+
+struct ui_lyrics_line {
+	/** Start of the line within the track; 0 when the lyrics are not synced */
+	uint32_t time_ms;
+	const char *text;
+};
+
+/** Lyrics of one track, allocated from the LVGL pool in a single block. */
+struct ui_lyrics {
+	/** Title of the track they belong to: lyrics of another one are dropped */
+	char title[UI_TEXT_MAX];
+	/** The lines carry time stamps and are highlighted as the track plays */
+	bool synced;
+	uint16_t count;
+	struct ui_lyrics_line lines[];
 };
 
 #if defined(CONFIG_ZSPOT_UI)
@@ -70,6 +94,15 @@ void ui_set_volume(uint16_t volume);
  * seconds opens the Wi-Fi settings.
  */
 void ui_set_network(bool connected);
+
+/**
+ * Shows lyrics in place of the cover while the lyrics button is on. On success the UI owns @p lyrics and
+ * releases it with lv_free(); on failure (false) it stays with the caller.
+ */
+bool ui_show_lyrics(struct ui_lyrics *lyrics);
+
+/** Shows a notice instead of the lyrics of the track @p title, e.g. that there are none. */
+void ui_set_lyrics_status(const char *title, const char *status);
 
 /** The listings of the list view; only the one that is open accepts content. */
 enum ui_list {

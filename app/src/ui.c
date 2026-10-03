@@ -52,6 +52,8 @@ LOG_MODULE_DECLARE(zspot_player, LOG_LEVEL_INF);
 #define CONTROLS_Y   420 /* centre line of the transport buttons */
 #define VOLUME_Y     466
 
+#define LYRICS_PAD   16 /* around the lines of the lyrics panel */
+
 #define BAR_H        48 /* top bar of the library view */
 #define ROW_H        56
 
@@ -69,6 +71,8 @@ enum ui_msg_type {
 	UI_MSG_PAUSED,
 	UI_MSG_VOLUME,
 	UI_MSG_NETWORK,
+	UI_MSG_LYRICS,
+	UI_MSG_LYRICS_STATUS,
 	UI_MSG_LIST_RESET,
 	UI_MSG_LIST_ROW,
 };
@@ -81,8 +85,8 @@ struct ui_msg {
 			char detail[96];
 		} message;
 		struct {
-			char title[96];
-			char artist[96];
+			char title[UI_TEXT_MAX];
+			char artist[UI_TEXT_MAX];
 			char image_url[128];
 			uint32_t duration_ms;
 		} track;
@@ -100,6 +104,11 @@ struct ui_msg {
 			char subtitle[96];
 			uint32_t duration_ms;
 		} list_row;
+		struct ui_lyrics *lyrics;
+		struct {
+			char title[UI_TEXT_MAX];
+			char status[64];
+		} lyrics_status;
 		bool paused;
 		bool connected;
 		uint16_t volume;
@@ -108,6 +117,64 @@ struct ui_msg {
 
 /* Room for a complete listing arriving at once */
 #define UI_MSGQ_LEN (UI_LIST_MAX + 12)
+
+/* Microphone, the lyrics button: LVGL's symbol fonts have none. 20x20, alpha only */
+#define MIC_ICON_SIZE 20
+
+static const uint8_t mic_icon_map[MIC_ICON_SIZE * MIC_ICON_SIZE] = {
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1d, 0x63,
+	0x6e, 0x2e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x27, 0xc5, 0xff,
+	0xff, 0xe0, 0x4a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x88, 0xff, 0xff,
+	0xff, 0xff, 0xbc, 0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0xb4, 0xff, 0xff,
+	0xff, 0xff, 0xdf, 0x1d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0xb7, 0xff, 0xff,
+	0xff, 0xff, 0xe1, 0x1e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0xb6, 0xff, 0xff,
+	0xff, 0xff, 0xe1, 0x1e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0xb6, 0xff, 0xff,
+	0xff, 0xff, 0xe1, 0x1e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x05, 0x13, 0x0a, 0x05, 0xb6, 0xff, 0xff,
+	0xff, 0xff, 0xe1, 0x1d, 0x06, 0x1e, 0x0f, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x33, 0xca, 0x6b, 0x00, 0x9a, 0xff, 0xff,
+	0xff, 0xff, 0xcb, 0x0d, 0x41, 0xdf, 0x68, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x27, 0xec, 0xa9, 0x00, 0x3f, 0xe4, 0xff,
+	0xff, 0xf7, 0x6b, 0x00, 0x71, 0xfe, 0x54, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x08, 0xb2, 0xec, 0x39, 0x00, 0x3f, 0x9a,
+	0xa6, 0x59, 0x04, 0x17, 0xca, 0xde, 0x20, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x49, 0xf2, 0xc7, 0x2e, 0x00, 0x00,
+	0x00, 0x00, 0x17, 0xa0, 0xfe, 0x79, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x03, 0x73, 0xf7, 0xdf, 0x84, 0x4d,
+	0x49, 0x70, 0xca, 0xfe, 0x9f, 0x0f, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x59, 0xcb, 0xf9, 0xfb,
+	0xfa, 0xfb, 0xde, 0x79, 0x0f, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0x48, 0xd2,
+	0xef, 0x61, 0x1d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x09, 0x1c, 0x1f, 0xbf,
+	0xe8, 0x35, 0x1b, 0x0f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x41, 0xe1, 0xe6, 0xfb,
+	0xff, 0xe9, 0xe8, 0x73, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x34, 0xb3, 0xb7, 0xb5,
+	0xb5, 0xb7, 0xba, 0x5b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x06, 0x06, 0x06,
+	0x06, 0x06, 0x06, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static const lv_image_dsc_t mic_icon = {
+	.header = {
+		.magic = LV_IMAGE_HEADER_MAGIC,
+		.cf = LV_COLOR_FORMAT_A8,
+		.w = MIC_ICON_SIZE,
+		.h = MIC_ICON_SIZE,
+		.stride = MIC_ICON_SIZE,
+	},
+	.data_size = sizeof(mic_icon_map),
+	.data = mic_icon_map,
+};
 
 /* Buffer allocated from the LVGL pool, like everything else of the UI */
 static struct k_msgq ui_msgq;
@@ -142,6 +209,19 @@ static lv_obj_t *wifi_heading;
 static lv_obj_t *wifi_password;
 static lv_timer_t *wifi_hold_timer;
 static char wifi_ssid[WIFI_SSID_MAX + 1];
+
+/* Lyrics panel, shown over the cover while the lyrics button is on */
+static lv_obj_t *lyrics_panel;
+static lv_obj_t *lyrics_icon;
+static struct ui_lyrics *lyrics;
+static int lyrics_line;       /* highlighted line, -1 for none */
+static bool lyrics_open;
+static bool lyrics_requested; /* for the track on screen */
+
+/* Track on screen */
+static char track_title[UI_TEXT_MAX];
+static char track_artist[UI_TEXT_MAX];
+static uint32_t track_duration_ms;
 
 static lv_draw_buf_t *cover_buf;
 static char cover_url[sizeof(((struct ui_msg *)0)->track.image_url)];
@@ -283,11 +363,115 @@ static void list_add(const char *title, const char *subtitle, uint32_t duration_
 	}
 }
 
+/* Replaces the content of the lyrics panel with a notice. */
+static void lyrics_set_status(const char *status)
+{
+	lv_obj_t *label;
+
+	lv_obj_clean(lyrics_panel);
+	if (lyrics != NULL) {
+		lv_free(lyrics);
+		lyrics = NULL;
+	}
+
+	label = create_label(lyrics_panel, &lv_font_montserrat_14, COLOR_SUBTLE, status);
+	lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_WRAP);
+	lv_obj_set_width(label, lv_pct(100));
+	lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+	lv_obj_set_style_margin_top(label, 90, 0);
+}
+
+/* Takes over @p new_lyrics and lists its lines; the labels point into it. */
+static void lyrics_set(struct ui_lyrics *new_lyrics)
+{
+	lyrics_set_status("");
+	lv_obj_clean(lyrics_panel);
+	lv_obj_scroll_to_y(lyrics_panel, 0, LV_ANIM_OFF);
+
+	lyrics = new_lyrics;
+	lyrics_line = -1;
+	for (int i = 0; i < lyrics->count; i++) {
+		const char *text = lyrics->lines[i].text;
+		/* Synced lines start dim and light up when they are sung. */
+		lv_obj_t *label = create_label(lyrics_panel, &lv_font_montserrat_20,
+					       lyrics->synced ? COLOR_TRACK : COLOR_TEXT, "");
+
+		lv_label_set_text_static(label, text[0] != '\0' ? text : LV_SYMBOL_AUDIO);
+		lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_WRAP);
+		lv_obj_set_width(label, lv_pct(100));
+	}
+	lv_obj_update_layout(lyrics_panel);
+}
+
+/* Highlights the line that is sung at @p position_ms and centres it. */
+static void lyrics_follow(uint32_t position_ms)
+{
+	int line = -1;
+	lv_obj_t *label;
+
+	if (lyrics == NULL || !lyrics->synced) {
+		return;
+	}
+	while (line + 1 < lyrics->count && lyrics->lines[line + 1].time_ms <= position_ms) {
+		line++;
+	}
+	if (line == lyrics_line) {
+		return;
+	}
+
+	if (lyrics_line >= 0) {
+		lv_obj_set_style_text_color(lv_obj_get_child(lyrics_panel, lyrics_line),
+					    COLOR_TRACK, 0);
+	}
+	lyrics_line = line;
+	if (line < 0) {
+		lv_obj_scroll_to_y(lyrics_panel, 0, LV_ANIM_ON);
+		return;
+	}
+
+	label = lv_obj_get_child(lyrics_panel, line);
+	lv_obj_set_style_text_color(label, COLOR_TEXT, 0);
+	/* lv_obj_get_y() is relative to the padded content, whatever the scroll. */
+	lv_obj_scroll_to_y(lyrics_panel,
+			   MAX(lv_obj_get_y(label) + LYRICS_PAD -
+				       (COVER_SIZE - lv_obj_get_height(label)) / 2,
+			       0),
+			   LV_ANIM_ON);
+}
+
+static void lyrics_request(void)
+{
+	lyrics_requested = true;
+	lyrics_set_status("Loading lyrics...");
+	ops->lyrics_request(track_title, track_artist, track_duration_ms);
+}
+
+/* The lyrics button switches between the cover and the lyrics. */
+static void on_lyrics_clicked(lv_event_t *e)
+{
+	ARG_UNUSED(e);
+
+	lyrics_open = !lyrics_open;
+	lv_obj_set_flag(lyrics_panel, LV_OBJ_FLAG_HIDDEN, !lyrics_open);
+	lv_obj_set_style_image_recolor(lyrics_icon, lyrics_open ? COLOR_ACCENT : COLOR_SUBTLE, 0);
+	if (!lyrics_open) {
+		return;
+	}
+
+	if (!track_shown) {
+		lyrics_set_status("Nothing is playing");
+	} else if (!lyrics_requested) {
+		lyrics_request();
+	}
+}
+
 static void apply(const struct ui_msg *msg)
 {
 	switch (msg->type) {
 	case UI_MSG_MESSAGE:
 		track_shown = false;
+		lyrics_requested = false;
+		lyrics_set_status("Nothing is playing");
 		lv_label_set_text(title_label, msg->message.headline);
 		lv_label_set_text(artist_label, msg->message.detail);
 		lv_slider_set_value(progress_slider, 0, LV_ANIM_OFF);
@@ -298,6 +482,16 @@ static void apply(const struct ui_msg *msg)
 		break;
 	case UI_MSG_TRACK:
 		track_shown = true;
+		strcpy(track_title, msg->track.title);
+		strcpy(track_artist, msg->track.artist);
+		track_duration_ms = msg->track.duration_ms;
+		/* The lyrics are only fetched when they are looked at. */
+		lyrics_requested = false;
+		if (lyrics_open) {
+			lyrics_request();
+		} else {
+			lyrics_set_status("");
+		}
 		lv_label_set_text(title_label, msg->track.title);
 		lv_label_set_text(artist_label, msg->track.artist);
 		lv_slider_set_range(progress_slider, 0, MAX(msg->track.duration_ms, 1));
@@ -318,6 +512,19 @@ static void apply(const struct ui_msg *msg)
 		lv_obj_set_style_text_color(network_icon,
 					    msg->connected ? COLOR_SUBTLE : COLOR_ERROR,
 					    LV_STATE_PRESSED);
+		break;
+	case UI_MSG_LYRICS:
+		/* Lyrics of a track that is no longer on screen are stale. */
+		if (track_shown && strcmp(msg->lyrics->title, track_title) == 0) {
+			lyrics_set(msg->lyrics);
+		} else {
+			lv_free(msg->lyrics);
+		}
+		break;
+	case UI_MSG_LYRICS_STATUS:
+		if (track_shown && strcmp(msg->lyrics_status.title, track_title) == 0) {
+			lyrics_set_status(msg->lyrics_status.status);
+		}
 		break;
 	case UI_MSG_LIST_RESET:
 		if (msg->list_reset.list == list_shown) {
@@ -362,6 +569,9 @@ static void on_tick(lv_timer_t *timer)
 
 		lv_slider_set_value(progress_slider, position, LV_ANIM_OFF);
 		set_time(elapsed_label, position);
+		if (lyrics_open) {
+			lyrics_follow(position);
+		}
 	}
 }
 
@@ -649,6 +859,7 @@ static void create_screen(const char *device_name)
 	lv_obj_t *cover_box;
 	lv_obj_t *placeholder;
 	lv_obj_t *volume_icon;
+	lv_obj_t *lyrics_button;
 
 	main_screen = screen;
 
@@ -692,6 +903,17 @@ static void create_screen(const char *device_name)
 	lv_image_set_inner_align(cover_image, LV_IMAGE_ALIGN_STRETCH);
 	lv_obj_add_flag(cover_image, LV_OBJ_FLAG_HIDDEN);
 
+	/* One wrapped label per line, stacked; scrolled as the track plays */
+	lyrics_panel = create_box(cover_box, COVER_SIZE, COVER_SIZE);
+	lv_obj_set_style_bg_color(lyrics_panel, COLOR_SURFACE, 0);
+	lv_obj_set_style_bg_opa(lyrics_panel, LV_OPA_COVER, 0);
+	lv_obj_set_style_pad_all(lyrics_panel, LYRICS_PAD, 0);
+	lv_obj_set_style_pad_row(lyrics_panel, 12, 0);
+	lv_obj_set_flex_flow(lyrics_panel, LV_FLEX_FLOW_COLUMN);
+	lv_obj_add_flag(lyrics_panel, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_HIDDEN);
+	lv_obj_set_scroll_dir(lyrics_panel, LV_DIR_VER);
+	lv_obj_set_scrollbar_mode(lyrics_panel, LV_SCROLLBAR_MODE_OFF);
+
 	title_label = create_label(screen, &lv_font_montserrat_20, COLOR_TEXT, "");
 	lv_label_set_long_mode(title_label, LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
 	lv_obj_set_width(title_label, CONTENT_W);
@@ -718,10 +940,23 @@ static void create_screen(const char *device_name)
 	lv_obj_set_style_text_color(play_button, COLOR_BG, 0);
 	lv_obj_set_style_text_color(play_button, COLOR_BG, LV_STATE_PRESSED);
 
+	/* Bottom row: lyrics button, speaker symbol, volume slider */
+	lyrics_button = create_box(screen, 36, 36);
+	lv_obj_set_pos(lyrics_button, MARGIN - 8, VOLUME_Y + 2 - 18);
+	lv_obj_add_flag(lyrics_button, LV_OBJ_FLAG_CLICKABLE);
+	lv_obj_add_event_cb(lyrics_button, on_lyrics_clicked, LV_EVENT_CLICKED, NULL);
+
+	/* An alpha-only image takes its colour from the recolour style. */
+	lyrics_icon = lv_image_create(lyrics_button);
+	lv_image_set_src(lyrics_icon, &mic_icon);
+	lv_obj_set_style_image_recolor(lyrics_icon, COLOR_SUBTLE, 0);
+	lv_obj_set_style_image_recolor_opa(lyrics_icon, LV_OPA_COVER, 0);
+	lv_obj_center(lyrics_icon);
+
 	volume_icon = create_label(screen, &lv_font_montserrat_14, COLOR_SUBTLE,
 				   LV_SYMBOL_VOLUME_MAX);
-	lv_obj_set_pos(volume_icon, MARGIN, VOLUME_Y - 7);
-	volume_slider = create_slider(screen, VOLUME_Y, MARGIN + 30, CONTENT_W - 30,
+	lv_obj_set_pos(volume_icon, MARGIN + 32, VOLUME_Y - 7);
+	volume_slider = create_slider(screen, VOLUME_Y, MARGIN + 62, CONTENT_W - 62,
 				      on_volume_event);
 	lv_slider_set_range(volume_slider, 0, UINT16_MAX);
 	lv_slider_set_value(volume_slider, UINT16_MAX, LV_ANIM_OFF);
@@ -760,11 +995,16 @@ int ui_init(const char *device_name, const struct ui_ops *ui_ops)
 	return 0;
 }
 
-static void post(const struct ui_msg *msg)
+static bool post(const struct ui_msg *msg)
 {
-	if (ready && k_msgq_put(&ui_msgq, msg, K_NO_WAIT) != 0) {
-		LOG_WRN("UI queue full, update dropped");
+	if (!ready) {
+		return false;
 	}
+	if (k_msgq_put(&ui_msgq, msg, K_NO_WAIT) != 0) {
+		LOG_WRN("UI queue full, update dropped");
+		return false;
+	}
+	return true;
 }
 
 void ui_show_message(const char *headline, const char *detail)
@@ -806,6 +1046,22 @@ void ui_set_network(bool connected)
 {
 	const struct ui_msg msg = {.type = UI_MSG_NETWORK, .connected = connected};
 
+	post(&msg);
+}
+
+bool ui_show_lyrics(struct ui_lyrics *new_lyrics)
+{
+	const struct ui_msg msg = {.type = UI_MSG_LYRICS, .lyrics = new_lyrics};
+
+	return post(&msg);
+}
+
+void ui_set_lyrics_status(const char *title, const char *status)
+{
+	struct ui_msg msg = {.type = UI_MSG_LYRICS_STATUS};
+
+	copy_text(msg.lyrics_status.title, sizeof(msg.lyrics_status.title), title);
+	copy_text(msg.lyrics_status.status, sizeof(msg.lyrics_status.status), status);
 	post(&msg);
 }
 
