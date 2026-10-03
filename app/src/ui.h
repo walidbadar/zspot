@@ -44,7 +44,7 @@ struct ui_ops {
 	void (*wifi_connect)(const char *ssid, const char *password);
 };
 
-#if defined(CONFIG_ZSPOT_SAMPLE_UI)
+#if defined(CONFIG_ZSPOT_UI)
 
 /**
  * Builds the screen and turns the display on.
@@ -124,6 +124,6 @@ static inline void ui_set_network(bool connected)
 {
 }
 
-#endif /* CONFIG_ZSPOT_SAMPLE_UI */
+#endif /* CONFIG_ZSPOT_UI */
 
 #endif /* ZSPOT_SAMPLE_UI_H_ */

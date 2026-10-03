@@ -3,14 +3,14 @@
 
 mainmenu "zspot player sample"
 
-config ZSPOT_SAMPLE_CREDENTIALS_JSON
+config ZSPOT_CREDENTIALS_JSON
 	string "Stored credentials (JSON)"
 	default ""
 	help
 	  Output of zspot_credentials_save_json() from a previous session. When
 	  set, the sample skips the zeroconf hand-over.
 
-config ZSPOT_SAMPLE_PCM_COMMAND
+config ZSPOT_PCM_COMMAND
 	string "Host command that plays the decoded PCM (native_sim)"
 	default ""
 	help
@@ -19,29 +19,29 @@ config ZSPOT_SAMPLE_PCM_COMMAND
 	  raw 16-bit little-endian stereo PCM at 44.1 kHz, for example
 	  "aplay -q -f S16_LE -r 44100 -c 2".
 
-config ZSPOT_SAMPLE_PCM_FILE
+config ZSPOT_PCM_FILE
 	string "Host file for decoded PCM (native_sim)"
 	default ""
 	help
-	  When set (and neither the I2S sink nor ZSPOT_SAMPLE_PCM_COMMAND is
+	  When set (and neither the I2S sink nor ZSPOT_PCM_COMMAND is
 	  used) the decoded audio is written to this host file as raw 16-bit
 	  little-endian stereo PCM at 44.1 kHz.
 
-config ZSPOT_SAMPLE_USERNAME
+config ZSPOT_USERNAME
 	string "Spotify username (development only)"
 	default ""
 	help
-	  Together with ZSPOT_SAMPLE_PASSWORD, logs in with a username and
+	  Together with ZSPOT_PASSWORD, logs in with a username and
 	  password instead of the zeroconf hand-over. Spotify no longer accepts
 	  password logins from third-party clients for most accounts, but the
 	  attempt still exercises access point resolution, the handshake and
 	  the authentication exchange, which is useful on native_sim.
 
-config ZSPOT_SAMPLE_PASSWORD
+config ZSPOT_PASSWORD
 	string "Spotify password (development only)"
 	default ""
 
-config ZSPOT_SAMPLE_UI
+config ZSPOT_UI
 	bool "Now Playing screen (LVGL)"
 	depends on LVGL && LV_Z_RUN_LVGL_ON_WORKQUEUE && LV_USE_TJPGD
 	help
@@ -50,12 +50,12 @@ config ZSPOT_SAMPLE_UI
 	  controls for play/pause, skipping, seeking and the volume. See
 	  prj.conf for the LVGL configuration it needs.
 
-if ZSPOT_SAMPLE_UI
+if ZSPOT_UI
 
 # The defaults come from the environment of the build, so that the values stay
 # out of the repository and of the command line.
 
-config ZSPOT_SAMPLE_WEB_CLIENT_ID
+config ZSPOT_WEB_CLIENT_ID
 	string "Client ID of the Spotify developer application"
 	default "$(ZSPOT_WEB_CLIENT_ID)"
 	help
@@ -67,14 +67,14 @@ config ZSPOT_SAMPLE_WEB_CLIENT_ID
 	  ZSPOT_WEB_REFRESH_TOKEN. Without them the library view only says that
 	  it is not set up.
 
-config ZSPOT_SAMPLE_WEB_CLIENT_SECRET
+config ZSPOT_WEB_CLIENT_SECRET
 	string "Client secret of the Spotify developer application"
 	default "$(ZSPOT_WEB_CLIENT_SECRET)"
 
-config ZSPOT_SAMPLE_WEB_REFRESH_TOKEN
+config ZSPOT_WEB_REFRESH_TOKEN
 	string "Refresh token of the authorised user"
 	default "$(ZSPOT_WEB_REFRESH_TOKEN)"
 
-endif # ZSPOT_SAMPLE_UI
+endif # ZSPOT_UI
 
 source "Kconfig.zephyr"

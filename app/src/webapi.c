@@ -22,9 +22,9 @@ LOG_MODULE_DECLARE(zspot_player, LOG_LEVEL_INF);
 
 #define TOKEN_URL "https://accounts.spotify.com/api/token"
 
-#define CLIENT_ID     CONFIG_ZSPOT_SAMPLE_WEB_CLIENT_ID
-#define CLIENT_SECRET CONFIG_ZSPOT_SAMPLE_WEB_CLIENT_SECRET
-#define REFRESH_TOKEN CONFIG_ZSPOT_SAMPLE_WEB_REFRESH_TOKEN
+#define CLIENT_ID     CONFIG_ZSPOT_WEB_CLIENT_ID
+#define CLIENT_SECRET CONFIG_ZSPOT_WEB_CLIENT_SECRET
+#define REFRESH_TOKEN CONFIG_ZSPOT_WEB_REFRESH_TOKEN
 
 /* "Authorization: Bearer " plus the token; Spotify's are below 400 characters */
 static char bearer[600];

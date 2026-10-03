@@ -9,7 +9,7 @@
  *
  * Flow: bring the network up, advertise the device, wait for the Spotify app
  * to hand over credentials (or use stored ones), connect, and route decoded
- * PCM to the I2S sink. With CONFIG_ZSPOT_SAMPLE_UI a "Now Playing" screen shows
+ * PCM to the I2S sink. With CONFIG_ZSPOT_UI a "Now Playing" screen shows
  * the track and controls playback.
  */
 #include <errno.h>
@@ -36,7 +36,7 @@
 #include "pcm_file_sink.h"
 #endif
 #include "ui.h"
-#if defined(CONFIG_ZSPOT_SAMPLE_UI)
+#if defined(CONFIG_ZSPOT_UI)
 #include "library.h"
 #endif
 
@@ -140,7 +140,7 @@ static int sink_init(void)
 #if defined(CONFIG_ZSPOT_I2S_SINK)
 	return zspot_i2s_sink_init(DEVICE_DT_GET(DT_ALIAS(zspot_i2s)), 44100, 2, 16);
 #elif defined(ZSPOT_SAMPLE_HAVE_PCM_FILE)
-	return pcm_file_sink_init(CONFIG_ZSPOT_SAMPLE_PCM_COMMAND, CONFIG_ZSPOT_SAMPLE_PCM_FILE);
+	return pcm_file_sink_init(CONFIG_ZSPOT_PCM_COMMAND, CONFIG_ZSPOT_PCM_FILE);
 #else
 	return 0;
 #endif
@@ -232,7 +232,7 @@ static size_t on_pcm(const uint8_t *pcm, size_t len, void *user_data)
 	return accepted;
 }
 
-#if defined(CONFIG_ZSPOT_SAMPLE_UI)
+#if defined(CONFIG_ZSPOT_UI)
 static void ui_next(void)
 {
 	if (zspot_next()) {
@@ -294,7 +294,7 @@ int main(void)
 	};
 	int ret;
 
-#if defined(CONFIG_ZSPOT_SAMPLE_UI)
+#if defined(CONFIG_ZSPOT_UI)
 	if (ui_init(config.device_name, &ui_ops) == 0) {
 		library_init();
 	}
@@ -317,12 +317,12 @@ int main(void)
 		return 0;
 	}
 
-	if (strlen(CONFIG_ZSPOT_SAMPLE_CREDENTIALS_JSON) > 0 &&
-	    zspot_credentials_load_json(CONFIG_ZSPOT_SAMPLE_CREDENTIALS_JSON) == 0) {
+	if (strlen(CONFIG_ZSPOT_CREDENTIALS_JSON) > 0 &&
+	    zspot_credentials_load_json(CONFIG_ZSPOT_CREDENTIALS_JSON) == 0) {
 		LOG_INF("Using stored credentials");
-	} else if (strlen(CONFIG_ZSPOT_SAMPLE_USERNAME) > 0 &&
-		   zspot_credentials_set_user_pass(CONFIG_ZSPOT_SAMPLE_USERNAME,
-						   CONFIG_ZSPOT_SAMPLE_PASSWORD) == 0) {
+	} else if (strlen(CONFIG_ZSPOT_USERNAME) > 0 &&
+		   zspot_credentials_set_user_pass(CONFIG_ZSPOT_USERNAME,
+						   CONFIG_ZSPOT_PASSWORD) == 0) {
 		LOG_INF("Using username/password credentials");
 	} else {
 		ret = zspot_zeroconf_start();

@@ -8,7 +8,7 @@
  * Spotify Web API access with the user's own developer application. The
  * session's access token is issued to Spotify's own client and is rate
  * limited on the public Web API (HTTP 429), so requests are authorised with
- * a token obtained through OAuth instead: CONFIG_ZSPOT_SAMPLE_WEB_CLIENT_ID,
+ * a token obtained through OAuth instead: CONFIG_ZSPOT_WEB_CLIENT_ID,
  * _CLIENT_SECRET and _REFRESH_TOKEN, the latter produced once by
  * scripts/spotify_authorize.py.
  */

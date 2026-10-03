@@ -216,7 +216,7 @@ below); they persist across reboots and the sample connects with
 `NET_REQUEST_WIFI_CONNECT_STORED`, retrying whenever the link drops.
 
 Stored Spotify credentials can be passed with
-`-DCONFIG_ZSPOT_SAMPLE_CREDENTIALS_JSON='"..."'` (the JSON printed by the
+`-DCONFIG_ZSPOT_CREDENTIALS_JSON='"..."'` (the JSON printed by the
 sample after its first connection) to skip the zeroconf hand-over.
 
 ### Now Playing screen
@@ -228,7 +228,7 @@ sample after its first connection) to skip the zeroconf hand-over.
 The player, a playlist opened from Your Library and the Wi-Fi password entry,
 captured from `native_sim` with demo data.
 
-With `CONFIG_ZSPOT_SAMPLE_UI=y` (the default in `app/prj.conf`) the sample
+With `CONFIG_ZSPOT_UI=y` (the default in `app/prj.conf`) the sample
 drives the chosen display with LVGL. The screen is laid out for 320x480 and
 shows the cover art, title, artist and progress of the current track, with
 touch controls for play/pause, previous/next, seeking and the volume. Before
@@ -255,7 +255,7 @@ The library view uses the Spotify Web API and needs a one-time setup:
 3. Run `scripts/spotify_authorize.py --save <that file>` on the PC and
    approve the access in the browser; it adds `ZSPOT_WEB_REFRESH_TOKEN`.
 4. Rebuild from a shell that has the three variables (`west build -p`): the
-   `CONFIG_ZSPOT_SAMPLE_WEB_*` options default to them. They give access to
+   `CONFIG_ZSPOT_WEB_*` options default to them. They give access to
    the account, so they stay in the environment and out of version control.
 
 Without them the library view only reports that it is not set up.
@@ -287,9 +287,9 @@ The sample also builds for `native_sim`, using the Zephyr IP stack over the
 host TAP interface. The display is an SDL window (needs the SDL2 development
 package on the host) with the mouse acting as the touch screen. Decoded audio
 is played on the host: the simulator starts `aplay` (alsa-utils) and pipes the
-PCM into it at playback speed (`CONFIG_ZSPOT_SAMPLE_PCM_COMMAND`; the build
+PCM into it at playback speed (`CONFIG_ZSPOT_PCM_COMMAND`; the build
 warns when the player is not installed). To capture the audio instead, clear
-that option and set `CONFIG_ZSPOT_SAMPLE_PCM_FILE` to a host file, playable
+that option and set `CONFIG_ZSPOT_PCM_FILE` to a host file, playable
 with `aplay -f S16_LE -r 44100 -c 2 <file>`.
 
 Create the TAP device once per boot (root required) and give the simulator
@@ -324,8 +324,8 @@ scripts/zeroconf_client.py http://192.0.2.1:8080             # emulate the app's
 (Diffie-Hellman, blob encryption) with a dummy token, which exercises the
 whole zeroconf and access point path; Spotify then declines the token.
 Alternatively provide credentials at build time with
-`CONFIG_ZSPOT_SAMPLE_CREDENTIALS_JSON` (stored credentials) or, for protocol
-testing only, `CONFIG_ZSPOT_SAMPLE_USERNAME` / `CONFIG_ZSPOT_SAMPLE_PASSWORD`.
+`CONFIG_ZSPOT_CREDENTIALS_JSON` (stored credentials) or, for protocol
+testing only, `CONFIG_ZSPOT_USERNAME` / `CONFIG_ZSPOT_PASSWORD`.
 
 ## Layout
 
