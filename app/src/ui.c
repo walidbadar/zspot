@@ -6,8 +6,8 @@
 
 /*
  * "Now Playing" screen for a 320x480 portrait display, plus a list view for
- * browsing the user's library and picking a Wi-Fi network, and a password
- * entry screen for the latter.
+ * browsing the user's library, search results and Wi-Fi networks, and a text
+ * entry screen with a keyboard for the search and the Wi-Fi password.
  *
  * LVGL runs on its own workqueue (CONFIG_LV_Z_RUN_LVGL_ON_WORKQUEUE). Updates
  * from other threads go through a message queue that an LVGL timer drains:
@@ -45,6 +45,7 @@ LOG_MODULE_DECLARE(zspot_player, LOG_LEVEL_INF);
 #define CONTENT_W    (320 - 2 * MARGIN)
 #define COVER_SIZE   256
 #define COVER_Y      36
+#define SEARCH_BAR_H 26 /* ends 5 px above the cover */
 #define TITLE_Y      304
 #define ARTIST_Y     332
 #define PROGRESS_Y   366
@@ -63,7 +64,8 @@ LOG_MODULE_DECLARE(zspot_player, LOG_LEVEL_INF);
 /* How long the network indicator has to be held to open the Wi-Fi settings */
 #define WIFI_HOLD_MS     3000
 #define WIFI_SSID_MAX    32
-#define WIFI_PSK_MAX     64
+/* Longest Wi-Fi password, and search text */
+#define ENTRY_TEXT_MAX   64
 
 enum ui_msg_type {
 	UI_MSG_MESSAGE,
@@ -164,6 +166,56 @@ static const uint8_t mic_icon_map[MIC_ICON_SIZE * MIC_ICON_SIZE] = {
 	0x06, 0x06, 0x06, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
+/* Magnifier of the search bar, 16x16, alpha only */
+#define SEARCH_ICON_SIZE 16
+
+static const uint8_t search_icon_map[SEARCH_ICON_SIZE * SEARCH_ICON_SIZE] = {
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x06, 0x05,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x15, 0x67, 0xa9, 0xb7, 0xb1,
+	0x7c, 0x26, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x2b, 0xbc, 0xff, 0xfe, 0xee, 0xf9,
+	0xff, 0xd8, 0x4b, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x15, 0xbc, 0xff, 0xbb, 0x53, 0x2d, 0x43,
+	0x9d, 0xfb, 0xe0, 0x34, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x67, 0xff, 0xbb, 0x18, 0x00, 0x00, 0x00,
+	0x06, 0x8e, 0xff, 0x9d, 0x03, 0x00, 0x00, 0x00,
+	0x03, 0xa9, 0xfe, 0x53, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x27, 0xe5, 0xda, 0x18, 0x00, 0x00, 0x00,
+	0x06, 0xb7, 0xee, 0x2d, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x0d, 0xc7, 0xe5, 0x1e, 0x00, 0x00, 0x00,
+	0x05, 0xb1, 0xf9, 0x43, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x1b, 0xdb, 0xe0, 0x1c, 0x00, 0x00, 0x00,
+	0x00, 0x7c, 0xff, 0x9d, 0x06, 0x00, 0x00, 0x00,
+	0x00, 0x6c, 0xfe, 0xb0, 0x08, 0x00, 0x00, 0x00,
+	0x00, 0x26, 0xd8, 0xfb, 0x8e, 0x27, 0x0d, 0x1b,
+	0x6c, 0xe8, 0xff, 0x6d, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x4b, 0xe0, 0xff, 0xe5, 0xc7, 0xdb,
+	0xfe, 0xff, 0xff, 0xce, 0x34, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x34, 0x9d, 0xda, 0xe8, 0xe1,
+	0xb0, 0x6d, 0xce, 0xff, 0xd0, 0x34, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x03, 0x18, 0x24, 0x1d,
+	0x08, 0x00, 0x34, 0xd0, 0xff, 0xd0, 0x34, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x34, 0xd0, 0xff, 0xcf, 0x2f,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x34, 0xcf, 0xbf, 0x25,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x2f, 0x25, 0x00,
+};
+
+static const lv_image_dsc_t search_icon = {
+	.header = {
+		.magic = LV_IMAGE_HEADER_MAGIC,
+		.cf = LV_COLOR_FORMAT_A8,
+		.w = SEARCH_ICON_SIZE,
+		.h = SEARCH_ICON_SIZE,
+		.stride = SEARCH_ICON_SIZE,
+	},
+	.data_size = sizeof(search_icon_map),
+	.data = search_icon_map,
+};
+
 static const lv_image_dsc_t mic_icon = {
 	.header = {
 		.magic = LV_IMAGE_HEADER_MAGIC,
@@ -204,9 +256,13 @@ static enum ui_list list_shown;
 static uint32_t list_generation;
 static bool list_top_level;
 
-static lv_obj_t *wifi_screen;
-static lv_obj_t *wifi_heading;
-static lv_obj_t *wifi_password;
+/* Text entry screen: the Wi-Fi password, or the search when entry_search */
+static lv_obj_t *entry_screen;
+static lv_obj_t *entry_heading;
+static lv_obj_t *entry_hint;
+static lv_obj_t *entry_text;
+static lv_obj_t *entry_action;
+static bool entry_search;
 static lv_timer_t *wifi_hold_timer;
 static char wifi_ssid[WIFI_SSID_MAX + 1];
 
@@ -296,22 +352,43 @@ static lv_obj_t *create_box(lv_obj_t *parent, int32_t w, int32_t h);
 static lv_obj_t *create_label(lv_obj_t *parent, const lv_font_t *font, lv_color_t color,
 			      const char *text);
 
+/* Shows the entry screen for a search, or for the password of wifi_ssid. */
+static void open_entry(bool search)
+{
+	entry_search = search;
+	lv_label_set_text(entry_heading, search ? "Search" : wifi_ssid);
+	lv_label_set_text(entry_hint, search ? "Song or artist"
+					     : "Password (leave empty for an open network)");
+	lv_label_set_text(entry_action, search ? "Search" : "Connect");
+	/* A password shows as bullets; the character typed last stays readable briefly. */
+	lv_textarea_set_password_mode(entry_text, !search);
+	lv_textarea_set_text(entry_text, "");
+	lv_screen_load(entry_screen);
+}
+
 static void on_list_row_clicked(lv_event_t *e)
 {
-	if (list_shown == UI_LIST_WIFI) {
+	int index = (int)(intptr_t)lv_event_get_user_data(e);
+
+	switch (list_shown) {
+	case UI_LIST_WIFI: {
 		/* The row's title is the SSID: ask for the password next. */
 		lv_obj_t *title = lv_obj_get_child(lv_event_get_current_target_obj(e), 0);
 
 		copy_text(wifi_ssid, sizeof(wifi_ssid), lv_label_get_text(title));
-		lv_label_set_text(wifi_heading, wifi_ssid);
-		lv_textarea_set_text(wifi_password, "");
-		lv_screen_load(wifi_screen);
-		return;
+		open_entry(false);
+		break;
 	}
-
-	ops->library_select((int)(intptr_t)lv_event_get_user_data(e));
-	if (!list_top_level) {
+	case UI_LIST_SEARCH:
+		ops->search_select(index);
 		lv_screen_load(main_screen);
+		break;
+	case UI_LIST_LIBRARY:
+		ops->library_select(index);
+		if (!list_top_level) {
+			lv_screen_load(main_screen);
+		}
+		break;
 	}
 }
 
@@ -647,23 +724,42 @@ static void on_network_event(lv_event_t *e)
 	}
 }
 
-static void on_wifi_connect(lv_event_t *e)
+static void on_search_clicked(lv_event_t *e)
 {
 	ARG_UNUSED(e);
-	ops->wifi_connect(wifi_ssid, lv_textarea_get_text(wifi_password));
-	lv_screen_load(main_screen);
+	open_entry(true);
 }
 
-static void on_wifi_back_clicked(lv_event_t *e)
+/* The button of the entry screen or the confirm key of its keyboard */
+static void on_entry_confirm(lv_event_t *e)
+{
+	const char *text = lv_textarea_get_text(entry_text);
+
+	ARG_UNUSED(e);
+
+	if (!entry_search) {
+		ops->wifi_connect(wifi_ssid, text);
+		lv_screen_load(main_screen);
+	} else if (text[0] != '\0') {
+		/* The hits arrive through ui_list_reset(). */
+		open_list(UI_LIST_SEARCH, text);
+		ops->search(text);
+	}
+}
+
+static void on_entry_back_clicked(lv_event_t *e)
 {
 	ARG_UNUSED(e);
-	lv_screen_load(list_screen);
+	lv_screen_load(entry_search ? main_screen : list_screen);
 }
 
 static void on_list_back_clicked(lv_event_t *e)
 {
 	ARG_UNUSED(e);
-	if (list_top_level) {
+	if (list_shown == UI_LIST_SEARCH) {
+		/* Back to the search with its text, to refine it */
+		lv_screen_load(entry_screen);
+	} else if (list_top_level) {
 		lv_screen_load(main_screen);
 	} else {
 		ops->library_back();
@@ -797,65 +893,64 @@ static void create_list_screen(void)
 	lv_obj_center(list_status);
 }
 
-/* Password entry for the network picked in the Wi-Fi listing */
-static void create_wifi_screen(void)
+/* Text entry with a keyboard, set up for its use by open_entry() */
+static void create_entry_screen(void)
 {
 	lv_obj_t *button;
-	lv_obj_t *label;
 	lv_obj_t *keyboard;
 
-	wifi_screen = lv_obj_create(NULL);
-	lv_obj_remove_flag(wifi_screen, LV_OBJ_FLAG_SCROLLABLE);
-	lv_obj_set_style_bg_color(wifi_screen, COLOR_BG, 0);
-	lv_obj_set_style_bg_opa(wifi_screen, LV_OPA_COVER, 0);
+	entry_screen = lv_obj_create(NULL);
+	lv_obj_remove_flag(entry_screen, LV_OBJ_FLAG_SCROLLABLE);
+	lv_obj_set_style_bg_color(entry_screen, COLOR_BG, 0);
+	lv_obj_set_style_bg_opa(entry_screen, LV_OPA_COVER, 0);
 
-	button = create_icon_button(wifi_screen, LV_SYMBOL_LEFT, on_wifi_back_clicked);
+	button = create_icon_button(entry_screen, LV_SYMBOL_LEFT, on_entry_back_clicked);
 	lv_obj_set_pos(button, 8, 2);
 
-	wifi_heading = create_label(wifi_screen, &lv_font_montserrat_14, COLOR_TEXT, "");
-	lv_label_set_long_mode(wifi_heading, LV_LABEL_LONG_MODE_DOTS);
-	lv_obj_set_style_text_align(wifi_heading, LV_TEXT_ALIGN_CENTER, 0);
-	lv_obj_set_size(wifi_heading, 320 - 2 * 56, lv_font_get_line_height(&lv_font_montserrat_14));
-	lv_obj_align(wifi_heading, LV_ALIGN_TOP_MID, 0, (BAR_H - 14) / 2);
+	entry_heading = create_label(entry_screen, &lv_font_montserrat_14, COLOR_TEXT, "");
+	lv_label_set_long_mode(entry_heading, LV_LABEL_LONG_MODE_DOTS);
+	lv_obj_set_style_text_align(entry_heading, LV_TEXT_ALIGN_CENTER, 0);
+	lv_obj_set_size(entry_heading, 320 - 2 * 56,
+			lv_font_get_line_height(&lv_font_montserrat_14));
+	lv_obj_align(entry_heading, LV_ALIGN_TOP_MID, 0, (BAR_H - 14) / 2);
 
-	label = create_label(wifi_screen, &lv_font_montserrat_12, COLOR_SUBTLE,
-			     "Password (leave empty for an open network)");
-	lv_obj_set_pos(label, MARGIN, BAR_H + 16);
+	entry_hint = create_label(entry_screen, &lv_font_montserrat_12, COLOR_SUBTLE, "");
+	lv_obj_set_pos(entry_hint, MARGIN, BAR_H + 16);
 
-	wifi_password = lv_textarea_create(wifi_screen);
-	lv_textarea_set_one_line(wifi_password, true);
-	/* Shown as bullets; the character typed last stays readable briefly. */
-	lv_textarea_set_password_mode(wifi_password, true);
-	lv_textarea_set_max_length(wifi_password, WIFI_PSK_MAX);
-	lv_obj_set_width(wifi_password, CONTENT_W);
-	lv_obj_set_pos(wifi_password, MARGIN, BAR_H + 40);
-	lv_obj_add_state(wifi_password, LV_STATE_FOCUSED); /* shows the cursor */
+	entry_text = lv_textarea_create(entry_screen);
+	lv_textarea_set_one_line(entry_text, true);
+	lv_textarea_set_max_length(entry_text, ENTRY_TEXT_MAX);
+	lv_obj_set_width(entry_text, CONTENT_W);
+	lv_obj_set_pos(entry_text, MARGIN, BAR_H + 40);
+	lv_obj_add_state(entry_text, LV_STATE_FOCUSED); /* shows the cursor */
 
-	button = create_box(wifi_screen, 120, 40);
+	button = create_box(entry_screen, 120, 40);
 	lv_obj_align(button, LV_ALIGN_TOP_MID, 0, BAR_H + 104);
 	lv_obj_add_flag(button, LV_OBJ_FLAG_CLICKABLE);
 	lv_obj_set_style_radius(button, LV_RADIUS_CIRCLE, 0);
 	lv_obj_set_style_bg_color(button, COLOR_ACCENT, 0);
 	lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
 	lv_obj_set_style_bg_opa(button, LV_OPA_70, LV_STATE_PRESSED);
-	lv_obj_add_event_cb(button, on_wifi_connect, LV_EVENT_CLICKED, NULL);
-	label = create_label(button, &lv_font_montserrat_14, COLOR_BG, "Connect");
-	lv_obj_center(label);
+	lv_obj_add_event_cb(button, on_entry_confirm, LV_EVENT_CLICKED, NULL);
+	entry_action = create_label(button, &lv_font_montserrat_14, COLOR_BG, "");
+	lv_obj_center(entry_action);
 
-	/* The keyboard's confirm key connects too, its close key goes back. */
-	keyboard = lv_keyboard_create(wifi_screen);
+	/* The keyboard's confirm key acts like the button, its close key goes back. */
+	keyboard = lv_keyboard_create(entry_screen);
 	lv_obj_set_size(keyboard, 320, 220);
 	lv_obj_align(keyboard, LV_ALIGN_BOTTOM_MID, 0, 0);
-	lv_keyboard_set_textarea(keyboard, wifi_password);
-	lv_obj_add_event_cb(keyboard, on_wifi_connect, LV_EVENT_READY, NULL);
-	lv_obj_add_event_cb(keyboard, on_wifi_back_clicked, LV_EVENT_CANCEL, NULL);
+	lv_keyboard_set_textarea(keyboard, entry_text);
+	lv_obj_add_event_cb(keyboard, on_entry_confirm, LV_EVENT_READY, NULL);
+	lv_obj_add_event_cb(keyboard, on_entry_back_clicked, LV_EVENT_CANCEL, NULL);
 }
 
-static void create_screen(const char *device_name)
+static void create_screen(void)
 {
 	lv_obj_t *screen = lv_screen_active();
 	lv_obj_t *library_button;
-	lv_obj_t *header;
+	lv_obj_t *search_bar;
+	lv_obj_t *search_image;
+	lv_obj_t *search_hint;
 	lv_obj_t *cover_box;
 	lv_obj_t *placeholder;
 	lv_obj_t *volume_icon;
@@ -871,10 +966,26 @@ static void create_screen(const char *device_name)
 	lv_obj_set_style_bg_grad_stop(screen, 200, 0);
 	lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
 
-	header = create_label(screen, &lv_font_montserrat_12, COLOR_SUBTLE, "");
-	lv_label_set_text_fmt(header, "PLAYING ON %s", device_name);
-	lv_obj_set_style_text_letter_space(header, 1, 0);
-	lv_obj_align(header, LV_ALIGN_TOP_MID, 0, 12);
+	/* Search bar between the two corner buttons; tapping it asks for the text */
+	/* Centred on the icons of the corner buttons, clear of the cover below */
+	search_bar = create_box(screen, 320 - 2 * 52, SEARCH_BAR_H);
+	lv_obj_align(search_bar, LV_ALIGN_TOP_MID, 0, 18 - SEARCH_BAR_H / 2);
+	lv_obj_add_flag(search_bar, LV_OBJ_FLAG_CLICKABLE);
+	lv_obj_set_style_radius(search_bar, LV_RADIUS_CIRCLE, 0);
+	lv_obj_set_style_bg_color(search_bar, COLOR_SURFACE, 0);
+	lv_obj_set_style_bg_color(search_bar, COLOR_TRACK, LV_STATE_PRESSED);
+	lv_obj_set_style_bg_opa(search_bar, LV_OPA_COVER, 0);
+	lv_obj_add_event_cb(search_bar, on_search_clicked, LV_EVENT_CLICKED, NULL);
+
+	search_image = lv_image_create(search_bar);
+	lv_image_set_src(search_image, &search_icon);
+	lv_obj_set_style_image_recolor(search_image, COLOR_SUBTLE, 0);
+	lv_obj_set_style_image_recolor_opa(search_image, LV_OPA_COVER, 0);
+	lv_obj_align(search_image, LV_ALIGN_LEFT_MID, 12, 0);
+
+	search_hint = create_label(search_bar, &lv_font_montserrat_12, COLOR_SUBTLE,
+				   "What do you want to play?");
+	lv_obj_align(search_hint, LV_ALIGN_LEFT_MID, 36, 0);
 
 	/* Red until the application reports the network as connected */
 	network_icon = create_icon_button(screen, LV_SYMBOL_WIFI, NULL);
@@ -962,12 +1073,12 @@ static void create_screen(const char *device_name)
 	lv_slider_set_value(volume_slider, UINT16_MAX, LV_ANIM_OFF);
 
 	create_list_screen();
-	create_wifi_screen();
+	create_entry_screen();
 
 	lv_timer_create(on_tick, TICK_MS, NULL);
 }
 
-int ui_init(const char *device_name, const struct ui_ops *ui_ops)
+int ui_init(const struct ui_ops *ui_ops)
 {
 	const struct device *display = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
 	char *msgq_buf;
@@ -987,7 +1098,7 @@ int ui_init(const char *device_name, const struct ui_ops *ui_ops)
 		return -ENOMEM;
 	}
 	k_msgq_init(&ui_msgq, msgq_buf, sizeof(struct ui_msg), UI_MSGQ_LEN);
-	create_screen(device_name);
+	create_screen();
 	lvgl_unlock();
 
 	display_blanking_off(display);

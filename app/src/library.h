@@ -5,9 +5,9 @@
  */
 
 /*
- * "Your Library": lists the user's Liked Songs and playlists through the
- * Spotify Web API, lists the tracks of the one that is picked and starts
- * playback of a track on this device. The listings are shown with
+ * "Your Library" and the search: lists the user's Liked Songs and playlists
+ * through the Spotify Web API, the tracks of the one that is picked, or the
+ * songs that match a search, and starts playback of a track on this device. The listings are shown with
  * ui_list_reset() / ui_list_add(); the functions below are the matching
  * struct ui_ops hooks and only queue work for the library thread.
  */
@@ -29,5 +29,11 @@ void library_back(void);
  * plays that track of the open collection.
  */
 void library_select(int index);
+
+/** Searches for songs and lists the hits (UI_LIST_SEARCH). */
+void library_search(const char *query);
+
+/** Plays the hit @p index of the last search, followed by the hits after it. */
+void library_search_select(int index);
 
 #endif /* ZSPOT_SAMPLE_LIBRARY_H_ */

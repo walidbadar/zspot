@@ -293,6 +293,8 @@ static const struct ui_ops ui_ops = {
 	.wifi_scan = wifi_scan,
 	.wifi_connect = wifi_join,
 	.lyrics_request = lyrics_request,
+	.search = library_search,
+	.search_select = library_search_select,
 };
 #endif
 
@@ -307,7 +309,7 @@ int main(void)
 	int ret;
 
 #if defined(CONFIG_ZSPOT_UI)
-	if (ui_init(config.device_name, &ui_ops) == 0) {
+	if (ui_init(&ui_ops) == 0) {
 		library_init();
 		lyrics_init();
 	}

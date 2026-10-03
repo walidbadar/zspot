@@ -50,6 +50,13 @@ struct ui_ops {
 	 * answer with ui_show_lyrics() or ui_set_lyrics_status().
 	 */
 	void (*lyrics_request)(const char *title, const char *artist, uint32_t duration_ms);
+	/**
+	 * A search was entered: answer with ui_list_reset() and one
+	 * ui_list_add() per hit, for UI_LIST_SEARCH.
+	 */
+	void (*search)(const char *query);
+	/** The hit @p index of the search results was tapped. */
+	void (*search_select)(int index);
 };
 
 struct ui_lyrics_line {
@@ -75,7 +82,7 @@ struct ui_lyrics {
  * @return 0 on success, -ENODEV when there is no usable display, -ENOMEM when
  *         the LVGL memory pool is too small.
  */
-int ui_init(const char *device_name, const struct ui_ops *ops);
+int ui_init(const struct ui_ops *ops);
 
 /** Shows a status message instead of a track, e.g. while nothing is playing. */
 void ui_show_message(const char *headline, const char *detail);
@@ -108,6 +115,7 @@ void ui_set_lyrics_status(const char *title, const char *status);
 enum ui_list {
 	UI_LIST_LIBRARY, /**< "Your Library", opened with the list button */
 	UI_LIST_WIFI,    /**< Networks found, opened from the network indicator */
+	UI_LIST_SEARCH,  /**< Hits of a search entered in the search bar */
 };
 
 /** Most rows the library view shows */
