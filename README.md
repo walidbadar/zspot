@@ -226,6 +226,13 @@ sample after its first connection) to skip the zeroconf hand-over.
 
 ### Now Playing screen
 
+<p align="center">
+  <img src="doc/images/zspot-ui.png" alt="The sample on native_sim: Now Playing, a playlist from Your Library and the Wi-Fi password entry" width="720">
+</p>
+
+The player, a playlist opened from Your Library and the Wi-Fi password entry,
+captured from `native_sim` with demo data.
+
 With `CONFIG_ZSPOT_SAMPLE_UI=y` (the default in `app/prj.conf`) the sample
 drives the chosen display with LVGL. The screen is laid out for 320x480 and
 shows the cover art, title, artist and progress of the current track, with
@@ -333,7 +340,7 @@ include/zspot/       public C API
 lib/zspot/           the library: Kconfig, CMakeLists, src/core (cspot C++ protocol core),
                      src/port (Zephyr glue), src/api (C facade), src/audio (I2S sink),
                      protobuf/ (nanopb definitions), third_party/tremor (Vorbis decoder)
-doc/images/          README banner
+doc/images/          README banner and screenshot
 tests/lib/           ztest unit tests (run with west twister -T tests)
 scripts/             zeroconf hand-over emulator, native_sim LAN bridge, Web API authorisation
 zephyr/module.yml    Zephyr module descriptor (CMakeLists.txt and Kconfig at the root)
