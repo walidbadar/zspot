@@ -14,7 +14,7 @@ from Zephyr:
 | Threads, sync      | Zephyr kernel (`k_thread`, `k_mutex`, `k_condvar`, `k_sem`) |
 | Sockets, TLS       | Zephyr BSD sockets and TLS sockets (Mbed TLS)             |
 | HTTP client        | `zephyr/net/http/client.h`                               |
-| Zeroconf endpoint  | Zephyr HTTP server                                       |
+| Zeroconf endpoint  | Minimal HTTP/1.1 responder on Zephyr sockets (see below) |
 | Discovery          | Zephyr mDNS responder with DNS-SD                        |
 | Crypto             | PSA Crypto API (SHA-1, HMAC, AES-CTR/ECB, RNG), `sys/base64.h` |
 | JSON               | `zephyr/data/json.h`                                     |
@@ -25,7 +25,13 @@ from Zephyr:
 The only vendored third-party code is Tremor, the integer Ogg Vorbis decoder
 (`third_party/tremor`, BSD licence), because Zephyr has no Vorbis decoder.
 
-Only Spotify Premium accounts can use Spotify Connect.
+Only Spotify Premium accounts can use Spotify Connect; with a free account the app lists the device but refuses to hand over credentials.
+
+Spotify clients only accept zeroconf replies framed with `Content-Length`
+and a full status line. Zephyr's HTTP server sends dynamic resources with
+chunked transfer encoding, which made the device invisible in the Spotify
+app, so the `/spotify_info` endpoint is served by a small responder built
+directly on Zephyr sockets instead.
 
 ## Requirements
 

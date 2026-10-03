@@ -52,12 +52,6 @@ zephyr_library_sources(
 zephyr_library_sources_ifdef(CONFIG_CSPOT_EXTERNAL_HEAP src/port/new.cpp)
 zephyr_library_sources_ifdef(CONFIG_CSPOT_MDNS src/port/mdns.c)
 zephyr_library_sources_ifdef(CONFIG_CSPOT_ZEROCONF src/port/zeroconf.cpp)
-if(CONFIG_CSPOT_ZEROCONF)
-  # HTTP_SERVICE_DEFINE() needs a dedicated iterable section per service
-  zephyr_linker_sources(SECTIONS ${CMAKE_CURRENT_SOURCE_DIR}/src/port/zeroconf_sections.ld)
-  zephyr_linker_section(NAME http_resource_desc_cspot_zeroconf_service KVMA RAM_REGION
-    GROUP RODATA_REGION SUBALIGN Z_LINK_ITERABLE_SUBALIGN)
-endif()
 zephyr_library_sources_ifdef(CONFIG_CSPOT_I2S_SINK src/audio/i2s_sink.c)
 
 # C API facade

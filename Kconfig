@@ -135,16 +135,25 @@ config CSPOT_MDNS
 config CSPOT_ZEROCONF
 	bool "Zeroconf authentication endpoint"
 	default y
-	select HTTP_SERVER
 	help
-	  Serves /spotify_info with the Zephyr HTTP server so the Spotify app can
-	  hand over credentials without a username and password.
+	  Serves /spotify_info so the Spotify app can hand over credentials
+	  without a username and password. A minimal HTTP/1.1 responder on
+	  Zephyr sockets is used because Spotify clients require Content-Length
+	  framed replies, which the Zephyr HTTP server cannot produce for
+	  dynamic resources.
 
 if CSPOT_ZEROCONF
 
 config CSPOT_ZEROCONF_PORT
 	int "TCP port of the zeroconf endpoint"
 	default 8080
+
+config CSPOT_ZEROCONF_STACK_SIZE
+	int "Stack size of the zeroconf responder thread"
+	default 8192
+	help
+	  Decodes the credential blob (Diffie-Hellman, PBKDF2, AES) on this
+	  stack.
 
 endif # CSPOT_ZEROCONF
 

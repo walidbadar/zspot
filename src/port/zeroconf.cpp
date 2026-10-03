@@ -6,17 +6,20 @@
 
 #include "port/zeroconf.h"
 
-#include <zephyr/net/http/server.h>
-#include <zephyr/net/http/service.h>
+#include <zephyr/net/socket.h>
 
 #include <cerrno>
+#include <cstdio>
+#include <cstring>
 #include <map>
+#include <memory>
 #include <stdexcept>
 #include <string>
 
 #include "core/LoginBlob.h"
 #include "core/Utils.h"
 #include "port/log.h"
+#include "port/thread.h"
 
 CSPOT_LOG_MODULE_DECLARE();
 
@@ -26,12 +29,14 @@ namespace cspot
 namespace
 {
 
-std::shared_ptr<LoginBlob> blob_ref;
-std::function<void()> credentials_cb;
-std::string request_body;
-std::string response_body;
+constexpr size_t MAX_REQUEST = 8192;
+constexpr int CLIENT_TIMEOUT_S = 5;
 
-const struct http_header json_header = {"Content-Type", "application/json"};
+const char *const JSON_OK = "{\"status\":101,\"spotifyError\":0,\"statusString\":\"ERROR-OK\"}";
+const char *const JSON_INVALID_ACTION =
+	"{\"status\":301,\"spotifyError\":0,\"statusString\":\"ERROR-INVALID-ACTION\"}";
+const char *const JSON_INVALID_ARGUMENTS =
+	"{\"status\":203,\"spotifyError\":0,\"statusString\":\"ERROR-INVALID-ARGUMENTS\"}";
 
 std::map<std::string, std::string> parse_form(const std::string &body)
 {
@@ -56,116 +61,265 @@ std::map<std::string, std::string> parse_form(const std::string &body)
 	return params;
 }
 
-void respond(struct http_response_ctx *response, const std::string &body)
+class ZeroconfServer : public Task
 {
-	response_body = body;
-	response->status = HTTP_200_OK;
-	response->headers = &json_header;
-	response->header_count = 1;
-	response->body = reinterpret_cast<const uint8_t *>(response_body.data());
-	response->body_len = response_body.size();
-	response->final_chunk = true;
-}
+public:
+	ZeroconfServer(std::shared_ptr<LoginBlob> blob, std::function<void()> on_credentials)
+		: Task("cspot_zeroconf", CONFIG_CSPOT_ZEROCONF_STACK_SIZE, 0),
+		  blob_(std::move(blob)), on_credentials_(std::move(on_credentials))
+	{
+	}
 
-int spotify_info_handler(struct http_client_ctx *client, enum http_transaction_status status,
-			 const struct http_request_ctx *request,
-			 struct http_response_ctx *response, void *)
-{
-	if (status == HTTP_SERVER_TRANSACTION_ABORTED ||
-	    status == HTTP_SERVER_TRANSACTION_COMPLETE) {
-		request_body.clear();
+	~ZeroconfServer() override
+	{
+		stop();
+	}
+
+	int start(uint16_t port)
+	{
+		struct sockaddr_in addr;
+		int one = 1;
+
+		listen_fd_ = zsock_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		if (listen_fd_ < 0) {
+			return -errno;
+		}
+		zsock_setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+
+		memset(&addr, 0, sizeof(addr));
+		addr.sin_family = AF_INET;
+		addr.sin_port = htons(port);
+		addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+		if (zsock_bind(listen_fd_, reinterpret_cast<struct sockaddr *>(&addr),
+			       sizeof(addr)) < 0 ||
+		    zsock_listen(listen_fd_, 2) < 0) {
+			const int err = -errno;
+
+			zsock_close(listen_fd_);
+			listen_fd_ = -1;
+			return err;
+		}
+
+		running_ = true;
+		if (!startTask()) {
+			stop();
+			return -ENOMEM;
+		}
 		return 0;
 	}
 
-	if (request->data != nullptr && request->data_len > 0) {
-		request_body.append(reinterpret_cast<const char *>(request->data),
-				    request->data_len);
+	void stop()
+	{
+		running_ = false;
+		if (listen_fd_ >= 0) {
+			zsock_close(listen_fd_); /* unblocks accept() */
+			listen_fd_ = -1;
+		}
+		joinTask();
 	}
 
-	if (status != HTTP_SERVER_REQUEST_DATA_FINAL) {
-		return 0; /* wait for the rest of the body */
+protected:
+	void runTask() override
+	{
+		while (running_) {
+			struct timeval timeout = {CLIENT_TIMEOUT_S, 0};
+			int client = zsock_accept(listen_fd_, nullptr, nullptr);
+
+			if (client < 0) {
+				if (running_) {
+					k_msleep(100);
+				}
+				continue;
+			}
+
+			zsock_setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+			zsock_setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+			handle(client);
+			zsock_close(client);
+		}
 	}
 
-	if (blob_ref == nullptr) {
-		respond(response, "{\"status\":402,\"spotifyError\":0,"
-				  "\"statusString\":\"ERROR-NOT-INITIALISED\"}");
-		return 0;
+private:
+	/* Reads the request head and, if announced, the body. */
+	bool read_request(int fd, std::string &head, std::string &body)
+	{
+		std::string data;
+		char chunk[512];
+		size_t head_end = std::string::npos;
+
+		while (data.size() < MAX_REQUEST) {
+			const ssize_t n = zsock_recv(fd, chunk, sizeof(chunk), 0);
+
+			if (n <= 0) {
+				return false;
+			}
+			data.append(chunk, n);
+			head_end = data.find("\r\n\r\n");
+			if (head_end != std::string::npos) {
+				break;
+			}
+		}
+		if (head_end == std::string::npos) {
+			return false;
+		}
+
+		head = data.substr(0, head_end);
+		body = data.substr(head_end + 4);
+
+		size_t content_length = 0;
+		std::string lower = head;
+
+		for (auto &c : lower) {
+			c = static_cast<char>(tolower(c));
+		}
+		const size_t cl = lower.find("content-length:");
+
+		if (cl != std::string::npos) {
+			content_length = strtoul(lower.c_str() + cl + 15, nullptr, 10);
+		}
+		if (content_length > MAX_REQUEST) {
+			return false;
+		}
+
+		while (body.size() < content_length) {
+			const ssize_t n = zsock_recv(fd, chunk, sizeof(chunk), 0);
+
+			if (n <= 0) {
+				return false;
+			}
+			body.append(chunk, n);
+		}
+		body.resize(content_length);
+		return true;
 	}
 
-	if (client->method != HTTP_POST) {
-		/* GET ?action=getInfo */
-		respond(response, blob_ref->buildZeroconfInfo());
-		return 0;
+	void respond(int fd, int status, const char *reason, const std::string &body)
+	{
+		char header[160];
+		const int len = snprintf(header, sizeof(header),
+					 "HTTP/1.1 %d %s\r\n"
+					 "Content-Type: application/json\r\n"
+					 "Content-Length: %u\r\n"
+					 "Connection: close\r\n\r\n",
+					 status, reason, static_cast<unsigned int>(body.size()));
+
+		zsock_send(fd, header, len, 0);
+		size_t sent = 0;
+
+		while (sent < body.size()) {
+			const ssize_t n = zsock_send(fd, body.data() + sent, body.size() - sent, 0);
+
+			if (n <= 0) {
+				break;
+			}
+			sent += n;
+		}
 	}
 
-	auto params = parse_form(request_body);
+	void handle(int fd)
+	{
+		std::string head;
+		std::string body;
 
-	request_body.clear();
+		if (!read_request(fd, head, body)) {
+			respond(fd, 400, "Bad Request", JSON_INVALID_ARGUMENTS);
+			return;
+		}
 
-	if (params["action"] != "addUser") {
-		respond(response, "{\"status\":301,\"spotifyError\":0,"
-				  "\"statusString\":\"ERROR-INVALID-ACTION\"}");
-		return 0;
+		/* Request line: METHOD SP target SP version */
+		const size_t sp1 = head.find(' ');
+		const size_t sp2 = head.find(' ', sp1 + 1);
+
+		if (sp1 == std::string::npos || sp2 == std::string::npos) {
+			respond(fd, 400, "Bad Request", JSON_INVALID_ARGUMENTS);
+			return;
+		}
+
+		const std::string method = head.substr(0, sp1);
+		std::string target = head.substr(sp1 + 1, sp2 - sp1 - 1);
+		std::string query;
+		const size_t qmark = target.find('?');
+
+		if (qmark != std::string::npos) {
+			query = target.substr(qmark + 1);
+			target = target.substr(0, qmark);
+		}
+
+		if (target != "/spotify_info") {
+			respond(fd, 404, "Not Found", JSON_INVALID_ACTION);
+			return;
+		}
+
+		if (method == "GET") {
+			respond(fd, 200, "OK", blob_->buildZeroconfInfo());
+			return;
+		}
+		if (method != "POST") {
+			respond(fd, 405, "Method Not Allowed", JSON_INVALID_ACTION);
+			return;
+		}
+
+		auto params = parse_form(body);
+
+		for (auto &kv : parse_form(query)) {
+			params.insert(kv);
+		}
+
+		if (params["action"] != "addUser") {
+			respond(fd, 200, "OK", JSON_INVALID_ACTION);
+			return;
+		}
+
+		try {
+			blob_->loadZeroconfQuery(params);
+		} catch (const std::exception &e) {
+			LOG_ERR("Zeroconf credentials rejected: %s", e.what());
+			respond(fd, 200, "OK", JSON_INVALID_ARGUMENTS);
+			return;
+		}
+
+		LOG_INF("Received Spotify credentials for %s", blob_->getUserName().c_str());
+		respond(fd, 200, "OK", JSON_OK);
+
+		if (on_credentials_) {
+			on_credentials_();
+		}
 	}
 
-	try {
-		blob_ref->loadZeroconfQuery(params);
-	} catch (const std::exception &e) {
-		LOG_ERR("Zeroconf credentials rejected: %s", e.what());
-		respond(response, "{\"status\":203,\"spotifyError\":0,"
-				  "\"statusString\":\"ERROR-INVALID-ARGUMENTS\"}");
-		return 0;
-	}
-
-	LOG_INF("Received Spotify credentials for %s", blob_ref->getUserName().c_str());
-	respond(response, "{\"status\":101,\"spotifyError\":0,\"statusString\":\"ERROR-OK\"}");
-
-	if (credentials_cb) {
-		credentials_cb();
-	}
-	return 0;
-}
-
-struct http_resource_detail_dynamic spotify_info_detail = {
-	.common = {
-		.bitmask_of_supported_http_methods = BIT(HTTP_GET) | BIT(HTTP_POST),
-		.type = HTTP_RESOURCE_TYPE_DYNAMIC,
-	},
-	.cb = spotify_info_handler,
-	.holder = nullptr,
-	.user_data = nullptr,
+	std::shared_ptr<LoginBlob> blob_;
+	std::function<void()> on_credentials_;
+	int listen_fd_ = -1;
+	volatile bool running_ = false;
 };
 
-uint16_t zeroconf_port = CONFIG_CSPOT_ZEROCONF_PORT;
+std::unique_ptr<ZeroconfServer> server;
 
 } /* namespace */
-} /* namespace cspot */
 
-HTTP_SERVICE_DEFINE(cspot_zeroconf_service, nullptr, &cspot::zeroconf_port,
-		    CONFIG_HTTP_SERVER_MAX_CLIENTS, 2, nullptr, nullptr, nullptr);
-
-HTTP_RESOURCE_DEFINE(cspot_zeroconf_resource, cspot_zeroconf_service, "/spotify_info",
-		     &cspot::spotify_info_detail);
-
-int cspot::zeroconf_start(std::shared_ptr<LoginBlob> blob, std::function<void()> on_credentials)
+int zeroconf_start(std::shared_ptr<LoginBlob> blob, std::function<void()> on_credentials)
 {
-	int ret;
+	if (server) {
+		return -EALREADY;
+	}
 
-	blob_ref = std::move(blob);
-	credentials_cb = std::move(on_credentials);
+	server = std::make_unique<ZeroconfServer>(std::move(blob), std::move(on_credentials));
 
-	ret = http_server_start();
-	if (ret < 0 && ret != -EALREADY) {
-		LOG_ERR("Cannot start HTTP server (%d)", ret);
+	const int ret = server->start(CONFIG_CSPOT_ZEROCONF_PORT);
+
+	if (ret < 0) {
+		LOG_ERR("Cannot start zeroconf endpoint (%d)", ret);
+		server.reset();
 		return ret;
 	}
 
-	LOG_INF("Zeroconf endpoint listening on port %u", zeroconf_port);
+	LOG_INF("Zeroconf endpoint listening on port %u", CONFIG_CSPOT_ZEROCONF_PORT);
 	return 0;
 }
 
-void cspot::zeroconf_stop()
+void zeroconf_stop()
 {
-	http_server_stop();
-	credentials_cb = nullptr;
+	server.reset();
 }
+
+} /* namespace cspot */
