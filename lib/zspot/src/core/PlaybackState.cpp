@@ -126,10 +126,18 @@ void PlaybackState::setPlaybackState(const PlaybackState::State state) {
 }
 
 void PlaybackState::syncWithRemote() {
-  innerFrame.state.context_uri = (char*)realloc(
-      innerFrame.state.context_uri, strlen(remoteFrame.state.context_uri) + 1);
+  // Playback that was started from a list of tracks, not from a playlist or
+  // an album, comes without a context
+  const char* contextUri = remoteFrame.state.context_uri != nullptr
+                               ? remoteFrame.state.context_uri
+                               : "";
+  char* copy =
+      (char*)realloc(innerFrame.state.context_uri, strlen(contextUri) + 1);
 
-  strcpy(innerFrame.state.context_uri, remoteFrame.state.context_uri);
+  if (copy != nullptr) {
+    strcpy(copy, contextUri);
+    innerFrame.state.context_uri = copy;
+  }
 
   innerFrame.state.has_playing_track_index = true;
   innerFrame.state.playing_track_index = remoteFrame.state.playing_track_index;
