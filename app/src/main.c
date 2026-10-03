@@ -35,6 +35,7 @@
 #elif defined(ZSPOT_SAMPLE_HAVE_PCM_FILE)
 #include "pcm_file_sink.h"
 #endif
+#include "pcm_tap.h"
 #include "ui.h"
 #if defined(CONFIG_ZSPOT_UI)
 #include "library.h"
@@ -238,6 +239,7 @@ static size_t on_pcm(const uint8_t *pcm, size_t len, void *user_data)
 
 	accepted = sink_write(pcm, len, user_data);
 	atomic_add(&position_bytes, accepted);
+	pcm_tap_write(pcm, accepted);
 	return accepted;
 }
 
@@ -315,6 +317,8 @@ int main(void)
 	if (network_connect() != 0) {
 		return 0;
 	}
+
+	pcm_tap_init();
 
 	ret = zspot_init(&config);
 	if (ret != 0) {

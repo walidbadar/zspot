@@ -27,6 +27,26 @@ config ZSPOT_PCM_FILE
 	  used) the decoded audio is written to this host file as raw 16-bit
 	  little-endian stereo PCM at 44.1 kHz.
 
+config ZSPOT_PCM_TAP
+	bool "PCM tap: copy of the audio over TCP"
+	select RING_BUFFER_LARGE
+	help
+	  Starts a TCP server that sends a copy of the PCM handed to the sink
+	  (16-bit little-endian stereo at 44.1 kHz, before the sink applies the
+	  volume) to a client, to hear on another machine what the output is
+	  fed with:
+
+	    nc <device> <port> | aplay -f S16_LE -r 44100 -c 2 \
+	        -B 1000000 -R 1000000
+
+	  A diagnostic aid: when the copy sounds right but the DAC does not,
+	  the fault is in the I2S configuration, the wiring or the DAC.
+
+config ZSPOT_PCM_TAP_PORT
+	int "TCP port of the PCM tap"
+	default 5000
+	depends on ZSPOT_PCM_TAP
+
 config ZSPOT_USERNAME
 	string "Spotify username (development only)"
 	default ""
@@ -40,17 +60,6 @@ config ZSPOT_USERNAME
 config ZSPOT_PASSWORD
 	string "Spotify password (development only)"
 	default ""
-
-config ZSPOT_UI
-	bool "Now Playing screen (LVGL)"
-	depends on LVGL && LV_Z_RUN_LVGL_ON_WORKQUEUE && LV_USE_TJPGD
-	help
-	  Shows the cover art, title, artist and progress of the current track
-	  on the chosen display (laid out for 320x480) and offers touch
-	  controls for play/pause, skipping, seeking and the volume. See
-	  prj.conf for the LVGL configuration it needs.
-
-if ZSPOT_UI
 
 # The defaults come from the environment of the build, so that the values stay
 # out of the repository and of the command line.
@@ -75,6 +84,13 @@ config ZSPOT_WEB_REFRESH_TOKEN
 	string "Refresh token of the authorised user"
 	default "$(ZSPOT_WEB_REFRESH_TOKEN)"
 
-endif # ZSPOT_UI
+config ZSPOT_UI
+	bool "Now Playing screen (LVGL)"
+	depends on LVGL && LV_Z_RUN_LVGL_ON_WORKQUEUE && LV_USE_TJPGD
+	help
+	  Shows the cover art, title, artist and progress of the current track
+	  on the chosen display (laid out for 320x480) and offers touch
+	  controls for play/pause, skipping, seeking and the volume. See
+	  prj.conf for the LVGL configuration it needs.
 
 source "Kconfig.zephyr"

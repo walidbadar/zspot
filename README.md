@@ -312,6 +312,27 @@ The screen was developed on `native_sim`. The ESP32-S3 configuration builds
 but has not been verified on the hardware yet. The library view has only been
 exercised with simulated responses, not against the live Web API.
 
+### Checking the audio without a DAC
+
+With `-DCONFIG_ZSPOT_PCM_TAP=y` the player also serves a copy of the audio it
+hands to the output on TCP port 5000 (`CONFIG_ZSPOT_PCM_TAP_PORT`). On a
+machine in the same network:
+
+```sh
+nc <device address> 5000 | aplay -f S16_LE -r 44100 -c 2 -B 1000000 -R 1000000
+```
+
+`-B` and `-R` make `aplay` hold one second of audio and wait for that much
+before it starts (again after every interruption), so that the uneven
+arrival over the network does not break up the sound. The device also
+answers to `zspot.local` instead of its address.
+
+The copy is taken before the volume is applied. When it sounds right but the
+DAC does not, the fault is in the I2S configuration, the wiring or the DAC;
+the tap cannot show the signal on the I2S pins itself. Without a client the
+tap costs nothing but its buffer, and a client that cannot keep up only loses
+audio on its own side.
+
 ### native_sim
 
 The player also builds for `native_sim`, using the Zephyr IP stack over the
