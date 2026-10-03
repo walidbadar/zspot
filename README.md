@@ -194,11 +194,23 @@ west build -p -b native_sim/native/64 samples/player
 curl 'http://192.0.2.1:8080/spotify_info?action=getInfo'
 ```
 
-The Spotify app only discovers devices through mDNS on its own network, so
-on native_sim either route the 192.0.2.0/24 subnet to the phone's LAN or
-provide credentials at build time: `CONFIG_CSPOT_SAMPLE_CREDENTIALS_JSON`
-(stored credentials) or, for protocol testing only,
-`CONFIG_CSPOT_SAMPLE_USERNAME` / `CONFIG_CSPOT_SAMPLE_PASSWORD`.
+The Spotify app only discovers devices through mDNS on its own network. To
+reach the simulator from the LAN without routing, bridge it from user space
+(both tools need only Python 3; the second one uses `python3-cryptography`):
+
+```sh
+tools/native_sim_lan_bridge.py 8080 192.0.2.1 &            # LAN:8080 -> simulator
+avahi-publish-service CSpot _spotify-connect._tcp 8080 \
+    VERSION=1.0 CPath=/spotify_info Stack=SP &             # advertise on the LAN
+tools/zeroconf_client.py http://192.0.2.1:8080             # emulate the app's hand-over
+```
+
+`zeroconf_client.py` performs the same addUser hand-over as the Spotify app
+(Diffie-Hellman, blob encryption) with a dummy token, which exercises the
+whole zeroconf and access point path; Spotify then declines the token.
+Alternatively provide credentials at build time with
+`CONFIG_CSPOT_SAMPLE_CREDENTIALS_JSON` (stored credentials) or, for protocol
+testing only, `CONFIG_CSPOT_SAMPLE_USERNAME` / `CONFIG_CSPOT_SAMPLE_PASSWORD`.
 
 ## Layout
 
@@ -210,6 +222,7 @@ src/audio/          I2S sink
 protobuf/           Spotify protocol buffer definitions (nanopb)
 third_party/tremor/ Ogg Vorbis decoder
 samples/player/     reference application (C)
+tools/              zeroconf hand-over emulator, native_sim LAN bridge
 ```
 
 ## Status
@@ -226,14 +239,6 @@ samples/player/     reference application (C)
   credential.
 - Thread stacks in external memory (`CSPOT_STACKS_EXTERNAL`) must not be
   combined with flash writes that disable the cache while playing.
-
-## Coding style
-
-New code (public headers, the Zephyr port layer, the C API, the sink and the
-sample) follows the Zephyr coding style. `src/core/` keeps the upstream cspot
-formatting and class names so changes can be tracked against cspot; it is
-the only place where C++ is used, and it is never exposed to applications.
-Every source file carries an SPDX license header.
 
 ## Licence
 
