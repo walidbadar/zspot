@@ -21,6 +21,7 @@ manifest:
       remote: zephyrproject-rtos
       revision: 0bd7ba4cdeb218fad291ae06f728c335a97e588d
       path: modules/hal/espressif
+      west-commands: west/west-commands.yml
 
     - name: zephyr
       remote: zephyrproject-rtos
