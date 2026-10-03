@@ -21,9 +21,9 @@
 #include "port/log.h"
 #include "port/thread.h"
 
-CSPOT_LOG_MODULE_DECLARE();
+ZSPOT_LOG_MODULE_DECLARE();
 
-namespace cspot
+namespace zspot
 {
 
 namespace
@@ -64,8 +64,8 @@ std::map<std::string, std::string> parse_form(const std::string &body)
 class ZeroconfServer : public Task
 {
 public:
-	ZeroconfServer(std::shared_ptr<LoginBlob> blob, std::function<void()> on_credentials)
-		: Task("cspot_zeroconf", CONFIG_CSPOT_ZEROCONF_STACK_SIZE, 0),
+	ZeroconfServer(std::shared_ptr<cspot::LoginBlob> blob, std::function<void()> on_credentials)
+		: Task("zspot_zeroconf", CONFIG_ZSPOT_ZEROCONF_STACK_SIZE, 0),
 		  blob_(std::move(blob)), on_credentials_(std::move(on_credentials))
 	{
 	}
@@ -287,7 +287,7 @@ private:
 		}
 	}
 
-	std::shared_ptr<LoginBlob> blob_;
+	std::shared_ptr<cspot::LoginBlob> blob_;
 	std::function<void()> on_credentials_;
 	int listen_fd_ = -1;
 	volatile bool running_ = false;
@@ -297,7 +297,7 @@ std::unique_ptr<ZeroconfServer> server;
 
 } /* namespace */
 
-int zeroconf_start(std::shared_ptr<LoginBlob> blob, std::function<void()> on_credentials)
+int zeroconf_start(std::shared_ptr<cspot::LoginBlob> blob, std::function<void()> on_credentials)
 {
 	if (server) {
 		return -EALREADY;
@@ -305,7 +305,7 @@ int zeroconf_start(std::shared_ptr<LoginBlob> blob, std::function<void()> on_cre
 
 	server = std::make_unique<ZeroconfServer>(std::move(blob), std::move(on_credentials));
 
-	const int ret = server->start(CONFIG_CSPOT_ZEROCONF_PORT);
+	const int ret = server->start(CONFIG_ZSPOT_ZEROCONF_PORT);
 
 	if (ret < 0) {
 		LOG_ERR("Cannot start zeroconf endpoint (%d)", ret);
@@ -313,7 +313,7 @@ int zeroconf_start(std::shared_ptr<LoginBlob> blob, std::function<void()> on_cre
 		return ret;
 	}
 
-	LOG_INF("Zeroconf endpoint listening on port %u", CONFIG_CSPOT_ZEROCONF_PORT);
+	LOG_INF("Zeroconf endpoint listening on port %u", CONFIG_ZSPOT_ZEROCONF_PORT);
 	return 0;
 }
 
@@ -322,4 +322,4 @@ void zeroconf_stop()
 	server.reset();
 }
 
-} /* namespace cspot */
+} /* namespace zspot */

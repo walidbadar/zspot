@@ -1,33 +1,33 @@
 # Copyright (c) 2026 Muhammad Waleed Badar
 # SPDX-License-Identifier: GPL-3.0-only
 
-mainmenu "cspot player sample"
+mainmenu "zspot player sample"
 
-config CSPOT_SAMPLE_CREDENTIALS_JSON
+config ZSPOT_SAMPLE_CREDENTIALS_JSON
 	string "Stored credentials (JSON)"
 	default ""
 	help
-	  Output of cspot_credentials_save_json() from a previous session. When
+	  Output of zspot_credentials_save_json() from a previous session. When
 	  set, the sample skips the zeroconf hand-over.
 
-config CSPOT_SAMPLE_PCM_FILE
+config ZSPOT_SAMPLE_PCM_FILE
 	string "Host file for decoded PCM (native_sim)"
 	default ""
 	help
 	  When set (and the I2S sink is disabled) the decoded audio is appended
 	  to this host file as raw 16-bit little-endian stereo PCM at 44.1 kHz.
 
-config CSPOT_SAMPLE_USERNAME
+config ZSPOT_SAMPLE_USERNAME
 	string "Spotify username (development only)"
 	default ""
 	help
-	  Together with CSPOT_SAMPLE_PASSWORD, logs in with a username and
+	  Together with ZSPOT_SAMPLE_PASSWORD, logs in with a username and
 	  password instead of the zeroconf hand-over. Spotify no longer accepts
 	  password logins from third-party clients for most accounts, but the
 	  attempt still exercises access point resolution, the handshake and
 	  the authentication exchange, which is useful on native_sim.
 
-config CSPOT_SAMPLE_PASSWORD
+config ZSPOT_SAMPLE_PASSWORD
 	string "Spotify password (development only)"
 	default ""
 

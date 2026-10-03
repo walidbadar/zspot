@@ -17,7 +17,7 @@
 #ifndef _WIN32
 #include <zephyr/net/net_ip.h>
 
-CSPOT_LOG_MODULE_DECLARE();
+ZSPOT_LOG_MODULE_DECLARE();
 #endif
 
 using namespace cspot;

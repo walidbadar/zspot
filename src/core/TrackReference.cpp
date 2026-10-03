@@ -48,10 +48,10 @@ bool TrackReference::pbEncodeTrackList(pb_ostream_t* stream,
   static TrackRef msg = TrackRef_init_zero;
 
   // Prepare nanopb callbacks
-  msg.context.funcs.encode = &cspot::nanopb::encodeString;
-  msg.uri.funcs.encode = &cspot::nanopb::encodeString;
-  msg.gid.funcs.encode = &cspot::nanopb::encodeVector;
-  msg.queued.funcs.encode = &cspot::nanopb::encodeBoolean;
+  msg.context.funcs.encode = &zspot::nanopb::encodeString;
+  msg.uri.funcs.encode = &zspot::nanopb::encodeString;
+  msg.gid.funcs.encode = &zspot::nanopb::encodeVector;
+  msg.queued.funcs.encode = &zspot::nanopb::encodeBoolean;
 
   for (auto trackRef : trackQueue) {
     if (!pb_encode_tag_for_field(stream, field)) {

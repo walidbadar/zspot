@@ -10,15 +10,15 @@
  *        stack (CONFIG_DYNAMIC_THREAD + CONFIG_DYNAMIC_THREAD_ALLOC).
  */
 
-#ifndef CSPOT_PORT_THREAD_H_
-#define CSPOT_PORT_THREAD_H_
+#ifndef ZSPOT_PORT_THREAD_H_
+#define ZSPOT_PORT_THREAD_H_
 
 #include <zephyr/kernel.h>
 
 #include <cstddef>
 #include <string>
 
-namespace cspot
+namespace zspot
 {
 
 class Task
@@ -28,7 +28,7 @@ public:
 	 * @param name       Thread name.
 	 * @param stack_size Stack size in bytes.
 	 * @param priority   Relative importance, higher means more urgent. It is
-	 *                   subtracted from CONFIG_CSPOT_THREAD_PRIORITY to obtain
+	 *                   subtracted from CONFIG_ZSPOT_THREAD_PRIORITY to obtain
 	 *                   the Zephyr preemptive priority.
 	 */
 	Task(const char *name, size_t stack_size, int priority);
@@ -58,6 +58,6 @@ private:
 	k_tid_t tid_ = nullptr;
 };
 
-} /* namespace cspot */
+} /* namespace zspot */
 
-#endif /* CSPOT_PORT_THREAD_H_ */
+#endif /* ZSPOT_PORT_THREAD_H_ */

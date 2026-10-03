@@ -14,8 +14,8 @@
  * follow the upstream cspot crypto interface.
  */
 
-#ifndef CSPOT_PORT_CRYPTO_H_
-#define CSPOT_PORT_CRYPTO_H_
+#ifndef ZSPOT_PORT_CRYPTO_H_
+#define ZSPOT_PORT_CRYPTO_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -24,7 +24,7 @@
 
 #define DH_KEY_SIZE 96
 
-namespace cspot
+namespace zspot
 {
 
 class Crypto
@@ -77,6 +77,6 @@ private:
 	HashState *sha1_;
 };
 
-} /* namespace cspot */
+} /* namespace zspot */
 
-#endif /* CSPOT_PORT_CRYPTO_H_ */
+#endif /* ZSPOT_PORT_CRYPTO_H_ */

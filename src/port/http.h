@@ -10,15 +10,15 @@
  *        Zephyr HTTP client library (subsys/net/lib/http).
  */
 
-#ifndef CSPOT_PORT_HTTP_H_
-#define CSPOT_PORT_HTTP_H_
+#ifndef ZSPOT_PORT_HTTP_H_
+#define ZSPOT_PORT_HTTP_H_
 
 #include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
 
-namespace cspot
+namespace zspot
 {
 
 struct HttpUrl {
@@ -107,6 +107,6 @@ private:
 	bool used_ = false;
 };
 
-} /* namespace cspot */
+} /* namespace zspot */
 
-#endif /* CSPOT_PORT_HTTP_H_ */
+#endif /* ZSPOT_PORT_HTTP_H_ */

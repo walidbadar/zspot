@@ -13,15 +13,15 @@
 #include "core/Utils.h"  // for bigNumAdd
 #include "port/log.h"
 
-CSPOT_LOG_MODULE_DECLARE();
+ZSPOT_LOG_MODULE_DECLARE();
 
 using namespace cspot;
 
 CDNAudioFile::CDNAudioFile(const std::string& cdnUrl,
                            const std::vector<uint8_t>& audioKey)
     : cdnUrl(cdnUrl), audioKey(audioKey) {
-  this->crypto = std::make_unique<Crypto>();
-  this->httpConnection = std::make_unique<HttpConnection>();
+  this->crypto = std::make_unique<zspot::Crypto>();
+  this->httpConnection = std::make_unique<zspot::HttpConnection>();
 }
 
 size_t CDNAudioFile::getPosition() {
@@ -38,7 +38,7 @@ void CDNAudioFile::openStream() {
 
   // Fetch the first bytes, learn the total size from Content-Range
   auto response = httpConnection->get(
-      cdnUrl, {HttpConnection::rangeHeader(0, OPUS_HEADER_SIZE - 1)});
+      cdnUrl, {zspot::HttpConnection::rangeHeader(0, OPUS_HEADER_SIZE - 1)});
 
   if (response.body.size() < OPUS_HEADER_SIZE ||
       response.totalLength() <= SPOTIFY_OPUS_HEADER) {
@@ -60,7 +60,7 @@ void CDNAudioFile::openStream() {
       this->totalFileSize - footerStartLocation + SPOTIFY_OPUS_HEADER;
 
   response =
-      httpConnection->get(cdnUrl, {HttpConnection::lastBytesHeader(footerSize)});
+      httpConnection->get(cdnUrl, {zspot::HttpConnection::lastBytesHeader(footerSize)});
   if (response.body.size() != footerSize) {
     CSPOT_LOG(error, "CDN footer request returned %u bytes, expected %u",
               static_cast<unsigned>(response.body.size()),
@@ -134,7 +134,7 @@ size_t CDNAudioFile::readBytes(uint8_t* dst, size_t bytes) {
   }
 
   auto response = httpConnection->get(
-      cdnUrl, {HttpConnection::rangeHeader(
+      cdnUrl, {zspot::HttpConnection::rangeHeader(
                   requestPosition, requestPosition + HTTP_BUFFER_SIZE - 1)});
   if (response.body.empty()) {
     CSPOT_LOG(error, "CDN range request failed (status %d)", response.status);

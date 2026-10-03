@@ -9,14 +9,14 @@
 #include "port/log.h"
 #include "port/mem.h"
 
-CSPOT_LOG_MODULE_DECLARE();
+ZSPOT_LOG_MODULE_DECLARE();
 
-namespace cspot
+namespace zspot
 {
 
 static int to_zephyr_priority(int task_priority)
 {
-	int prio = CONFIG_CSPOT_THREAD_PRIORITY - task_priority;
+	int prio = CONFIG_ZSPOT_THREAD_PRIORITY - task_priority;
 
 	if (prio < 0) {
 		prio = 0;
@@ -36,8 +36,8 @@ Task::~Task()
 {
 	joinTask();
 	if (stack_ != nullptr) {
-#ifdef CONFIG_CSPOT_STACKS_EXTERNAL
-		cspot_mem_free(stack_);
+#ifdef CONFIG_ZSPOT_STACKS_EXTERNAL
+		zspot_mem_free(stack_);
 #else
 		k_thread_stack_free(stack_);
 #endif
@@ -56,8 +56,8 @@ bool Task::startTask()
 	joinTask();
 
 	if (stack_ == nullptr) {
-#ifdef CONFIG_CSPOT_STACKS_EXTERNAL
-		stack_ = static_cast<k_thread_stack_t *>(cspot_mem_alloc_aligned(
+#ifdef CONFIG_ZSPOT_STACKS_EXTERNAL
+		stack_ = static_cast<k_thread_stack_t *>(zspot_mem_alloc_aligned(
 			Z_KERNEL_STACK_OBJ_ALIGN, K_KERNEL_STACK_LEN(stack_size_)));
 #else
 		stack_ = k_thread_stack_alloc(stack_size_, 0);
@@ -88,4 +88,4 @@ void Task::joinTask()
 	}
 }
 
-} /* namespace cspot */
+} /* namespace zspot */

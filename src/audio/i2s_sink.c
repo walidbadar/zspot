@@ -7,7 +7,7 @@
 /*
  * cspot-zephyr: I2S PCM sink using the Zephyr I2S driver API.
  */
-#include <cspot/cspot_i2s_sink.h>
+#include <zspot/zspot_i2s_sink.h>
 
 #include <errno.h>
 #include <string.h>
@@ -16,12 +16,12 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
-LOG_MODULE_DECLARE(cspot, CONFIG_CSPOT_LOG_LEVEL);
+LOG_MODULE_DECLARE(zspot, CONFIG_ZSPOT_LOG_LEVEL);
 
-#define BLOCK_SIZE  CONFIG_CSPOT_I2S_BLOCK_SIZE
-#define BLOCK_COUNT CONFIG_CSPOT_I2S_BLOCK_COUNT
+#define BLOCK_SIZE  CONFIG_ZSPOT_I2S_BLOCK_SIZE
+#define BLOCK_COUNT CONFIG_ZSPOT_I2S_BLOCK_COUNT
 
-K_MEM_SLAB_DEFINE_STATIC(cspot_i2s_slab, BLOCK_SIZE, BLOCK_COUNT, 4);
+K_MEM_SLAB_DEFINE_STATIC(zspot_i2s_slab, BLOCK_SIZE, BLOCK_COUNT, 4);
 
 static struct {
 	const struct device *dev;
@@ -35,7 +35,7 @@ static struct {
 	.gain_q15 = 32767,
 };
 
-int cspot_i2s_sink_init(const struct device *i2s_dev, uint32_t sample_rate,
+int zspot_i2s_sink_init(const struct device *i2s_dev, uint32_t sample_rate,
 			uint8_t channels, uint8_t bits_per_sample)
 {
 	struct i2s_config cfg = {
@@ -44,9 +44,9 @@ int cspot_i2s_sink_init(const struct device *i2s_dev, uint32_t sample_rate,
 		.format = I2S_FMT_DATA_FORMAT_I2S,
 		.options = I2S_OPT_FRAME_CLK_CONTROLLER | I2S_OPT_BIT_CLK_CONTROLLER,
 		.frame_clk_freq = sample_rate,
-		.mem_slab = &cspot_i2s_slab,
+		.mem_slab = &zspot_i2s_slab,
 		.block_size = BLOCK_SIZE,
-		.timeout = CONFIG_CSPOT_I2S_TIMEOUT_MS,
+		.timeout = CONFIG_ZSPOT_I2S_TIMEOUT_MS,
 	};
 	int ret;
 
@@ -89,7 +89,7 @@ static int submit_block(void)
 
 	ret = i2s_write(sink.dev, sink.block, sink.fill);
 	if (ret < 0) {
-		k_mem_slab_free(&cspot_i2s_slab, sink.block);
+		k_mem_slab_free(&zspot_i2s_slab, sink.block);
 		sink.block = NULL;
 		if (ret == -EIO) {
 			/* TX underrun: the controller is in ERROR state, re-arm it. */
@@ -116,7 +116,7 @@ static int submit_block(void)
 	return 0;
 }
 
-size_t cspot_i2s_sink_write(const uint8_t *pcm, size_t len, void *user_data)
+size_t zspot_i2s_sink_write(const uint8_t *pcm, size_t len, void *user_data)
 {
 	size_t written = 0;
 
@@ -130,8 +130,8 @@ size_t cspot_i2s_sink_write(const uint8_t *pcm, size_t len, void *user_data)
 
 	while (written < len) {
 		if (sink.block == NULL) {
-			if (k_mem_slab_alloc(&cspot_i2s_slab, &sink.block,
-					     K_MSEC(CONFIG_CSPOT_I2S_TIMEOUT_MS)) != 0) {
+			if (k_mem_slab_alloc(&zspot_i2s_slab, &sink.block,
+					     K_MSEC(CONFIG_ZSPOT_I2S_TIMEOUT_MS)) != 0) {
 				break; /* output is full, let the player retry */
 			}
 			sink.fill = 0;
@@ -152,12 +152,12 @@ size_t cspot_i2s_sink_write(const uint8_t *pcm, size_t len, void *user_data)
 	return written;
 }
 
-void cspot_i2s_sink_set_volume(uint16_t volume)
+void zspot_i2s_sink_set_volume(uint16_t volume)
 {
 	sink.gain_q15 = volume >> 1;
 }
 
-void cspot_i2s_sink_flush(void)
+void zspot_i2s_sink_flush(void)
 {
 	if (sink.dev == NULL) {
 		return;
@@ -166,7 +166,7 @@ void cspot_i2s_sink_flush(void)
 	k_mutex_lock(&sink.lock, K_FOREVER);
 
 	if (sink.block != NULL) {
-		k_mem_slab_free(&cspot_i2s_slab, sink.block);
+		k_mem_slab_free(&zspot_i2s_slab, sink.block);
 		sink.block = NULL;
 	}
 	if (sink.started) {

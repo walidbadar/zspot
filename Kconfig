@@ -1,8 +1,8 @@
 # Copyright (c) 2026 Muhammad Waleed Badar
 # SPDX-License-Identifier: GPL-3.0-only
 
-menuconfig CSPOT
-	bool "cspot Spotify Connect receiver"
+menuconfig ZSPOT
+	bool "zspot Spotify Connect receiver (cspot protocol core)"
 	depends on CPP
 	depends on STD_CPP17 || STD_CPP20 || STD_CPP2B
 	depends on NETWORKING && NET_IPV4
@@ -41,53 +41,53 @@ menuconfig CSPOT
 	  CONFIG_MBEDTLS_SSL_SERVER_NAME_INDICATION, CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN=16384
 	  and a sufficiently large CONFIG_MBEDTLS_HEAP_SIZE. See the sample.
 
-if CSPOT
+if ZSPOT
 
-config CSPOT_DEVICE_NAME
+config ZSPOT_DEVICE_NAME
 	string "Default device name"
-	default "CSpot"
+	default "ZSpot"
 	help
 	  Name shown in the Spotify app when the application passes no name.
 
-config CSPOT_THREAD_PRIORITY
+config ZSPOT_THREAD_PRIORITY
 	int "Base priority of the protocol threads"
 	default 7
 	help
 	  Zephyr preemptive priority used for the least urgent protocol thread.
 	  More urgent threads (audio decoding) use numerically lower priorities.
 
-config CSPOT_MAIN_STACK_SIZE
+config ZSPOT_MAIN_STACK_SIZE
 	int "Stack size of the session thread"
 	default 16384
 	help
 	  Runs connection setup, authentication and the Mercury dispatch loop.
 	  TLS handshakes and protobuf decoding happen on this stack.
 
-config CSPOT_MERCURY_STACK_SIZE
+config ZSPOT_MERCURY_STACK_SIZE
 	int "Stack size of the Mercury receive thread"
 	default 8192
 
-config CSPOT_TRACKQUEUE_STACK_SIZE
+config ZSPOT_TRACKQUEUE_STACK_SIZE
 	int "Stack size of the track queue thread"
 	default 16384
 	help
 	  Fetches metadata, audio keys and CDN URLs (HTTPS).
 
-config CSPOT_PLAYER_STACK_SIZE
+config ZSPOT_PLAYER_STACK_SIZE
 	int "Stack size of the player thread"
 	default 49152
 	help
 	  Runs the Tremor Vorbis decoder, which makes heavy use of alloca().
 
-config CSPOT_HTTP_TIMEOUT_MS
+config ZSPOT_HTTP_TIMEOUT_MS
 	int "HTTP request timeout (ms)"
 	default 10000
 
-config CSPOT_HTTP_RECV_BUF_SIZE
+config ZSPOT_HTTP_RECV_BUF_SIZE
 	int "HTTP client receive buffer size"
 	default 2048
 
-config CSPOT_EXTERNAL_HEAP
+config ZSPOT_EXTERNAL_HEAP
 	bool "Use external memory (shared multi heap) for large buffers"
 	default y
 	depends on SHARED_MULTI_HEAP
@@ -96,31 +96,31 @@ config CSPOT_EXTERNAL_HEAP
 	  from the external region of the shared multi heap (PSRAM on ESP32),
 	  falling back to the C heap when none is available.
 
-config CSPOT_STACKS_EXTERNAL
+config ZSPOT_STACKS_EXTERNAL
 	bool "Place protocol thread stacks in external memory"
 	default y
-	depends on CSPOT_EXTERNAL_HEAP
+	depends on ZSPOT_EXTERNAL_HEAP
 	help
 	  Saves roughly 90 KB of internal RAM. Not suitable when the application
 	  performs flash writes that disable the cache while playback runs.
 
-config CSPOT_EXTERNAL_TLS_HEAP_SIZE
+config ZSPOT_EXTERNAL_TLS_HEAP_SIZE
 	int "Mbed TLS heap placed in external memory (bytes)"
-	default 98304 if CSPOT_EXTERNAL_HEAP
+	default 98304 if ZSPOT_EXTERNAL_HEAP
 	default 0
 	depends on MBEDTLS_ENABLE_HEAP
 	help
 	  When non-zero the Mbed TLS buffer allocator is re-initialised on this
 	  external buffer, so CONFIG_MBEDTLS_HEAP_SIZE can stay small.
 
-config CSPOT_TLS_SEC_TAG
+config ZSPOT_TLS_SEC_TAG
 	int "TLS credential security tag for server verification"
 	default -1
 	help
 	  Security tag (see tls_credential_add()) holding the CA certificate used
 	  to verify Spotify's servers. -1 disables peer verification.
 
-config CSPOT_MDNS
+config ZSPOT_MDNS
 	bool "Advertise the device with mDNS/DNS-SD"
 	default y
 	select NET_UDP
@@ -132,7 +132,7 @@ config CSPOT_MDNS
 	  Publishes _spotify-connect._tcp so the Spotify app can discover the
 	  device.
 
-config CSPOT_ZEROCONF
+config ZSPOT_ZEROCONF
 	bool "Zeroconf authentication endpoint"
 	default y
 	help
@@ -142,45 +142,45 @@ config CSPOT_ZEROCONF
 	  framed replies, which the Zephyr HTTP server cannot produce for
 	  dynamic resources.
 
-if CSPOT_ZEROCONF
+if ZSPOT_ZEROCONF
 
-config CSPOT_ZEROCONF_PORT
+config ZSPOT_ZEROCONF_PORT
 	int "TCP port of the zeroconf endpoint"
 	default 8080
 
-config CSPOT_ZEROCONF_STACK_SIZE
+config ZSPOT_ZEROCONF_STACK_SIZE
 	int "Stack size of the zeroconf responder thread"
 	default 8192
 	help
 	  Decodes the credential blob (Diffie-Hellman, PBKDF2, AES) on this
 	  stack.
 
-endif # CSPOT_ZEROCONF
+endif # ZSPOT_ZEROCONF
 
-config CSPOT_I2S_SINK
+config ZSPOT_I2S_SINK
 	bool "I2S PCM sink helper"
 	select I2S
 	help
-	  Provides cspot_i2s_sink_*() on top of the Zephyr I2S driver API.
+	  Provides zspot_i2s_sink_*() on top of the Zephyr I2S driver API.
 
-if CSPOT_I2S_SINK
+if ZSPOT_I2S_SINK
 
-config CSPOT_I2S_BLOCK_SIZE
+config ZSPOT_I2S_BLOCK_SIZE
 	int "I2S block size in bytes"
 	default 4096
 
-config CSPOT_I2S_BLOCK_COUNT
+config ZSPOT_I2S_BLOCK_COUNT
 	int "Number of I2S blocks"
 	default 8
 
-config CSPOT_I2S_TIMEOUT_MS
+config ZSPOT_I2S_TIMEOUT_MS
 	int "I2S write timeout (ms)"
 	default 2000
 
-endif # CSPOT_I2S_SINK
+endif # ZSPOT_I2S_SINK
 
-module = CSPOT
-module-str = cspot
+module = ZSPOT
+module-str = zspot
 source "subsys/logging/Kconfig.template.log_config"
 
-endif # CSPOT
+endif # ZSPOT

@@ -17,9 +17,9 @@
 
 #include "port/log.h"
 
-CSPOT_LOG_MODULE_DECLARE();
+ZSPOT_LOG_MODULE_DECLARE();
 
-namespace cspot
+namespace zspot
 {
 
 /* URL --------------------------------------------------------------------- */
@@ -104,8 +104,8 @@ void HttpConnection::open(const HttpUrl &url)
 		}
 
 		if (url.tls) {
-#if CONFIG_CSPOT_TLS_SEC_TAG >= 0
-			static const sec_tag_t sec_tags[] = {CONFIG_CSPOT_TLS_SEC_TAG};
+#if CONFIG_ZSPOT_TLS_SEC_TAG >= 0
+			static const sec_tag_t sec_tags[] = {CONFIG_ZSPOT_TLS_SEC_TAG};
 			int verify = TLS_PEER_VERIFY_REQUIRED;
 
 			zsock_setsockopt(sock, SOL_TLS, TLS_SEC_TAG_LIST, sec_tags,
@@ -118,8 +118,8 @@ void HttpConnection::open(const HttpUrl &url)
 			zsock_setsockopt(sock, SOL_TLS, TLS_PEER_VERIFY, &verify, sizeof(verify));
 		}
 
-		timeout.tv_sec = CONFIG_CSPOT_HTTP_TIMEOUT_MS / 1000;
-		timeout.tv_usec = (CONFIG_CSPOT_HTTP_TIMEOUT_MS % 1000) * 1000;
+		timeout.tv_sec = CONFIG_ZSPOT_HTTP_TIMEOUT_MS / 1000;
+		timeout.tv_usec = (CONFIG_ZSPOT_HTTP_TIMEOUT_MS % 1000) * 1000;
 		zsock_setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 		zsock_setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
@@ -158,10 +158,14 @@ int on_response(struct http_response *rsp, enum http_final_call final_data, void
 		out->status = rsp->http_status_code;
 		out->has_content_length = rsp->cl_present;
 		out->content_length = rsp->content_length;
-		out->has_content_range = rsp->cr_present;
+		/*
+		 * cr_present is only a transient parser flag in Zephyr's HTTP
+		 * client and is already cleared here; the parsed values remain.
+		 */
 		out->range_start = rsp->content_range.start;
 		out->range_end = rsp->content_range.end;
 		out->range_total = rsp->content_range.total;
+		out->has_content_range = rsp->content_range.total > 0;
 	}
 	return 0;
 }
@@ -188,7 +192,7 @@ int HttpConnection::execute(const char *method, const HttpUrl &url, const Header
 {
 	std::vector<std::string> lines;
 	std::vector<const char *> header_fields;
-	std::vector<uint8_t> recv_buf(CONFIG_CSPOT_HTTP_RECV_BUF_SIZE);
+	std::vector<uint8_t> recv_buf(CONFIG_ZSPOT_HTTP_RECV_BUF_SIZE);
 	struct http_request req;
 
 	lines.reserve(headers.size());
@@ -218,7 +222,7 @@ int HttpConnection::execute(const char *method, const HttpUrl &url, const Header
 	}
 	req.content_type_value = content_type;
 
-	return http_client_req(sock_, &req, CONFIG_CSPOT_HTTP_TIMEOUT_MS, &response);
+	return http_client_req(sock_, &req, CONFIG_ZSPOT_HTTP_TIMEOUT_MS, &response);
 }
 
 HttpResponse HttpConnection::request(const char *method, const std::string &url,
@@ -271,4 +275,4 @@ std::string HttpConnection::lastBytesHeader(size_t bytes)
 	return "Range: bytes=-" + std::to_string(bytes);
 }
 
-} /* namespace cspot */
+} /* namespace zspot */

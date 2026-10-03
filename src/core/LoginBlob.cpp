@@ -16,7 +16,7 @@
 #include "port/log.h"
 #include "protobuf/authentication.pb.h"  // for AuthenticationType_AUTHE...
 
-CSPOT_LOG_MODULE_DECLARE();
+ZSPOT_LOG_MODULE_DECLARE();
 
 using namespace cspot;
 
@@ -25,7 +25,7 @@ LoginBlob::LoginBlob(std::string name) {
   snprintf(hash, sizeof(hash), "%016zu", std::hash<std::string>{}(name));
   // base is 142137fd329622137a14901634264e6f332e2411
   this->deviceId = std::string("142137fd329622137a149016") + std::string(hash);
-  this->crypto = std::make_unique<Crypto>();
+  this->crypto = std::make_unique<zspot::Crypto>();
   this->name = name;
 
   this->crypto->dhInit();
@@ -149,8 +149,8 @@ void LoginBlob::loadUserPass(const std::string& username,
 }
 
 void LoginBlob::loadJson(const std::string& json) {
-  json::Credentials credentials;
-  if (!json::parseCredentials(json, credentials)) {
+  zspot::json::Credentials credentials;
+  if (!zspot::json::parseCredentials(json, credentials)) {
     throw std::runtime_error("Invalid credentials json");
   }
   this->authType = credentials.auth_type;
@@ -159,11 +159,11 @@ void LoginBlob::loadJson(const std::string& json) {
 }
 
 std::string LoginBlob::toJson() {
-  json::Credentials credentials;
+  zspot::json::Credentials credentials;
   credentials.auth_data = crypto->base64Encode(authData);
   credentials.auth_type = this->authType;
   credentials.username = this->username;
-  return json::encodeCredentials(credentials);
+  return zspot::json::encodeCredentials(credentials);
 }
 
 void LoginBlob::loadZeroconfQuery(
@@ -188,7 +188,7 @@ void LoginBlob::loadZeroconfQuery(
 }
 
 std::string LoginBlob::buildZeroconfInfo() {
-  json::ZeroconfInfo info;
+  zspot::json::ZeroconfInfo info;
   info.version = cspot::protocolVersion;
   info.library_version = cspot::swVersion;
   info.brand_display_name = cspot::brandName;
@@ -197,7 +197,7 @@ std::string LoginBlob::buildZeroconfInfo() {
   info.device_id = deviceId;
   info.remote_name = name;
   info.public_key = crypto->base64Encode(crypto->publicKey);
-  return json::encodeZeroconfInfo(info);
+  return zspot::json::encodeZeroconfInfo(info);
 }
 
 std::string LoginBlob::getDeviceId() {

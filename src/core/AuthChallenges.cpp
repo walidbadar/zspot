@@ -17,7 +17,7 @@
 using namespace cspot;
 
 AuthChallenges::AuthChallenges() {
-  this->crypto = std::make_unique<Crypto>();
+  this->crypto = std::make_unique<zspot::Crypto>();
   this->clientHello = {};
   this->apResponse = {};
   this->authRequest = {};

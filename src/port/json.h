@@ -10,14 +10,14 @@
  *        with Zephyr's JSON library (zephyr/data/json.h).
  */
 
-#ifndef CSPOT_PORT_JSON_H_
-#define CSPOT_PORT_JSON_H_
+#ifndef ZSPOT_PORT_JSON_H_
+#define ZSPOT_PORT_JSON_H_
 
 #include <cstdint>
 #include <string>
 #include <string_view>
 
-namespace cspot::json
+namespace zspot::json
 {
 
 /** Reads the first element of the string array at @p key ("ap_list" or "cdnurl"). */
@@ -47,6 +47,6 @@ struct ZeroconfInfo {
 
 std::string encodeZeroconfInfo(const ZeroconfInfo &info);
 
-} /* namespace cspot::json */
+} /* namespace zspot::json */
 
-#endif /* CSPOT_PORT_JSON_H_ */
+#endif /* ZSPOT_PORT_JSON_H_ */

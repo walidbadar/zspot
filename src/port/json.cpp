@@ -8,7 +8,7 @@
 
 #include "port/json_glue.h"
 
-namespace cspot::json
+namespace zspot::json
 {
 
 namespace
@@ -40,7 +40,7 @@ bool firstOfStringArray(std::string_view document, std::string_view key, std::st
 	std::string key_str(key);
 	const char *first = nullptr;
 
-	if (cspot_json_first_of_array(key_str.c_str(), copy.data(), copy.size(), &first) != 0) {
+	if (zspot_json_first_of_array(key_str.c_str(), copy.data(), copy.size(), &first) != 0) {
 		return false;
 	}
 	out = first;
@@ -50,9 +50,9 @@ bool firstOfStringArray(std::string_view document, std::string_view key, std::st
 bool parseCredentials(std::string_view document, Credentials &out)
 {
 	std::string copy(document);
-	struct cspot_json_credentials parsed = {};
+	struct zspot_json_credentials parsed = {};
 
-	if (cspot_json_parse_credentials(copy.data(), copy.size(), &parsed) != 0) {
+	if (zspot_json_parse_credentials(copy.data(), copy.size(), &parsed) != 0) {
 		return false;
 	}
 	out.auth_data = parsed.auth_data;
@@ -63,20 +63,20 @@ bool parseCredentials(std::string_view document, Credentials &out)
 
 std::string encodeCredentials(const Credentials &credentials)
 {
-	struct cspot_json_credentials in = {
+	struct zspot_json_credentials in = {
 		credentials.auth_data.c_str(),
 		credentials.auth_type,
 		credentials.username.c_str(),
 	};
 
 	return encode_with([&](char *buf, size_t size) {
-		return cspot_json_encode_credentials(&in, buf, size);
+		return zspot_json_encode_credentials(&in, buf, size);
 	});
 }
 
 std::string encodeZeroconfInfo(const ZeroconfInfo &info)
 {
-	struct cspot_json_zeroconf_info in = {
+	struct zspot_json_zeroconf_info in = {
 		info.version.c_str(),          info.library_version.c_str(),
 		info.brand_display_name.c_str(), info.model_display_name.c_str(),
 		info.availability.c_str(),     info.device_id.c_str(),
@@ -84,8 +84,8 @@ std::string encodeZeroconfInfo(const ZeroconfInfo &info)
 	};
 
 	return encode_with([&](char *buf, size_t size) {
-		return cspot_json_encode_zeroconf_info(&in, buf, size);
+		return zspot_json_encode_zeroconf_info(&in, buf, size);
 	});
 }
 
-} /* namespace cspot::json */
+} /* namespace zspot::json */

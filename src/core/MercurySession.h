@@ -26,7 +26,7 @@
 namespace cspot {
 class TimeProvider;
 
-class MercurySession : public cspot::Task, public cspot::Session {
+class MercurySession : public zspot::Task, public cspot::Session {
  public:
   MercurySession(std::shared_ptr<cspot::TimeProvider> timeProvider);
   ~MercurySession();
@@ -114,7 +114,7 @@ class MercurySession : public cspot::Task, public cspot::Session {
   Header tempMercuryHeader = {};
   ConnectionEstabilishedCallback connectionReadyCallback = nullptr;
 
-  cspot::Queue<cspot::Packet> packetQueue;
+  zspot::Queue<cspot::Packet> packetQueue;
 
   void runTask() override;
   void reconnect();
@@ -130,7 +130,7 @@ class MercurySession : public cspot::Task, public cspot::Session {
   unsigned long long lastPingTimestamp = -1;
   std::string countryCode = "";
 
-  cspot::Mutex isRunningMutex;
+  zspot::Mutex isRunningMutex;
   std::atomic<bool> isRunning = false;
   std::atomic<bool> isReconnecting = false;
   std::atomic<bool> executeEstabilishedCallback = false;

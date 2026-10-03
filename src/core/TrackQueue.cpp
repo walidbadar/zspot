@@ -26,7 +26,7 @@
 #include "port/json.h"
 #include "protobuf/metadata.pb.h"
 
-CSPOT_LOG_MODULE_DECLARE();
+ZSPOT_LOG_MODULE_DECLARE();
 
 using namespace cspot;
 namespace TrackDataUtils {
@@ -132,7 +132,7 @@ QueuedTrack::QueuedTrack(TrackReference& ref,
     : requestedPosition(requestedPosition), ctx(ctx) {
   this->ref = ref;
 
-  loadedSemaphore = std::make_shared<cspot::Semaphore>();
+  loadedSemaphore = std::make_shared<zspot::Semaphore>();
   state = State::QUEUED;
 }
 
@@ -249,8 +249,8 @@ void QueuedTrack::stepParseMetadata(Track* pbTrack, Episode* pbEpisode) {
 }
 
 void QueuedTrack::stepLoadAudioFile(
-    cspot::Mutex& trackListMutex,
-    std::shared_ptr<cspot::Semaphore> updateSemaphore) {
+    zspot::Mutex& trackListMutex,
+    std::shared_ptr<zspot::Semaphore> updateSemaphore) {
   // Request audio key
   this->pendingAudioKeyRequest = ctx->session->requestAudioKey(
       trackId, fileId,
@@ -291,14 +291,14 @@ void QueuedTrack::stepLoadCDNUrl(const std::string& accessKey) {
         "%s?alt=json&product=9",
         bytesToHexString(fileId).c_str());
 
-    auto response = cspot::HttpConnection::fetch(
+    auto response = zspot::HttpConnection::fetch(
         "GET", requestUrl, {"Authorization: Bearer " + accessKey});
 
     std::string_view result(
         reinterpret_cast<const char*>(response.body.data()),
         response.body.size());
 
-    if (!json::firstOfStringArray(result, "cdnurl", cdnUrl)) {
+    if (!zspot::json::firstOfStringArray(result, "cdnurl", cdnUrl)) {
       throw std::runtime_error("No CDN url in storage-resolve response");
     }
 
@@ -320,8 +320,8 @@ void QueuedTrack::expire() {
 }
 
 void QueuedTrack::stepLoadMetadata(
-    Track* pbTrack, Episode* pbEpisode, cspot::Mutex& trackListMutex,
-    std::shared_ptr<cspot::Semaphore> updateSemaphore) {
+    Track* pbTrack, Episode* pbEpisode, zspot::Mutex& trackListMutex,
+    std::shared_ptr<zspot::Semaphore> updateSemaphore) {
 
   // Prepare request ID
   std::string requestUrl = string_format(
@@ -365,12 +365,12 @@ void QueuedTrack::stepLoadMetadata(
 
 TrackQueue::TrackQueue(std::shared_ptr<cspot::Context> ctx,
                        std::shared_ptr<cspot::PlaybackState> state)
-    : cspot::Task("cspot_queue", CONFIG_CSPOT_TRACKQUEUE_STACK_SIZE, 2),
+    : zspot::Task("zspot_queue", CONFIG_ZSPOT_TRACKQUEUE_STACK_SIZE, 2),
       playbackState(state),
       ctx(ctx) {
   accessKeyFetcher = std::make_shared<cspot::AccessKeyFetcher>(ctx);
-  processSemaphore = std::make_shared<cspot::Semaphore>();
-  playableSemaphore = std::make_shared<cspot::Semaphore>();
+  processSemaphore = std::make_shared<zspot::Semaphore>();
+  playableSemaphore = std::make_shared<zspot::Semaphore>();
 
   // Assign encode callback to track list
   playbackState->innerFrame.state.track.funcs.encode =

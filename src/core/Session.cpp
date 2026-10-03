@@ -26,7 +26,7 @@
 #include "pb_decode.h"
 #include "protobuf/authentication.pb.h"
 
-CSPOT_LOG_MODULE_DECLARE();
+ZSPOT_LOG_MODULE_DECLARE();
 
 
 using namespace cspot;

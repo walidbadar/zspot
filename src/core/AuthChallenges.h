@@ -66,6 +66,6 @@ class AuthChallenges {
   ClientHello clientHello;
   APResponseMessage apResponse;
 
-  std::unique_ptr<Crypto> crypto;
+  std::unique_ptr<zspot::Crypto> crypto;
 };
 }  // namespace cspot

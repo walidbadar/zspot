@@ -30,7 +30,7 @@ class TrackQueue;
 struct Context;
 struct TrackReference;
 
-class TrackPlayer : cspot::Task {
+class TrackPlayer : zspot::Task {
  public:
   // Callback types
   typedef std::function<void(std::shared_ptr<QueuedTrack>, bool)>
@@ -66,7 +66,7 @@ class TrackPlayer : cspot::Task {
   std::shared_ptr<cspot::TrackQueue> trackQueue;
   std::shared_ptr<cspot::CDNAudioFile> currentTrackStream;
 
-  std::unique_ptr<cspot::Semaphore> playbackSemaphore;
+  std::unique_ptr<zspot::Semaphore> playbackSemaphore;
 
   TrackLoadedCallback trackLoaded;
   DataCallback dataCallback = nullptr;
@@ -74,8 +74,8 @@ class TrackPlayer : cspot::Task {
 
   // Playback control
   std::atomic<bool> currentSongPlaying;
-  cspot::Mutex playbackMutex;
-  cspot::Mutex dataOutMutex;
+  zspot::Mutex playbackMutex;
+  zspot::Mutex dataOutMutex;
 
   // Vorbis related
   OggVorbis_File vorbisFile;
@@ -92,7 +92,7 @@ class TrackPlayer : cspot::Task {
   std::atomic<size_t> pendingSeekPositionMs = 0;
   std::atomic<bool> startPaused = false;
 
-  cspot::Mutex runningMutex;
+  zspot::Mutex runningMutex;
 
   void runTask() override;
 };

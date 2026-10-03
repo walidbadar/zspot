@@ -18,7 +18,7 @@
 #include "core/Utils.h"
 #include "port/log.h"
 
-CSPOT_LOG_MODULE_DECLARE();
+ZSPOT_LOG_MODULE_DECLARE();
 
 using namespace cspot;
 

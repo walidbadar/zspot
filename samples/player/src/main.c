@@ -23,18 +23,18 @@
 #include <zephyr/net/net_mgmt.h>
 #include <zephyr/net/dhcpv4.h>
 
-#include <cspot/cspot.h>
+#include <zspot/zspot.h>
 
 #if defined(CONFIG_WIFI_CREDENTIALS_CONNECT_STORED)
 #include "wifi.h"
 #endif
-#if defined(CONFIG_CSPOT_I2S_SINK)
-#include <cspot/cspot_i2s_sink.h>
-#elif defined(CSPOT_SAMPLE_HAVE_PCM_FILE)
+#if defined(CONFIG_ZSPOT_I2S_SINK)
+#include <zspot/zspot_i2s_sink.h>
+#elif defined(ZSPOT_SAMPLE_HAVE_PCM_FILE)
 #include "pcm_file_sink.h"
 #endif
 
-LOG_MODULE_REGISTER(cspot_player, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(zspot_player, LOG_LEVEL_INF);
 
 static K_SEM_DEFINE(ipv4_ready, 0, 1);
 static struct net_mgmt_event_callback net_cb;
@@ -90,15 +90,15 @@ static int network_connect(void)
 
 static void sink_flush(void)
 {
-#if defined(CONFIG_CSPOT_I2S_SINK)
+#if defined(CONFIG_ZSPOT_I2S_SINK)
 	sink_flush();
 #endif
 }
 
 static void sink_set_volume(uint16_t volume)
 {
-#if defined(CONFIG_CSPOT_I2S_SINK)
-	cspot_i2s_sink_set_volume(volume);
+#if defined(CONFIG_ZSPOT_I2S_SINK)
+	zspot_i2s_sink_set_volume(volume);
 #else
 	ARG_UNUSED(volume);
 #endif
@@ -106,10 +106,10 @@ static void sink_set_volume(uint16_t volume)
 
 static int sink_init(void)
 {
-#if defined(CONFIG_CSPOT_I2S_SINK)
-	return cspot_i2s_sink_init(DEVICE_DT_GET(DT_ALIAS(cspot_i2s)), 44100, 2, 16);
-#elif defined(CSPOT_SAMPLE_HAVE_PCM_FILE)
-	return pcm_file_sink_init(CONFIG_CSPOT_SAMPLE_PCM_FILE);
+#if defined(CONFIG_ZSPOT_I2S_SINK)
+	return zspot_i2s_sink_init(DEVICE_DT_GET(DT_ALIAS(zspot_i2s)), 44100, 2, 16);
+#elif defined(ZSPOT_SAMPLE_HAVE_PCM_FILE)
+	return pcm_file_sink_init(CONFIG_ZSPOT_SAMPLE_PCM_FILE);
 #else
 	return 0;
 #endif
@@ -117,9 +117,9 @@ static int sink_init(void)
 
 static size_t sink_write(const uint8_t *pcm, size_t len, void *user_data)
 {
-#if defined(CONFIG_CSPOT_I2S_SINK)
-	return cspot_i2s_sink_write(pcm, len, user_data);
-#elif defined(CSPOT_SAMPLE_HAVE_PCM_FILE)
+#if defined(CONFIG_ZSPOT_I2S_SINK)
+	return zspot_i2s_sink_write(pcm, len, user_data);
+#elif defined(ZSPOT_SAMPLE_HAVE_PCM_FILE)
 	return pcm_file_sink_write(pcm, len, user_data);
 #else
 	ARG_UNUSED(pcm);
@@ -128,40 +128,40 @@ static size_t sink_write(const uint8_t *pcm, size_t len, void *user_data)
 #endif
 }
 
-static void on_event(const struct cspot_event *event, void *user_data)
+static void on_event(const struct zspot_event *event, void *user_data)
 {
 	ARG_UNUSED(user_data);
 
 	switch (event->type) {
-	case CSPOT_EVENT_PLAY_PAUSE:
+	case ZSPOT_EVENT_PLAY_PAUSE:
 		LOG_INF("%s", event->paused ? "Paused" : "Playing");
 		paused = event->paused;
 		break;
-	case CSPOT_EVENT_VOLUME:
+	case ZSPOT_EVENT_VOLUME:
 		LOG_INF("Volume %u", event->volume);
 		sink_set_volume(event->volume);
 		break;
-	case CSPOT_EVENT_TRACK_INFO:
+	case ZSPOT_EVENT_TRACK_INFO:
 		LOG_INF("Now playing: %s - %s (%s)", event->track.artist, event->track.name,
 			event->track.album);
 		break;
-	case CSPOT_EVENT_SEEK:
+	case ZSPOT_EVENT_SEEK:
 		LOG_INF("Seek to %u ms", event->position_ms);
 		sink_flush();
 		break;
-	case CSPOT_EVENT_FLUSH:
-	case CSPOT_EVENT_PLAYBACK_START:
+	case ZSPOT_EVENT_FLUSH:
+	case ZSPOT_EVENT_PLAYBACK_START:
 		sink_flush();
 		break;
-	case CSPOT_EVENT_DISCONNECT:
+	case ZSPOT_EVENT_DISCONNECT:
 		LOG_INF("Playback moved to another device");
 		sink_flush();
 		break;
-	case CSPOT_EVENT_NEXT:
-	case CSPOT_EVENT_PREV:
+	case ZSPOT_EVENT_NEXT:
+	case ZSPOT_EVENT_PREV:
 		sink_flush();
 		break;
-	case CSPOT_EVENT_DEPLETED:
+	case ZSPOT_EVENT_DEPLETED:
 		LOG_INF("Queue finished");
 		break;
 	}
@@ -178,9 +178,10 @@ static size_t on_pcm(const uint8_t *pcm, size_t len, void *user_data)
 int main(void)
 {
 	static char credentials[1024];
-	const struct cspot_config config = {
-		.device_name = CONFIG_CSPOT_DEVICE_NAME,
-		.audio_format = CSPOT_FORMAT_OGG_VORBIS_160,
+	const struct zspot_config config = {
+		.device_name = CONFIG_ZSPOT_DEVICE_NAME,
+		.audio_format = ZSPOT_FORMAT_OGG_VORBIS_160,
+		.initial_volume = 0xFFFF, /* unity gain at the sink */
 	};
 	int ret;
 
@@ -188,9 +189,9 @@ int main(void)
 		return 0;
 	}
 
-	ret = cspot_init(&config);
+	ret = zspot_init(&config);
 	if (ret != 0) {
-		LOG_ERR("cspot_init failed (%d)", ret);
+		LOG_ERR("zspot_init failed (%d)", ret);
 		return 0;
 	}
 
@@ -200,15 +201,15 @@ int main(void)
 		return 0;
 	}
 
-	if (strlen(CONFIG_CSPOT_SAMPLE_CREDENTIALS_JSON) > 0 &&
-	    cspot_credentials_load_json(CONFIG_CSPOT_SAMPLE_CREDENTIALS_JSON) == 0) {
+	if (strlen(CONFIG_ZSPOT_SAMPLE_CREDENTIALS_JSON) > 0 &&
+	    zspot_credentials_load_json(CONFIG_ZSPOT_SAMPLE_CREDENTIALS_JSON) == 0) {
 		LOG_INF("Using stored credentials");
-	} else if (strlen(CONFIG_CSPOT_SAMPLE_USERNAME) > 0 &&
-		   cspot_credentials_set_user_pass(CONFIG_CSPOT_SAMPLE_USERNAME,
-						   CONFIG_CSPOT_SAMPLE_PASSWORD) == 0) {
+	} else if (strlen(CONFIG_ZSPOT_SAMPLE_USERNAME) > 0 &&
+		   zspot_credentials_set_user_pass(CONFIG_ZSPOT_SAMPLE_USERNAME,
+						   CONFIG_ZSPOT_SAMPLE_PASSWORD) == 0) {
 		LOG_INF("Using username/password credentials");
 	} else {
-		ret = cspot_zeroconf_start();
+		ret = zspot_zeroconf_start();
 		if (ret != 0) {
 			LOG_ERR("Zeroconf start failed (%d)", ret);
 			return 0;
@@ -216,27 +217,27 @@ int main(void)
 	}
 
 	while (true) {
-		if (!cspot_credentials_available()) {
+		if (!zspot_credentials_available()) {
 			LOG_INF("Open Spotify and select \"%s\" in the device list",
-				cspot_device_name());
-			cspot_zeroconf_wait(-1);
+				zspot_device_name());
+			zspot_zeroconf_wait(-1);
 		}
 
-		ret = cspot_connect(on_event, on_pcm, NULL);
+		ret = zspot_connect(on_event, on_pcm, NULL);
 		if (ret == 0) {
 			break;
 		}
 
-		LOG_ERR("cspot_connect failed (%d)", ret);
+		LOG_ERR("zspot_connect failed (%d)", ret);
 		if (ret == -EACCES) {
 			/* Rejected credentials: go back to waiting for a hand-over. */
-			cspot_credentials_clear();
+			zspot_credentials_clear();
 		} else {
 			k_sleep(K_SECONDS(5));
 		}
 	}
 
-	if (cspot_credentials_save_json(credentials, sizeof(credentials)) > 0) {
+	if (zspot_credentials_save_json(credentials, sizeof(credentials)) > 0) {
 		LOG_INF("Reusable credentials (store these): %s", credentials);
 	}
 

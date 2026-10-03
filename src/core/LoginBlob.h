@@ -19,7 +19,7 @@ namespace cspot {
 class LoginBlob {
  private:
   int blobSkipPosition = 0;
-  std::unique_ptr<Crypto> crypto;
+  std::unique_ptr<zspot::Crypto> crypto;
   std::string name, deviceId;
 
   uint32_t readBlobInt(const std::vector<uint8_t>& loginData);

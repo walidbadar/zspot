@@ -25,7 +25,7 @@
 
 #include "protobuf/login5.pb.h"  // for LoginRequest
 
-CSPOT_LOG_MODULE_DECLARE();
+ZSPOT_LOG_MODULE_DECLARE();
 
 using namespace cspot;
 
@@ -74,21 +74,21 @@ void AccessKeyFetcher::updateAccessKey() {
   static LoginResponse loginResponse = LoginResponse_init_zero;
 
   // Assign necessary request fields
-  loginRequest.client_info.client_id.funcs.encode = &cspot::nanopb::encodeString;
+  loginRequest.client_info.client_id.funcs.encode = &zspot::nanopb::encodeString;
   loginRequest.client_info.client_id.arg = &CLIENT_ID;
 
-  loginRequest.client_info.device_id.funcs.encode = &cspot::nanopb::encodeString;
+  loginRequest.client_info.device_id.funcs.encode = &zspot::nanopb::encodeString;
   loginRequest.client_info.device_id.arg = &ctx->config.deviceId;
 
   loginRequest.login_method.stored_credential.username.funcs.encode =
-      &cspot::nanopb::encodeString;
+      &zspot::nanopb::encodeString;
   loginRequest.login_method.stored_credential.username.arg =
       &ctx->config.username;
 
   // Set login method to stored credential
   loginRequest.which_login_method = LoginRequest_stored_credential_tag;
   loginRequest.login_method.stored_credential.data.funcs.encode =
-      &cspot::nanopb::encodeVector;
+      &zspot::nanopb::encodeVector;
   loginRequest.login_method.stored_credential.data.arg = &ctx->config.authData;
 
   // Max retry of 3, can receive different hash cat types
@@ -101,7 +101,7 @@ void AccessKeyFetcher::updateAccessKey() {
               encodedRequest.size());
 
     // Perform a login5 request, containing the encoded protobuf data
-    auto response = cspot::HttpConnection::fetch(
+    auto response = zspot::HttpConnection::fetch(
         "POST", "https://login5.spotify.com/v3/login", {}, encodedRequest,
         "application/x-protobuf");
 

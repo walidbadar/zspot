@@ -40,12 +40,12 @@ struct Context {
   std::shared_ptr<cspot::MercurySession> session;
 
   std::string getCredentialsJson() {
-    json::Credentials credentials;
-    credentials.auth_data = Crypto::base64Encode(config.authData);
+    zspot::json::Credentials credentials;
+    credentials.auth_data = zspot::Crypto::base64Encode(config.authData);
     credentials.auth_type =
         AuthenticationType_AUTHENTICATION_STORED_SPOTIFY_CREDENTIALS;
     credentials.username = config.username;
-    return json::encodeCredentials(credentials);
+    return zspot::json::encodeCredentials(credentials);
   }
 
   static std::shared_ptr<Context> createFromBlob(

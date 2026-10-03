@@ -110,7 +110,7 @@ static int encode(const struct json_obj_descr *descr, size_t descr_len, const vo
 	return (int)needed;
 }
 
-int cspot_json_first_of_array(const char *key, char *doc, size_t len, const char **first)
+int zspot_json_first_of_array(const char *key, char *doc, size_t len, const char **first)
 {
 	const struct json_obj_descr *descr;
 	size_t descr_len;
@@ -139,7 +139,7 @@ int cspot_json_first_of_array(const char *key, char *doc, size_t len, const char
 	return 0;
 }
 
-int cspot_json_parse_credentials(char *doc, size_t len, struct cspot_json_credentials *out)
+int zspot_json_parse_credentials(char *doc, size_t len, struct zspot_json_credentials *out)
 {
 	struct credentials_doc parsed = {0};
 	int ret;
@@ -159,7 +159,7 @@ int cspot_json_parse_credentials(char *doc, size_t len, struct cspot_json_creden
 	return 0;
 }
 
-int cspot_json_encode_credentials(const struct cspot_json_credentials *in, char *buf,
+int zspot_json_encode_credentials(const struct zspot_json_credentials *in, char *buf,
 				  size_t size)
 {
 	struct credentials_doc doc = {
@@ -171,7 +171,7 @@ int cspot_json_encode_credentials(const struct cspot_json_credentials *in, char 
 	return encode(credentials_descr, ARRAY_SIZE(credentials_descr), &doc, buf, size);
 }
 
-int cspot_json_encode_zeroconf_info(const struct cspot_json_zeroconf_info *in, char *buf,
+int zspot_json_encode_zeroconf_info(const struct zspot_json_zeroconf_info *in, char *buf,
 				    size_t size)
 {
 	struct zeroconf_info_doc doc = {

@@ -6,4 +6,4 @@
 
 #include <zephyr/logging/log.h>
 
-LOG_MODULE_REGISTER(cspot, CONFIG_CSPOT_LOG_LEVEL);
+LOG_MODULE_REGISTER(zspot, CONFIG_ZSPOT_LOG_LEVEL);

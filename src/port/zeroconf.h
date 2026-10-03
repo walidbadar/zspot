@@ -13,27 +13,33 @@
  * which the Zephyr HTTP server does not produce for dynamic resources.
  */
 
-#ifndef CSPOT_PORT_ZEROCONF_H_
-#define CSPOT_PORT_ZEROCONF_H_
+#ifndef ZSPOT_PORT_ZEROCONF_H_
+#define ZSPOT_PORT_ZEROCONF_H_
 
 #include <functional>
 #include <memory>
 
-namespace cspot
+namespace zspot
 {
 
+} /* namespace zspot */
+namespace cspot
+{
 class LoginBlob;
+} /* namespace cspot */
+namespace zspot
+{
 
 /**
- * @brief Starts serving GET/POST /spotify_info on CONFIG_CSPOT_ZEROCONF_PORT.
+ * @brief Starts serving GET/POST /spotify_info on CONFIG_ZSPOT_ZEROCONF_PORT.
  *
  * @p on_credentials is invoked from the responder thread once the Spotify
  * app posted valid credentials into @p blob; it must not block.
  */
-int zeroconf_start(std::shared_ptr<LoginBlob> blob, std::function<void()> on_credentials);
+int zeroconf_start(std::shared_ptr<cspot::LoginBlob> blob, std::function<void()> on_credentials);
 
 void zeroconf_stop();
 
-} /* namespace cspot */
+} /* namespace zspot */
 
-#endif /* CSPOT_PORT_ZEROCONF_H_ */
+#endif /* ZSPOT_PORT_ZEROCONF_H_ */

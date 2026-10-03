@@ -13,7 +13,7 @@
 #include <zephyr/net/wifi_credentials.h>
 #include <zephyr/net/wifi_mgmt.h>
 
-LOG_MODULE_DECLARE(cspot_player, LOG_LEVEL_INF);
+LOG_MODULE_DECLARE(zspot_player, LOG_LEVEL_INF);
 
 /* Delay before retrying after a disconnect, a failed attempt or missing credentials */
 #define WIFI_RECONNECT_DELAY K_SECONDS(5)

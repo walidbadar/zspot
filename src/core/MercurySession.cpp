@@ -23,12 +23,12 @@
 #include "core/TimeProvider.h"       // for TimeProvider
 #include "core/Utils.h"              // for extract, pack, hton64
 
-CSPOT_LOG_MODULE_DECLARE();
+ZSPOT_LOG_MODULE_DECLARE();
 
 using namespace cspot;
 
 MercurySession::MercurySession(std::shared_ptr<TimeProvider> timeProvider)
-    : cspot::Task("cspot_mercury", CONFIG_CSPOT_MERCURY_STACK_SIZE, 3) {
+    : zspot::Task("zspot_mercury", CONFIG_ZSPOT_MERCURY_STACK_SIZE, 3) {
   this->timeProvider = timeProvider;
 }
 

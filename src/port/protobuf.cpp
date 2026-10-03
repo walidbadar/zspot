@@ -83,7 +83,7 @@ std::vector<uint8_t> pbArrayToVector(pb_bytes_array_t *pb_array)
 	return std::vector<uint8_t>(pb_array->bytes, pb_array->bytes + pb_array->size);
 }
 
-bool cspot::nanopb::encodeString(pb_ostream_t *stream, const pb_field_t *field,
+bool zspot::nanopb::encodeString(pb_ostream_t *stream, const pb_field_t *field,
 				 void *const *arg)
 {
 	auto &str = *static_cast<std::string *>(*arg);
@@ -96,7 +96,7 @@ bool cspot::nanopb::encodeString(pb_ostream_t *stream, const pb_field_t *field,
 				str.size());
 }
 
-bool cspot::nanopb::encodeBoolean(pb_ostream_t *stream, const pb_field_t *field,
+bool zspot::nanopb::encodeBoolean(pb_ostream_t *stream, const pb_field_t *field,
 				  void *const *arg)
 {
 	auto &value = *static_cast<std::optional<bool> *>(*arg);
@@ -107,7 +107,7 @@ bool cspot::nanopb::encodeBoolean(pb_ostream_t *stream, const pb_field_t *field,
 	return pb_encode_tag_for_field(stream, field) && pb_encode_varint(stream, value.value());
 }
 
-bool cspot::nanopb::encodeVector(pb_ostream_t *stream, const pb_field_t *field,
+bool zspot::nanopb::encodeVector(pb_ostream_t *stream, const pb_field_t *field,
 				 void *const *arg)
 {
 	auto &vector = *static_cast<std::vector<uint8_t> *>(*arg);

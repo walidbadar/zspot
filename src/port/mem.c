@@ -14,7 +14,7 @@
 #include <zephyr/sys/math_extras.h>
 #include <zephyr/sys/util.h>
 
-#ifdef CONFIG_CSPOT_EXTERNAL_HEAP
+#ifdef CONFIG_ZSPOT_EXTERNAL_HEAP
 #include <zephyr/multi_heap/shared_multi_heap.h>
 #endif
 
@@ -32,7 +32,7 @@ static struct block_header *header_of(void *ptr)
 	return (struct block_header *)((uint8_t *)ptr - HEADER_SIZE);
 }
 
-void *cspot_mem_alloc_aligned(size_t align, size_t size)
+void *zspot_mem_alloc_aligned(size_t align, size_t size)
 {
 	size_t total;
 	uint8_t *raw = NULL;
@@ -45,7 +45,7 @@ void *cspot_mem_alloc_aligned(size_t align, size_t size)
 	/* One alignment unit in front of the block holds the header. */
 	total = ROUND_UP(size + align, align);
 
-#ifdef CONFIG_CSPOT_EXTERNAL_HEAP
+#ifdef CONFIG_ZSPOT_EXTERNAL_HEAP
 	raw = shared_multi_heap_aligned_alloc(SMH_REG_ATTR_EXTERNAL, align, total);
 	external = (raw != NULL);
 #endif
@@ -63,12 +63,12 @@ void *cspot_mem_alloc_aligned(size_t align, size_t size)
 	return raw + align;
 }
 
-void *cspot_mem_alloc(size_t size)
+void *zspot_mem_alloc(size_t size)
 {
-	return cspot_mem_alloc_aligned(16, size);
+	return zspot_mem_alloc_aligned(16, size);
 }
 
-void *cspot_mem_calloc(size_t count, size_t size)
+void *zspot_mem_calloc(size_t count, size_t size)
 {
 	size_t total;
 	void *ptr;
@@ -76,34 +76,34 @@ void *cspot_mem_calloc(size_t count, size_t size)
 	if (size_mul_overflow(count, size, &total)) {
 		return NULL;
 	}
-	ptr = cspot_mem_alloc(total);
+	ptr = zspot_mem_alloc(total);
 	if (ptr != NULL) {
 		memset(ptr, 0, total);
 	}
 	return ptr;
 }
 
-void *cspot_mem_realloc(void *ptr, size_t size)
+void *zspot_mem_realloc(void *ptr, size_t size)
 {
 	void *fresh;
 
 	if (ptr == NULL) {
-		return cspot_mem_alloc(size);
+		return zspot_mem_alloc(size);
 	}
 	if (size == 0) {
-		cspot_mem_free(ptr);
+		zspot_mem_free(ptr);
 		return NULL;
 	}
 
-	fresh = cspot_mem_alloc(size);
+	fresh = zspot_mem_alloc(size);
 	if (fresh != NULL) {
 		memcpy(fresh, ptr, MIN(size, header_of(ptr)->size));
-		cspot_mem_free(ptr);
+		zspot_mem_free(ptr);
 	}
 	return fresh;
 }
 
-void cspot_mem_free(void *ptr)
+void zspot_mem_free(void *ptr)
 {
 	struct block_header *header;
 
@@ -111,7 +111,7 @@ void cspot_mem_free(void *ptr)
 		return;
 	}
 	header = header_of(ptr);
-#ifdef CONFIG_CSPOT_EXTERNAL_HEAP
+#ifdef CONFIG_ZSPOT_EXTERNAL_HEAP
 	if (header->external) {
 		shared_multi_heap_free(header->raw);
 		return;

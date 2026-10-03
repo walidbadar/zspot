@@ -15,15 +15,15 @@
  * stand in for.
  */
 
-#ifndef CSPOT_PORT_SYNC_H_
-#define CSPOT_PORT_SYNC_H_
+#ifndef ZSPOT_PORT_SYNC_H_
+#define ZSPOT_PORT_SYNC_H_
 
 #include <zephyr/kernel.h>
 
 #include <cstdint>
 #include <mutex>
 
-namespace cspot
+namespace zspot
 {
 
 class Mutex
@@ -142,6 +142,6 @@ private:
 	struct k_sem sem_;
 };
 
-} /* namespace cspot */
+} /* namespace zspot */
 
-#endif /* CSPOT_PORT_SYNC_H_ */
+#endif /* ZSPOT_PORT_SYNC_H_ */

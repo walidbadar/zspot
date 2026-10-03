@@ -25,7 +25,7 @@
 #include "pb_decode.h"          // for pb_release
 #include "protobuf/spirc.pb.h"  // for Frame, State, Frame_fields, MessageTy...
 
-CSPOT_LOG_MODULE_DECLARE();
+ZSPOT_LOG_MODULE_DECLARE();
 
 using namespace cspot;
 

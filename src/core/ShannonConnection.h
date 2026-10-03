@@ -31,8 +31,8 @@ class ShannonConnection {
   uint32_t sendNonce = 0;
   uint32_t recvNonce = 0;
   std::vector<uint8_t> cipherPacket(uint8_t cmd, std::vector<uint8_t>& data);
-  cspot::Mutex writeMutex;
-  cspot::Mutex readMutex;
+  zspot::Mutex writeMutex;
+  zspot::Mutex readMutex;
 
  public:
   ShannonConnection();

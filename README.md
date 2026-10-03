@@ -1,7 +1,12 @@
-# cspot-zephyr
+# zspot
 
 Spotify Connect receiver library for [Zephyr RTOS](https://zephyrproject.org),
 packaged as a Zephyr module with a plain C API.
+
+Naming: everything Zephyr-facing is `zspot` (module and library name,
+`CONFIG_ZSPOT_*`, the `zspot_*` C API, the `zspot` log module, the port
+layer namespace). The protocol core keeps its upstream `cspot` namespace and
+`CSPOT_LOG()` call style.
 
 The Spotify protocol implementation (access point handshake, Shannon
 transport, Mercury, Spirc remote control, track queue, CDN streaming and
@@ -44,7 +49,7 @@ directly on Zephyr sockets instead.
   package).
 - A board with IPv4 networking and, for the sample, an I2S DAC. The
   protocol needs roughly 300 KB of heap at runtime (TLS buffers, decoder,
-  track buffers). With `CONFIG_CSPOT_EXTERNAL_HEAP` (default when
+  track buffers). With `CONFIG_ZSPOT_EXTERNAL_HEAP` (default when
   `CONFIG_SHARED_MULTI_HEAP` is available, e.g. `CONFIG_ESP_SPIRAM=y`) the
   C++ free store, the decoder buffers, the protocol thread stacks and the
   Mbed TLS heap are taken from external memory, which keeps the internal
@@ -66,10 +71,10 @@ In your `west.yml`:
 ```yaml
 manifest:
   projects:
-    - name: cspot-zephyr
+    - name: zspot
       url: https://github.com/<you>/cspot-zephyr
       revision: main
-      path: modules/lib/cspot
+      path: modules/lib/zspot
 ```
 
 or, without west, pass `-DZEPHYR_EXTRA_MODULES=/path/to/cspot-zephyr` to the
@@ -77,21 +82,21 @@ build.
 
 ## Configuration
 
-Enable `CONFIG_CSPOT=y` together with `CONFIG_CPP=y` and
+Enable `CONFIG_ZSPOT=y` together with `CONFIG_CPP=y` and
 `CONFIG_STD_CPP20=y`. Useful options:
 
 | Kconfig                          | Purpose                                        |
 |----------------------------------|------------------------------------------------|
-| `CSPOT_DEVICE_NAME`              | Name shown in the Spotify app                  |
-| `CSPOT_ZEROCONF` / `_PORT`       | Zeroconf credential hand-over endpoint         |
-| `CSPOT_MDNS`                     | DNS-SD advertisement (`_spotify-connect._tcp`) |
-| `CSPOT_I2S_SINK`                 | Ready-made PCM sink using the I2S driver       |
-| `CSPOT_TLS_SEC_TAG`              | CA credential tag for server verification (-1: no verification) |
-| `CSPOT_EXTERNAL_HEAP`            | Large buffers from the shared multi heap (PSRAM) |
-| `CSPOT_STACKS_EXTERNAL`          | Protocol thread stacks in external memory      |
-| `CSPOT_EXTERNAL_TLS_HEAP_SIZE`   | Mbed TLS heap relocated to external memory     |
-| `CSPOT_*_STACK_SIZE`             | Stacks of the protocol threads                 |
-| `CSPOT_LOG_LEVEL_*`              | Log level of the `cspot` module                |
+| `ZSPOT_DEVICE_NAME`              | Name shown in the Spotify app                  |
+| `ZSPOT_ZEROCONF` / `_PORT`       | Zeroconf credential hand-over endpoint         |
+| `ZSPOT_MDNS`                     | DNS-SD advertisement (`_spotify-connect._tcp`) |
+| `ZSPOT_I2S_SINK`                 | Ready-made PCM sink using the I2S driver       |
+| `ZSPOT_TLS_SEC_TAG`              | CA credential tag for server verification (-1: no verification) |
+| `ZSPOT_EXTERNAL_HEAP`            | Large buffers from the shared multi heap (PSRAM) |
+| `ZSPOT_STACKS_EXTERNAL`          | Protocol thread stacks in external memory      |
+| `ZSPOT_EXTERNAL_TLS_HEAP_SIZE`   | Mbed TLS heap relocated to external memory     |
+| `ZSPOT_*_STACK_SIZE`             | Stacks of the protocol threads                 |
+| `ZSPOT_LOG_LEVEL_*`              | Log level of the `cspot` module                |
 
 TLS towards Spotify needs TLS 1.2 with ECDHE-RSA and AES-GCM; see
 `samples/player/prj.conf` for a working Mbed TLS / PSA configuration.
@@ -99,36 +104,36 @@ TLS towards Spotify needs TLS 1.2 with ECDHE-RSA and AES-GCM; see
 ## API
 
 ```c
-#include <cspot/cspot.h>
-#include <cspot/cspot_i2s_sink.h>
+#include <zspot/zspot.h>
+#include <zspot/zspot_i2s_sink.h>
 
 static size_t on_pcm(const uint8_t *pcm, size_t len, void *user)
 {
-    return cspot_i2s_sink_write(pcm, len, user);   /* 0 = try again later */
+    return zspot_i2s_sink_write(pcm, len, user);   /* 0 = try again later */
 }
 
-static void on_event(const struct cspot_event *ev, void *user)
+static void on_event(const struct zspot_event *ev, void *user)
 {
-    if (ev->type == CSPOT_EVENT_VOLUME) {
-        cspot_i2s_sink_set_volume(ev->volume);
+    if (ev->type == ZSPOT_EVENT_VOLUME) {
+        zspot_i2s_sink_set_volume(ev->volume);
     }
 }
 
-struct cspot_config cfg = { .device_name = "Living room", .audio_format = CSPOT_FORMAT_OGG_VORBIS_160 };
-cspot_init(&cfg);
-cspot_i2s_sink_init(DEVICE_DT_GET(DT_ALIAS(cspot_i2s)), 44100, 2, 16);
+struct zspot_config cfg = { .device_name = "Living room", .audio_format = ZSPOT_FORMAT_OGG_VORBIS_160 };
+zspot_init(&cfg);
+zspot_i2s_sink_init(DEVICE_DT_GET(DT_ALIAS(zspot_i2s)), 44100, 2, 16);
 
-cspot_zeroconf_start();          /* advertise + serve /spotify_info          */
-cspot_zeroconf_wait(-1);         /* until the Spotify app hands over credentials */
-cspot_connect(on_event, on_pcm, NULL);
+zspot_zeroconf_start();          /* advertise + serve /spotify_info          */
+zspot_zeroconf_wait(-1);         /* until the Spotify app hands over credentials */
+zspot_connect(on_event, on_pcm, NULL);
 
 char json[1024];
-cspot_credentials_save_json(json, sizeof(json));  /* persist for next boot  */
+zspot_credentials_save_json(json, sizeof(json));  /* persist for next boot  */
 ```
 
-On the next boot `cspot_credentials_load_json()` skips the zeroconf step.
-Playback control (`cspot_set_pause`, `cspot_next`, `cspot_previous`,
-`cspot_set_volume`) and position feedback (`cspot_update_position_ms`) are
+On the next boot `zspot_credentials_load_json()` skips the zeroconf step.
+Playback control (`zspot_set_pause`, `zspot_next`, `zspot_previous`,
+`zspot_set_volume`) and position feedback (`zspot_update_position_ms`) are
 available for local buttons and displays.
 
 Callbacks run on the library's threads.
@@ -167,14 +172,14 @@ west build -p -b uedx32480035e_wb_a/esp32s3/procpu samples/player -- \
 ```
 
 Stored Spotify credentials can be passed with
-`-DCONFIG_CSPOT_SAMPLE_CREDENTIALS_JSON='"..."'` (the JSON printed by the
+`-DCONFIG_ZSPOT_SAMPLE_CREDENTIALS_JSON='"..."'` (the JSON printed by the
 sample after its first connection) to skip the zeroconf hand-over.
 
 ### native_sim
 
 The sample also builds for `native_sim`, using the Zephyr IP stack over the
 host TAP interface. Decoded audio is appended to `/tmp/cspot.pcm`
-(`CONFIG_CSPOT_SAMPLE_PCM_FILE`), playable with
+(`CONFIG_ZSPOT_SAMPLE_PCM_FILE`), playable with
 `aplay -f S16_LE -r 44100 -c 2 /tmp/cspot.pcm`.
 
 Create the TAP device once per boot (root required) and give the simulator
@@ -209,13 +214,13 @@ tools/zeroconf_client.py http://192.0.2.1:8080             # emulate the app's h
 (Diffie-Hellman, blob encryption) with a dummy token, which exercises the
 whole zeroconf and access point path; Spotify then declines the token.
 Alternatively provide credentials at build time with
-`CONFIG_CSPOT_SAMPLE_CREDENTIALS_JSON` (stored credentials) or, for protocol
-testing only, `CONFIG_CSPOT_SAMPLE_USERNAME` / `CONFIG_CSPOT_SAMPLE_PASSWORD`.
+`CONFIG_ZSPOT_SAMPLE_CREDENTIALS_JSON` (stored credentials) or, for protocol
+testing only, `CONFIG_ZSPOT_SAMPLE_USERNAME` / `CONFIG_ZSPOT_SAMPLE_PASSWORD`.
 
 ## Layout
 
 ```
-include/cspot/      public C API
+include/zspot/      public C API
 src/core/           Spotify protocol (C++, from cspot)
 src/port/           Zephyr glue: crypto, HTTP, JSON, threads, mDNS, zeroconf
 src/audio/          I2S sink
@@ -235,9 +240,9 @@ tools/              zeroconf hand-over emulator, native_sim LAN bridge
   keys) and the encrypted login exchange up to Spotify's reply. Playback
   needs real credentials and has not been exercised yet; neither has the
   ESP32-S3 target on hardware.
-- TLS peer verification is off unless `CSPOT_TLS_SEC_TAG` names a CA
+- TLS peer verification is off unless `ZSPOT_TLS_SEC_TAG` names a CA
   credential.
-- Thread stacks in external memory (`CSPOT_STACKS_EXTERNAL`) must not be
+- Thread stacks in external memory (`ZSPOT_STACKS_EXTERNAL`) must not be
   combined with flash writes that disable the cache while playing.
 
 ## Licence

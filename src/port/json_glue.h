@@ -10,8 +10,8 @@
  *        designated initialisers, which C++ rejects, so they live in C.
  */
 
-#ifndef CSPOT_PORT_JSON_GLUE_H_
-#define CSPOT_PORT_JSON_GLUE_H_
+#ifndef ZSPOT_PORT_JSON_GLUE_H_
+#define ZSPOT_PORT_JSON_GLUE_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -29,16 +29,16 @@ extern "C" {
  * @param first Receives a pointer into @p doc.
  * @return 0 on success, negative errno otherwise.
  */
-int cspot_json_first_of_array(const char *key, char *doc, size_t len, const char **first);
+int zspot_json_first_of_array(const char *key, char *doc, size_t len, const char **first);
 
-struct cspot_json_credentials {
+struct zspot_json_credentials {
 	const char *auth_data;
 	int32_t auth_type;
 	const char *username;
 };
 
 /** Parses {"authData": s, "authType": n, "username": s}; @p doc is modified in place. */
-int cspot_json_parse_credentials(char *doc, size_t len, struct cspot_json_credentials *out);
+int zspot_json_parse_credentials(char *doc, size_t len, struct zspot_json_credentials *out);
 
 /**
  * @brief Encodes credentials.
@@ -46,10 +46,10 @@ int cspot_json_parse_credentials(char *doc, size_t len, struct cspot_json_creden
  * @return The encoded length (excluding NUL). When @p buf is NULL only the
  *         length is computed. Negative errno on failure.
  */
-int cspot_json_encode_credentials(const struct cspot_json_credentials *in, char *buf,
+int zspot_json_encode_credentials(const struct zspot_json_credentials *in, char *buf,
 				  size_t size);
 
-struct cspot_json_zeroconf_info {
+struct zspot_json_zeroconf_info {
 	const char *version;
 	const char *library_version;
 	const char *brand_display_name;
@@ -61,11 +61,11 @@ struct cspot_json_zeroconf_info {
 };
 
 /** Encodes the zeroconf getInfo response; same contract as the credentials encoder. */
-int cspot_json_encode_zeroconf_info(const struct cspot_json_zeroconf_info *in, char *buf,
+int zspot_json_encode_zeroconf_info(const struct zspot_json_zeroconf_info *in, char *buf,
 				    size_t size);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* CSPOT_PORT_JSON_GLUE_H_ */
+#endif /* ZSPOT_PORT_JSON_GLUE_H_ */

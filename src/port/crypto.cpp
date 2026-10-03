@@ -16,9 +16,9 @@
 #include "port/log.h"
 #include "port/mod_exp.h"
 
-CSPOT_LOG_MODULE_DECLARE();
+ZSPOT_LOG_MODULE_DECLARE();
 
-namespace cspot
+namespace zspot
 {
 
 namespace
@@ -356,4 +356,4 @@ std::vector<uint8_t> Crypto::generateVectorWithRandomData(size_t length)
 	return random;
 }
 
-} /* namespace cspot */
+} /* namespace zspot */

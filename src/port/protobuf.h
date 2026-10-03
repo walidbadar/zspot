@@ -11,8 +11,8 @@
  * Function names follow the upstream cspot helpers they replace.
  */
 
-#ifndef CSPOT_PORT_PROTOBUF_H_
-#define CSPOT_PORT_PROTOBUF_H_
+#ifndef ZSPOT_PORT_PROTOBUF_H_
+#define ZSPOT_PORT_PROTOBUF_H_
 
 #include <pb.h>
 #include <pb_decode.h>
@@ -56,7 +56,7 @@ void pbPutString(const std::string &string_to_pack, char *dst);
 void pbPutCharArray(const char *string_to_pack, char *dst);
 void pbPutBytes(const std::vector<uint8_t> &data, pb_bytes_array_t &dst);
 
-namespace cspot::nanopb
+namespace zspot::nanopb
 {
 
 /* Encode callbacks for pb_callback_t fields backed by C++ containers. */
@@ -64,6 +64,6 @@ bool encodeString(pb_ostream_t *stream, const pb_field_t *field, void *const *ar
 bool encodeVector(pb_ostream_t *stream, const pb_field_t *field, void *const *arg);
 bool encodeBoolean(pb_ostream_t *stream, const pb_field_t *field, void *const *arg);
 
-} /* namespace cspot::nanopb */
+} /* namespace zspot::nanopb */
 
-#endif /* CSPOT_PORT_PROTOBUF_H_ */
+#endif /* ZSPOT_PORT_PROTOBUF_H_ */

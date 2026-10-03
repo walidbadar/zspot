@@ -50,7 +50,7 @@ class QueuedTrack {
     FAILED
   };
 
-  std::shared_ptr<cspot::Semaphore> loadedSemaphore;
+  std::shared_ptr<zspot::Semaphore> loadedSemaphore;
 
   State state = State::QUEUED;  // Current state of the track
   TrackReference ref;           // Holds GID, URI and Context
@@ -65,14 +65,14 @@ class QueuedTrack {
 
   // --- Steps ---
   void stepLoadMetadata(
-      Track* pbTrack, Episode* pbEpisode, cspot::Mutex& trackListMutex,
-      std::shared_ptr<cspot::Semaphore> updateSemaphore);
+      Track* pbTrack, Episode* pbEpisode, zspot::Mutex& trackListMutex,
+      std::shared_ptr<zspot::Semaphore> updateSemaphore);
 
   void stepParseMetadata(Track* pbTrack, Episode* pbEpisode);
 
   void stepLoadAudioFile(
-      cspot::Mutex& trackListMutex,
-      std::shared_ptr<cspot::Semaphore> updateSemaphore);
+      zspot::Mutex& trackListMutex,
+      std::shared_ptr<zspot::Semaphore> updateSemaphore);
 
   void stepLoadCDNUrl(const std::string& accessKey);
 
@@ -88,7 +88,7 @@ class QueuedTrack {
   std::string cdnUrl;
 };
 
-class TrackQueue : public cspot::Task {
+class TrackQueue : public zspot::Task {
  public:
   TrackQueue(std::shared_ptr<cspot::Context> ctx,
              std::shared_ptr<cspot::PlaybackState> playbackState);
@@ -96,7 +96,7 @@ class TrackQueue : public cspot::Task {
 
   enum class SkipDirection { NEXT, PREV };
 
-  std::shared_ptr<cspot::Semaphore> playableSemaphore;
+  std::shared_ptr<zspot::Semaphore> playableSemaphore;
   std::atomic<bool> notifyPending = false;
 
   void runTask() override;
@@ -116,11 +116,11 @@ class TrackQueue : public cspot::Task {
   std::shared_ptr<cspot::AccessKeyFetcher> accessKeyFetcher;
   std::shared_ptr<PlaybackState> playbackState;
   std::shared_ptr<cspot::Context> ctx;
-  std::shared_ptr<cspot::Semaphore> processSemaphore;
+  std::shared_ptr<zspot::Semaphore> processSemaphore;
 
   std::deque<std::shared_ptr<QueuedTrack>> preloadedTracks;
   std::vector<TrackReference> currentTracks;
-  cspot::Mutex tracksMutex, runningMutex;
+  zspot::Mutex tracksMutex, runningMutex;
 
   // PB data
   Track pbTrack;

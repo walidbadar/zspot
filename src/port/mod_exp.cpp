@@ -16,7 +16,7 @@
 
 #include <cstring>
 
-namespace cspot::detail
+namespace zspot::detail
 {
 
 namespace
@@ -195,4 +195,4 @@ bool mod_exp(const std::vector<uint8_t> &base, const std::vector<uint8_t> &exp,
 	return true;
 }
 
-} /* namespace cspot::detail */
+} /* namespace zspot::detail */

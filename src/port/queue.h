@@ -9,8 +9,8 @@
  * @brief Blocking FIFO used to hand packets between protocol threads.
  */
 
-#ifndef CSPOT_PORT_QUEUE_H_
-#define CSPOT_PORT_QUEUE_H_
+#ifndef ZSPOT_PORT_QUEUE_H_
+#define ZSPOT_PORT_QUEUE_H_
 
 #include <atomic>
 #include <mutex>
@@ -18,7 +18,7 @@
 
 #include "port/sync.h"
 
-namespace cspot
+namespace zspot
 {
 
 template <typename T> class Queue
@@ -111,6 +111,6 @@ private:
 	std::atomic<bool> force_exit_ = false;
 };
 
-} /* namespace cspot */
+} /* namespace zspot */
 
-#endif /* CSPOT_PORT_QUEUE_H_ */
+#endif /* ZSPOT_PORT_QUEUE_H_ */

@@ -18,7 +18,7 @@
 #include "core/TrackQueue.h"        // for CDNTrackStream, CDNTrackStream::TrackInfo
 #include "port/sync.h"
 
-CSPOT_LOG_MODULE_DECLARE();
+ZSPOT_LOG_MODULE_DECLARE();
 
 #define VORBIS_SEEK(file, position) (ov_time_seek(file, position))
 #define VORBIS_READ(file, buffer, bufferSize, section) \
@@ -52,12 +52,12 @@ static long vorbisTellCb(TrackPlayer* self) {
 TrackPlayer::TrackPlayer(std::shared_ptr<cspot::Context> ctx,
                          std::shared_ptr<cspot::TrackQueue> trackQueue,
                          EOFCallback eof, TrackLoadedCallback trackLoaded)
-    : cspot::Task("cspot_player", CONFIG_CSPOT_PLAYER_STACK_SIZE, 5) {
+    : zspot::Task("zspot_player", CONFIG_ZSPOT_PLAYER_STACK_SIZE, 5) {
   this->ctx = ctx;
   this->eofCallback = eof;
   this->trackLoaded = trackLoaded;
   this->trackQueue = trackQueue;
-  this->playbackSemaphore = std::make_unique<cspot::Semaphore>(5);
+  this->playbackSemaphore = std::make_unique<zspot::Semaphore>(5);
 
   // Initialize vorbis callbacks
   vorbisFile = {};

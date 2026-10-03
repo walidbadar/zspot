@@ -9,8 +9,8 @@
  * @brief DNS-SD advertisement of _spotify-connect._tcp via Zephyr's mDNS responder.
  */
 
-#ifndef CSPOT_PORT_MDNS_H_
-#define CSPOT_PORT_MDNS_H_
+#ifndef ZSPOT_PORT_MDNS_H_
+#define ZSPOT_PORT_MDNS_H_
 
 #include <stdint.h>
 
@@ -19,13 +19,13 @@ extern "C" {
 #endif
 
 /** Publishes the service instance; the record is served by the mDNS responder. */
-int cspot_mdns_advertise(const char *instance_name, uint16_t port);
+int zspot_mdns_advertise(const char *instance_name, uint16_t port);
 
 /** Stops answering for the service. */
-void cspot_mdns_withdraw(void);
+void zspot_mdns_withdraw(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* CSPOT_PORT_MDNS_H_ */
+#endif /* ZSPOT_PORT_MDNS_H_ */

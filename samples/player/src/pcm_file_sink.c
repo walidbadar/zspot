@@ -16,7 +16,7 @@
 #include <nsi_host_trampolines.h>
 #include <zephyr/logging/log.h>
 
-LOG_MODULE_DECLARE(cspot_player, LOG_LEVEL_INF);
+LOG_MODULE_DECLARE(zspot_player, LOG_LEVEL_INF);
 
 /* Host open(2) flags (Linux values). */
 #define HOST_O_WRONLY 01

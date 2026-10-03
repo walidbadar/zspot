@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-#ifndef CSPOT_SAMPLE_PCM_FILE_SINK_H_
-#define CSPOT_SAMPLE_PCM_FILE_SINK_H_
+#ifndef ZSPOT_SAMPLE_PCM_FILE_SINK_H_
+#define ZSPOT_SAMPLE_PCM_FILE_SINK_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -17,11 +17,11 @@ extern "C" {
 /** Opens @p path on the host (native_sim) for raw 16-bit stereo PCM output. */
 int pcm_file_sink_init(const char *path);
 
-/** cspot_pcm_cb_t compatible writer. */
+/** zspot_pcm_cb_t compatible writer. */
 size_t pcm_file_sink_write(const uint8_t *pcm, size_t len, void *user_data);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* CSPOT_SAMPLE_PCM_FILE_SINK_H_ */
+#endif /* ZSPOT_SAMPLE_PCM_FILE_SINK_H_ */

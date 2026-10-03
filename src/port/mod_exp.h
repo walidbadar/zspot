@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-#ifndef CSPOT_PORT_MOD_EXP_H_
-#define CSPOT_PORT_MOD_EXP_H_
+#ifndef ZSPOT_PORT_MOD_EXP_H_
+#define ZSPOT_PORT_MOD_EXP_H_
 
 #include <cstddef>
 #include <cstdint>
 #include <vector>
 
-namespace cspot::detail
+namespace zspot::detail
 {
 
 /**
@@ -25,6 +25,6 @@ namespace cspot::detail
 bool mod_exp(const std::vector<uint8_t> &base, const std::vector<uint8_t> &exp,
 	     const uint8_t *modulus, size_t modulus_len, std::vector<uint8_t> &result);
 
-} /* namespace cspot::detail */
+} /* namespace zspot::detail */
 
-#endif /* CSPOT_PORT_MOD_EXP_H_ */
+#endif /* ZSPOT_PORT_MOD_EXP_H_ */

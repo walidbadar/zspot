@@ -12,7 +12,7 @@
 
 / {
 	aliases {
-		cspot-i2s = &i2s0;
+		zspot-i2s = &i2s0;
 	};
 };
 

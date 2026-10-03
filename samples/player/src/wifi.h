@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-#ifndef CSPOT_SAMPLE_WIFI_H_
-#define CSPOT_SAMPLE_WIFI_H_
+#ifndef ZSPOT_SAMPLE_WIFI_H_
+#define ZSPOT_SAMPLE_WIFI_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,4 +21,4 @@ int wifi_init(void);
 }
 #endif
 
-#endif /* CSPOT_SAMPLE_WIFI_H_ */
+#endif /* ZSPOT_SAMPLE_WIFI_H_ */

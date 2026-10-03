@@ -27,13 +27,13 @@
 
 /* make it easy on the folks that want to compile the libs with a
    different malloc than stdlib */
-#ifdef CSPOT_TREMOR_ALLOC
+#ifdef ZSPOT_TREMOR_ALLOC
 /* cspot-zephyr: route decoder buffers through the library allocator */
 #include "port/mem.h"
-#define _ogg_malloc  cspot_mem_alloc
-#define _ogg_calloc  cspot_mem_calloc
-#define _ogg_realloc cspot_mem_realloc
-#define _ogg_free    cspot_mem_free
+#define _ogg_malloc  zspot_mem_alloc
+#define _ogg_calloc  zspot_mem_calloc
+#define _ogg_realloc zspot_mem_realloc
+#define _ogg_free    zspot_mem_free
 #else
 #define _ogg_malloc  malloc
 #define _ogg_calloc  calloc
