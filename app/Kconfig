@@ -89,7 +89,7 @@ config ZSPOT_UI
 	depends on LVGL && LV_Z_RUN_LVGL_ON_WORKQUEUE && LV_USE_TJPGD
 	help
 	  Shows the cover art, title, artist and progress of the current track
-	  on the chosen display (laid out for 320x480) and offers touch
+	  on the chosen display (the layout follows its resolution) and offers touch
 	  controls for play/pause, skipping, seeking and the volume. See
 	  prj.conf for the LVGL configuration it needs.
 

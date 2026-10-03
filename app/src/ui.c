@@ -5,7 +5,7 @@
  */
 
 /*
- * "Now Playing" screen for a 320x480 portrait display, plus a list view for
+ * "Now Playing" screen, laid out for the resolution of the display, plus a list view for
  * browsing the user's library, search results and Wi-Fi networks, and a text
  * entry screen with a keyboard for the search and the Wi-Fi password.
  *
@@ -41,22 +41,129 @@ LOG_MODULE_DECLARE(zspot_player, LOG_LEVEL_INF);
 #define COLOR_ACCENT  lv_color_hex(0x1DB954)
 #define COLOR_ERROR   lv_color_hex(0xE22134)
 
-#define MARGIN       24
-#define CONTENT_W    (320 - 2 * MARGIN)
-#define COVER_SIZE   256
-#define COVER_Y      36
-#define SEARCH_BAR_H 26 /* ends 5 px above the cover */
-#define TITLE_Y      304
-#define ARTIST_Y     332
-#define PROGRESS_Y   366
-#define TIME_Y       378
-#define CONTROLS_Y   420 /* centre line of the transport buttons */
-#define VOLUME_Y     466
+/*
+ * The sizes below are those of the 320x480 design (480x320 in landscape).
+ * sc() scales them up for a larger display, together with the fonts; on a
+ * smaller one they stay and the cover shrinks. See compute_layout().
+ */
+#define TOP_H        sc(36) /* search bar and corner buttons */
+#define SEARCH_BAR_H sc(26) /* ends 5 px above the content below */
+#define GAP          sc(12) /* between the cover and the text below or beside it */
+/* Title, artist, progress, times, transport buttons and the volume row */
+#define INFO_H       sc(176)
+/* Offsets of those within the block */
+#define TITLE_DY     0
+#define ARTIST_DY    sc(28)
+#define PROGRESS_DY  sc(62)
+#define TIME_DY      sc(74)
+#define CONTROLS_DY  sc(116) /* centre line of the transport buttons */
+#define VOLUME_DY    sc(162)
 
-#define LYRICS_PAD   16 /* around the lines of the lyrics panel */
+#define LYRICS_PAD   sc(16) /* around the lines of the lyrics panel */
 
-#define BAR_H        48 /* top bar of the library view */
-#define ROW_H        56
+#define BAR_H        sc(48) /* top bar of the library view */
+#define ROW_H        sc(56)
+/* Entry screen: hint, text field and button below the top bar */
+#define ENTRY_FORM_H sc(150)
+#define KEYBOARD_H_MIN sc(120)
+#define KEYBOARD_H_MAX sc(240)
+
+/* From these scales on larger fonts are used, when they are built in */
+#define MEDIUM_FONT_SCALE 135 /* one and a half times the size */
+#define LARGE_FONT_SCALE  175 /* twice the size */
+
+/* Placement for the resolution of the display */
+static struct {
+	int32_t w;
+	int32_t h;
+	/* Size of the display relative to the design, in percent; at least 100 */
+	int32_t scale;
+	int32_t margin;
+	/* Cover (and lyrics panel): a square */
+	int32_t cover_x;
+	int32_t cover_y;
+	int32_t cover_size;
+	/* Column with the text and the controls: below the cover, or beside it */
+	int32_t info_x;
+	int32_t info_y;
+	int32_t info_w;
+	/* Entry screen */
+	int32_t keyboard_h;
+	bool entry_button;
+} lay;
+
+/* Fonts for the scale: hints and times, text, title, large symbols */
+static const lv_font_t *font_small = &lv_font_montserrat_12;
+static const lv_font_t *font_text = &lv_font_montserrat_14;
+static const lv_font_t *font_title = &lv_font_montserrat_20;
+static const lv_font_t *font_icon = &lv_font_montserrat_28;
+
+/* A size of the design in pixels of this display */
+static int32_t sc(int32_t px)
+{
+	return px * lay.scale / 100;
+}
+
+static void compute_layout(void)
+{
+	bool portrait;
+
+	lay.w = lv_display_get_horizontal_resolution(NULL);
+	lay.h = lv_display_get_vertical_resolution(NULL);
+	portrait = lay.w <= lay.h;
+
+	lay.scale = portrait ? MIN(lay.w * 100 / 320, lay.h * 100 / 480)
+			     : MIN(lay.w * 100 / 480, lay.h * 100 / 320);
+	lay.scale = MAX(lay.scale, 100);
+#if defined(CONFIG_LV_FONT_MONTSERRAT_18) && defined(CONFIG_LV_FONT_MONTSERRAT_30) &&             \
+	defined(CONFIG_LV_FONT_MONTSERRAT_40)
+	if (lay.scale >= MEDIUM_FONT_SCALE) {
+		font_small = &lv_font_montserrat_18;
+		font_text = &lv_font_montserrat_20;
+		font_title = &lv_font_montserrat_30;
+		font_icon = &lv_font_montserrat_40;
+	}
+#endif
+#if defined(CONFIG_LV_FONT_MONTSERRAT_24) && defined(CONFIG_LV_FONT_MONTSERRAT_40) &&             \
+	defined(CONFIG_LV_FONT_MONTSERRAT_48)
+	if (lay.scale >= LARGE_FONT_SCALE) {
+		font_small = &lv_font_montserrat_24;
+		font_text = &lv_font_montserrat_28;
+		font_title = &lv_font_montserrat_40;
+		font_icon = &lv_font_montserrat_48;
+	}
+#endif
+	lay.margin = sc(lay.w >= 300 ? 24 : 12);
+
+	if (portrait) {
+		/* Portrait: the cover fills what the text block leaves above it. */
+		int32_t space = lay.h - TOP_H - GAP - INFO_H;
+
+		lay.info_x = lay.margin;
+		lay.info_w = lay.w - 2 * lay.margin;
+		lay.info_y = lay.h - INFO_H;
+		lay.cover_size = MAX(MIN(lay.w - 2 * (lay.margin + sc(8)), space), 0);
+		lay.cover_x = (lay.w - lay.cover_size) / 2;
+		lay.cover_y = TOP_H + (space - lay.cover_size) / 2;
+	} else {
+		/* Landscape: the cover on the left, the text block beside it. */
+		int32_t space = lay.h - TOP_H - GAP;
+
+		lay.cover_size = MAX(MIN(space, lay.w / 2 - lay.margin - GAP), 0);
+		lay.cover_x = lay.margin;
+		lay.cover_y = TOP_H + (space - lay.cover_size) / 2;
+		lay.info_x = lay.cover_x + lay.cover_size + lay.margin;
+		lay.info_w = lay.w - lay.info_x - lay.margin;
+		lay.info_y = TOP_H + MAX((lay.h - TOP_H - INFO_H) / 2, 0);
+	}
+
+	/* The keyboard takes what the entry form leaves; on a low display the
+	 * button goes, the keyboard's confirm key does the same.
+	 */
+	lay.entry_button = lay.h >= BAR_H + ENTRY_FORM_H + KEYBOARD_H_MIN;
+	lay.keyboard_h = CLAMP(lay.h - BAR_H - (lay.entry_button ? ENTRY_FORM_H : sc(96)),
+			       KEYBOARD_H_MIN, KEYBOARD_H_MAX);
+}
 
 #define TICK_MS          50
 #define POSITION_TICKS   5 /* progress refresh: every 250 ms */
@@ -408,7 +515,7 @@ static void list_add(const char *title, const char *subtitle, uint32_t duration_
 {
 	int index = lv_obj_get_child_count(list_rows);
 	/* Leave room for the duration at the right edge */
-	int32_t text_w = CONTENT_W - (duration_ms > 0 ? 44 : 0);
+	int32_t text_w = lay.w - 2 * lay.margin - (duration_ms > 0 ? sc(44) : 0);
 	lv_obj_t *row;
 	lv_obj_t *label;
 
@@ -416,27 +523,27 @@ static void list_add(const char *title, const char *subtitle, uint32_t duration_
 		return;
 	}
 
-	row = create_box(list_rows, 320, ROW_H);
+	row = create_box(list_rows, lay.w, ROW_H);
 	lv_obj_set_pos(row, 0, index * ROW_H);
 	lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
 	lv_obj_set_style_bg_color(row, COLOR_SURFACE, LV_STATE_PRESSED);
 	lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
 	lv_obj_add_event_cb(row, on_list_row_clicked, LV_EVENT_CLICKED, (void *)(intptr_t)index);
 
-	label = create_label(row, &lv_font_montserrat_14, COLOR_TEXT, title);
+	label = create_label(row, font_text, COLOR_TEXT, title);
 	lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);
-	lv_obj_set_size(label, text_w, lv_font_get_line_height(&lv_font_montserrat_14));
-	lv_obj_set_pos(label, MARGIN, 10);
+	lv_obj_set_size(label, text_w, lv_font_get_line_height(font_text));
+	lv_obj_set_pos(label, lay.margin, sc(10));
 
-	label = create_label(row, &lv_font_montserrat_12, COLOR_SUBTLE, subtitle);
+	label = create_label(row, font_small, COLOR_SUBTLE, subtitle);
 	lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);
-	lv_obj_set_size(label, text_w, lv_font_get_line_height(&lv_font_montserrat_12));
-	lv_obj_set_pos(label, MARGIN, 31);
+	lv_obj_set_size(label, text_w, lv_font_get_line_height(font_small));
+	lv_obj_set_pos(label, lay.margin, sc(31));
 
 	if (duration_ms > 0) {
-		label = create_label(row, &lv_font_montserrat_12, COLOR_SUBTLE, "");
+		label = create_label(row, font_small, COLOR_SUBTLE, "");
 		set_time(label, duration_ms);
-		lv_obj_align(label, LV_ALIGN_RIGHT_MID, -MARGIN, 0);
+		lv_obj_align(label, LV_ALIGN_RIGHT_MID, -lay.margin, 0);
 	}
 }
 
@@ -451,11 +558,12 @@ static void lyrics_set_status(const char *status)
 		lyrics = NULL;
 	}
 
-	label = create_label(lyrics_panel, &lv_font_montserrat_14, COLOR_SUBTLE, status);
+	label = create_label(lyrics_panel, font_text, COLOR_SUBTLE, status);
 	lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_WRAP);
 	lv_obj_set_width(label, lv_pct(100));
 	lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
-	lv_obj_set_style_margin_top(label, 90, 0);
+	/* Roughly in the middle of the panel */
+	lv_obj_set_style_margin_top(label, MAX(lay.cover_size / 2 - sc(40), 0), 0);
 }
 
 /* Takes over @p new_lyrics and lists its lines; the labels point into it. */
@@ -470,7 +578,7 @@ static void lyrics_set(struct ui_lyrics *new_lyrics)
 	for (int i = 0; i < lyrics->count; i++) {
 		const char *text = lyrics->lines[i].text;
 		/* Synced lines start dim and light up when they are sung. */
-		lv_obj_t *label = create_label(lyrics_panel, &lv_font_montserrat_20,
+		lv_obj_t *label = create_label(lyrics_panel, font_title,
 					       lyrics->synced ? COLOR_TRACK : COLOR_TEXT, "");
 
 		lv_label_set_text_static(label, text[0] != '\0' ? text : LV_SYMBOL_AUDIO);
@@ -511,7 +619,7 @@ static void lyrics_follow(uint32_t position_ms)
 	/* lv_obj_get_y() is relative to the padded content, whatever the scroll. */
 	lv_obj_scroll_to_y(lyrics_panel,
 			   MAX(lv_obj_get_y(label) + LYRICS_PAD -
-				       (COVER_SIZE - lv_obj_get_height(label)) / 2,
+				       (lay.cover_size - lv_obj_get_height(label)) / 2,
 			       0),
 			   LV_ANIM_ON);
 }
@@ -794,8 +902,8 @@ static lv_obj_t *create_slider(lv_obj_t *parent, int32_t y, int32_t x, int32_t w
 
 	lv_obj_remove_style_all(slider);
 	lv_obj_set_pos(slider, x, y);
-	lv_obj_set_size(slider, w, 4);
-	lv_obj_set_ext_click_area(slider, 14);
+	lv_obj_set_size(slider, w, sc(4));
+	lv_obj_set_ext_click_area(slider, sc(14));
 
 	lv_obj_set_style_radius(slider, LV_RADIUS_CIRCLE, LV_PART_MAIN);
 	lv_obj_set_style_bg_color(slider, COLOR_TRACK, LV_PART_MAIN);
@@ -809,7 +917,7 @@ static lv_obj_t *create_slider(lv_obj_t *parent, int32_t y, int32_t x, int32_t w
 	lv_obj_set_style_radius(slider, LV_RADIUS_CIRCLE, LV_PART_KNOB);
 	lv_obj_set_style_bg_color(slider, COLOR_TEXT, LV_PART_KNOB);
 	lv_obj_set_style_bg_opa(slider, LV_OPA_COVER, LV_PART_KNOB);
-	lv_obj_set_style_pad_all(slider, 4, LV_PART_KNOB);
+	lv_obj_set_style_pad_all(slider, sc(4), LV_PART_KNOB);
 
 	lv_obj_set_style_opa(slider, LV_OPA_40, LV_STATE_DISABLED);
 
@@ -818,14 +926,14 @@ static lv_obj_t *create_slider(lv_obj_t *parent, int32_t y, int32_t x, int32_t w
 	return slider;
 }
 
-/* Transport button centred on (@p x, CONTROLS_Y); returns the button. */
+/* Transport button centred on @p x of the controls line; returns the button. */
 static lv_obj_t *create_button(lv_obj_t *parent, int32_t x, int32_t size, const char *symbol,
 			       lv_event_cb_t clicked_cb, lv_obj_t **icon)
 {
 	lv_obj_t *button = create_box(parent, size, size);
 	lv_obj_t *label;
 
-	lv_obj_set_pos(button, x - size / 2, CONTROLS_Y - size / 2);
+	lv_obj_set_pos(button, x - size / 2, lay.info_y + CONTROLS_DY - size / 2);
 	lv_obj_add_flag(button, LV_OBJ_FLAG_CLICKABLE);
 	lv_obj_set_style_radius(button, LV_RADIUS_CIRCLE, 0);
 	lv_obj_set_style_text_color(button, COLOR_TEXT, 0);
@@ -834,7 +942,7 @@ static lv_obj_t *create_button(lv_obj_t *parent, int32_t x, int32_t size, const 
 	lv_obj_add_event_cb(button, clicked_cb, LV_EVENT_CLICKED, NULL);
 
 	label = lv_label_create(button);
-	lv_obj_set_style_text_font(label, &lv_font_montserrat_28, 0);
+	lv_obj_set_style_text_font(label, font_icon, 0);
 	lv_label_set_text(label, symbol);
 	lv_obj_center(label);
 	if (icon != NULL) {
@@ -846,7 +954,7 @@ static lv_obj_t *create_button(lv_obj_t *parent, int32_t x, int32_t size, const 
 /* Borderless icon with a comfortable touch area, e.g. in a top bar. */
 static lv_obj_t *create_icon_button(lv_obj_t *parent, const char *symbol, lv_event_cb_t clicked_cb)
 {
-	lv_obj_t *button = create_box(parent, 44, 44);
+	lv_obj_t *button = create_box(parent, sc(44), sc(44));
 	lv_obj_t *label;
 
 	lv_obj_add_flag(button, LV_OBJ_FLAG_CLICKABLE);
@@ -857,7 +965,7 @@ static lv_obj_t *create_icon_button(lv_obj_t *parent, const char *symbol, lv_eve
 	}
 
 	label = lv_label_create(button);
-	lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
+	lv_obj_set_style_text_font(label, font_text, 0);
 	lv_label_set_text(label, symbol);
 	lv_obj_center(label);
 	return button;
@@ -873,23 +981,25 @@ static void create_list_screen(void)
 	lv_obj_set_style_bg_opa(list_screen, LV_OPA_COVER, 0);
 
 	back_button = create_icon_button(list_screen, LV_SYMBOL_LEFT, on_list_back_clicked);
-	lv_obj_set_pos(back_button, 8, 2);
+	lv_obj_set_pos(back_button, sc(8), sc(2));
 
-	list_heading = create_label(list_screen, &lv_font_montserrat_14, COLOR_TEXT, "");
+	list_heading = create_label(list_screen, font_text, COLOR_TEXT, "");
 	lv_label_set_long_mode(list_heading, LV_LABEL_LONG_MODE_DOTS);
 	lv_obj_set_style_text_align(list_heading, LV_TEXT_ALIGN_CENTER, 0);
-	lv_obj_set_size(list_heading, 320 - 2 * 56, lv_font_get_line_height(&lv_font_montserrat_14));
-	lv_obj_align(list_heading, LV_ALIGN_TOP_MID, 0, (BAR_H - 14) / 2);
+	lv_obj_set_size(list_heading, lay.w - 2 * sc(56),
+			lv_font_get_line_height(font_text));
+	lv_obj_align(list_heading, LV_ALIGN_TOP_MID, 0,
+		     (BAR_H - lv_font_get_line_height(font_text)) / 2);
 
-	list_rows = create_box(list_screen, 320, 480 - BAR_H);
+	list_rows = create_box(list_screen, lay.w, lay.h - BAR_H);
 	lv_obj_set_pos(list_rows, 0, BAR_H);
 	lv_obj_add_flag(list_rows, LV_OBJ_FLAG_SCROLLABLE);
 	lv_obj_set_scroll_dir(list_rows, LV_DIR_VER);
 
-	list_status = create_label(list_screen, &lv_font_montserrat_14, COLOR_SUBTLE, "");
+	list_status = create_label(list_screen, font_text, COLOR_SUBTLE, "");
 	lv_label_set_long_mode(list_status, LV_LABEL_LONG_MODE_WRAP);
 	lv_obj_set_style_text_align(list_status, LV_TEXT_ALIGN_CENTER, 0);
-	lv_obj_set_width(list_status, CONTENT_W);
+	lv_obj_set_width(list_status, lay.w - 2 * lay.margin);
 	lv_obj_center(list_status);
 }
 
@@ -905,39 +1015,44 @@ static void create_entry_screen(void)
 	lv_obj_set_style_bg_opa(entry_screen, LV_OPA_COVER, 0);
 
 	button = create_icon_button(entry_screen, LV_SYMBOL_LEFT, on_entry_back_clicked);
-	lv_obj_set_pos(button, 8, 2);
+	lv_obj_set_pos(button, sc(8), sc(2));
 
-	entry_heading = create_label(entry_screen, &lv_font_montserrat_14, COLOR_TEXT, "");
+	entry_heading = create_label(entry_screen, font_text, COLOR_TEXT, "");
 	lv_label_set_long_mode(entry_heading, LV_LABEL_LONG_MODE_DOTS);
 	lv_obj_set_style_text_align(entry_heading, LV_TEXT_ALIGN_CENTER, 0);
-	lv_obj_set_size(entry_heading, 320 - 2 * 56,
-			lv_font_get_line_height(&lv_font_montserrat_14));
-	lv_obj_align(entry_heading, LV_ALIGN_TOP_MID, 0, (BAR_H - 14) / 2);
+	lv_obj_set_size(entry_heading, lay.w - 2 * sc(56),
+			lv_font_get_line_height(font_text));
+	lv_obj_align(entry_heading, LV_ALIGN_TOP_MID, 0,
+		     (BAR_H - lv_font_get_line_height(font_text)) / 2);
 
-	entry_hint = create_label(entry_screen, &lv_font_montserrat_12, COLOR_SUBTLE, "");
-	lv_obj_set_pos(entry_hint, MARGIN, BAR_H + 16);
+	entry_hint = create_label(entry_screen, font_small, COLOR_SUBTLE, "");
+	lv_obj_set_pos(entry_hint, lay.margin, BAR_H + sc(16));
 
 	entry_text = lv_textarea_create(entry_screen);
 	lv_textarea_set_one_line(entry_text, true);
 	lv_textarea_set_max_length(entry_text, ENTRY_TEXT_MAX);
-	lv_obj_set_width(entry_text, CONTENT_W);
-	lv_obj_set_pos(entry_text, MARGIN, BAR_H + 40);
+	lv_obj_set_style_text_font(entry_text, font_text, 0);
+	lv_obj_set_style_pad_ver(entry_text, sc(11), 0);
+	lv_obj_set_width(entry_text, lay.w - 2 * lay.margin);
+	lv_obj_set_pos(entry_text, lay.margin, BAR_H + sc(40));
 	lv_obj_add_state(entry_text, LV_STATE_FOCUSED); /* shows the cursor */
 
-	button = create_box(entry_screen, 120, 40);
-	lv_obj_align(button, LV_ALIGN_TOP_MID, 0, BAR_H + 104);
+	button = create_box(entry_screen, sc(120), sc(40));
+	lv_obj_align(button, LV_ALIGN_TOP_MID, 0, BAR_H + sc(104));
 	lv_obj_add_flag(button, LV_OBJ_FLAG_CLICKABLE);
 	lv_obj_set_style_radius(button, LV_RADIUS_CIRCLE, 0);
 	lv_obj_set_style_bg_color(button, COLOR_ACCENT, 0);
 	lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
 	lv_obj_set_style_bg_opa(button, LV_OPA_70, LV_STATE_PRESSED);
 	lv_obj_add_event_cb(button, on_entry_confirm, LV_EVENT_CLICKED, NULL);
-	entry_action = create_label(button, &lv_font_montserrat_14, COLOR_BG, "");
+	entry_action = create_label(button, font_text, COLOR_BG, "");
 	lv_obj_center(entry_action);
+	lv_obj_set_flag(button, LV_OBJ_FLAG_HIDDEN, !lay.entry_button);
 
 	/* The keyboard's confirm key acts like the button, its close key goes back. */
 	keyboard = lv_keyboard_create(entry_screen);
-	lv_obj_set_size(keyboard, 320, 220);
+	lv_obj_set_size(keyboard, lay.w, lay.keyboard_h);
+	lv_obj_set_style_text_font(keyboard, font_text, LV_PART_ITEMS);
 	lv_obj_align(keyboard, LV_ALIGN_BOTTOM_MID, 0, 0);
 	lv_keyboard_set_textarea(keyboard, entry_text);
 	lv_obj_add_event_cb(keyboard, on_entry_confirm, LV_EVENT_READY, NULL);
@@ -948,6 +1063,8 @@ static void create_screen(void)
 {
 	lv_obj_t *screen = lv_screen_active();
 	lv_obj_t *library_button;
+	int32_t controls_x;
+	int32_t controls_step;
 	lv_obj_t *search_bar;
 	lv_obj_t *search_image;
 	lv_obj_t *search_hint;
@@ -968,8 +1085,8 @@ static void create_screen(void)
 
 	/* Search bar between the two corner buttons; tapping it asks for the text */
 	/* Centred on the icons of the corner buttons, clear of the cover below */
-	search_bar = create_box(screen, 320 - 2 * 52, SEARCH_BAR_H);
-	lv_obj_align(search_bar, LV_ALIGN_TOP_MID, 0, 18 - SEARCH_BAR_H / 2);
+	search_bar = create_box(screen, lay.w - 2 * sc(52), SEARCH_BAR_H);
+	lv_obj_align(search_bar, LV_ALIGN_TOP_MID, 0, sc(18) - SEARCH_BAR_H / 2);
 	lv_obj_add_flag(search_bar, LV_OBJ_FLAG_CLICKABLE);
 	lv_obj_set_style_radius(search_bar, LV_RADIUS_CIRCLE, 0);
 	lv_obj_set_style_bg_color(search_bar, COLOR_SURFACE, 0);
@@ -981,15 +1098,16 @@ static void create_screen(void)
 	lv_image_set_src(search_image, &search_icon);
 	lv_obj_set_style_image_recolor(search_image, COLOR_SUBTLE, 0);
 	lv_obj_set_style_image_recolor_opa(search_image, LV_OPA_COVER, 0);
-	lv_obj_align(search_image, LV_ALIGN_LEFT_MID, 12, 0);
+	lv_image_set_scale(search_image, LV_SCALE_NONE * lay.scale / 100);
+	lv_obj_align(search_image, LV_ALIGN_LEFT_MID, sc(12), 0);
 
-	search_hint = create_label(search_bar, &lv_font_montserrat_12, COLOR_SUBTLE,
+	search_hint = create_label(search_bar, font_small, COLOR_SUBTLE,
 				   "What do you want to play?");
-	lv_obj_align(search_hint, LV_ALIGN_LEFT_MID, 36, 0);
+	lv_obj_align(search_hint, LV_ALIGN_LEFT_MID, sc(36), 0);
 
 	/* Red until the application reports the network as connected */
 	network_icon = create_icon_button(screen, LV_SYMBOL_WIFI, NULL);
-	lv_obj_align(network_icon, LV_ALIGN_TOP_RIGHT, -4, -4);
+	lv_obj_align(network_icon, LV_ALIGN_TOP_RIGHT, -sc(4), -sc(4));
 	lv_obj_set_style_text_color(network_icon, COLOR_ERROR, 0);
 	lv_obj_set_style_text_color(network_icon, COLOR_ERROR, LV_STATE_PRESSED);
 	lv_obj_add_event_cb(network_icon, on_network_event, LV_EVENT_PRESSED, NULL);
@@ -997,54 +1115,62 @@ static void create_screen(void)
 	lv_obj_add_event_cb(network_icon, on_network_event, LV_EVENT_PRESS_LOST, NULL);
 
 	library_button = create_icon_button(screen, LV_SYMBOL_LIST, on_library_clicked);
-	lv_obj_set_pos(library_button, 4, -4);
+	lv_obj_set_pos(library_button, sc(4), -sc(4));
 
-	cover_box = create_box(screen, COVER_SIZE, COVER_SIZE);
-	lv_obj_align(cover_box, LV_ALIGN_TOP_MID, 0, COVER_Y);
-	lv_obj_set_style_radius(cover_box, 8, 0);
+	cover_box = create_box(screen, lay.cover_size, lay.cover_size);
+	lv_obj_set_pos(cover_box, lay.cover_x, lay.cover_y);
+	lv_obj_set_style_radius(cover_box, sc(8), 0);
 	lv_obj_set_style_clip_corner(cover_box, true, 0);
 	lv_obj_set_style_bg_color(cover_box, COLOR_SURFACE, 0);
 	lv_obj_set_style_bg_opa(cover_box, LV_OPA_COVER, 0);
 
-	placeholder = create_label(cover_box, &lv_font_montserrat_28, COLOR_TRACK, LV_SYMBOL_AUDIO);
+	placeholder = create_label(cover_box, font_icon, COLOR_TRACK, LV_SYMBOL_AUDIO);
 	lv_obj_center(placeholder);
 
 	cover_image = lv_image_create(cover_box);
-	lv_obj_set_size(cover_image, COVER_SIZE, COVER_SIZE);
+	lv_obj_set_size(cover_image, lay.cover_size, lay.cover_size);
 	lv_image_set_inner_align(cover_image, LV_IMAGE_ALIGN_STRETCH);
 	lv_obj_add_flag(cover_image, LV_OBJ_FLAG_HIDDEN);
 
 	/* One wrapped label per line, stacked; scrolled as the track plays */
-	lyrics_panel = create_box(cover_box, COVER_SIZE, COVER_SIZE);
+	lyrics_panel = create_box(cover_box, lay.cover_size, lay.cover_size);
 	lv_obj_set_style_bg_color(lyrics_panel, COLOR_SURFACE, 0);
 	lv_obj_set_style_bg_opa(lyrics_panel, LV_OPA_COVER, 0);
 	lv_obj_set_style_pad_all(lyrics_panel, LYRICS_PAD, 0);
-	lv_obj_set_style_pad_row(lyrics_panel, 12, 0);
+	lv_obj_set_style_pad_row(lyrics_panel, sc(12), 0);
 	lv_obj_set_flex_flow(lyrics_panel, LV_FLEX_FLOW_COLUMN);
 	lv_obj_add_flag(lyrics_panel, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_HIDDEN);
 	lv_obj_set_scroll_dir(lyrics_panel, LV_DIR_VER);
 	lv_obj_set_scrollbar_mode(lyrics_panel, LV_SCROLLBAR_MODE_OFF);
 
-	title_label = create_label(screen, &lv_font_montserrat_20, COLOR_TEXT, "");
+	title_label = create_label(screen, font_title, COLOR_TEXT, "");
 	lv_label_set_long_mode(title_label, LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
-	lv_obj_set_width(title_label, CONTENT_W);
-	lv_obj_set_pos(title_label, MARGIN, TITLE_Y);
+	lv_obj_set_width(title_label, lay.info_w);
+	lv_obj_set_pos(title_label, lay.info_x, lay.info_y + TITLE_DY);
 
-	artist_label = create_label(screen, &lv_font_montserrat_14, COLOR_SUBTLE, "");
+	artist_label = create_label(screen, font_text, COLOR_SUBTLE, "");
 	lv_label_set_long_mode(artist_label, LV_LABEL_LONG_MODE_DOTS);
-	lv_obj_set_size(artist_label, CONTENT_W, lv_font_get_line_height(&lv_font_montserrat_14));
-	lv_obj_set_pos(artist_label, MARGIN, ARTIST_Y);
+	lv_obj_set_size(artist_label, lay.info_w, lv_font_get_line_height(font_text));
+	lv_obj_set_pos(artist_label, lay.info_x, lay.info_y + ARTIST_DY);
 
-	progress_slider = create_slider(screen, PROGRESS_Y, MARGIN, CONTENT_W, on_progress_event);
+	progress_slider = create_slider(screen, lay.info_y + PROGRESS_DY, lay.info_x, lay.info_w,
+					on_progress_event);
 
-	elapsed_label = create_label(screen, &lv_font_montserrat_12, COLOR_SUBTLE, "");
-	lv_obj_set_pos(elapsed_label, MARGIN, TIME_Y);
-	duration_label = create_label(screen, &lv_font_montserrat_12, COLOR_SUBTLE, "");
-	lv_obj_align(duration_label, LV_ALIGN_TOP_RIGHT, -MARGIN, TIME_Y);
+	elapsed_label = create_label(screen, font_small, COLOR_SUBTLE, "");
+	lv_obj_set_pos(elapsed_label, lay.info_x, lay.info_y + TIME_DY);
+	duration_label = create_label(screen, font_small, COLOR_SUBTLE, "");
+	lv_obj_align(duration_label, LV_ALIGN_TOP_RIGHT, -(lay.w - lay.info_x - lay.info_w),
+		     lay.info_y + TIME_DY);
 
-	prev_button = create_button(screen, 80, 48, LV_SYMBOL_PREV, on_prev_clicked, NULL);
-	play_button = create_button(screen, 160, 60, LV_SYMBOL_PLAY, on_play_clicked, &play_icon);
-	next_button = create_button(screen, 240, 48, LV_SYMBOL_NEXT, on_next_clicked, NULL);
+	/* Transport buttons around the middle of the column, closer on a narrow one */
+	controls_x = lay.info_x + lay.info_w / 2;
+	controls_step = MIN(sc(80), lay.info_w / 2 - sc(24));
+	prev_button = create_button(screen, controls_x - controls_step, sc(48), LV_SYMBOL_PREV,
+				    on_prev_clicked, NULL);
+	play_button = create_button(screen, controls_x, sc(60), LV_SYMBOL_PLAY, on_play_clicked,
+				    &play_icon);
+	next_button = create_button(screen, controls_x + controls_step, sc(48), LV_SYMBOL_NEXT,
+				    on_next_clicked, NULL);
 	lv_obj_set_style_bg_color(play_button, COLOR_TEXT, 0);
 	lv_obj_set_style_bg_color(play_button, COLOR_SUBTLE, LV_STATE_PRESSED);
 	lv_obj_set_style_bg_opa(play_button, LV_OPA_COVER, 0);
@@ -1052,22 +1178,24 @@ static void create_screen(void)
 	lv_obj_set_style_text_color(play_button, COLOR_BG, LV_STATE_PRESSED);
 
 	/* Bottom row: lyrics button, speaker symbol, volume slider */
-	lyrics_button = create_box(screen, 36, 36);
-	lv_obj_set_pos(lyrics_button, MARGIN - 8, VOLUME_Y + 2 - 18);
+	lyrics_button = create_box(screen, sc(36), sc(36));
+	lv_obj_set_pos(lyrics_button, lay.info_x - sc(8), lay.info_y + VOLUME_DY + sc(2) - sc(18));
 	lv_obj_add_flag(lyrics_button, LV_OBJ_FLAG_CLICKABLE);
 	lv_obj_add_event_cb(lyrics_button, on_lyrics_clicked, LV_EVENT_CLICKED, NULL);
 
 	/* An alpha-only image takes its colour from the recolour style. */
 	lyrics_icon = lv_image_create(lyrics_button);
 	lv_image_set_src(lyrics_icon, &mic_icon);
+	lv_image_set_scale(lyrics_icon, LV_SCALE_NONE * lay.scale / 100);
 	lv_obj_set_style_image_recolor(lyrics_icon, COLOR_SUBTLE, 0);
 	lv_obj_set_style_image_recolor_opa(lyrics_icon, LV_OPA_COVER, 0);
 	lv_obj_center(lyrics_icon);
 
-	volume_icon = create_label(screen, &lv_font_montserrat_14, COLOR_SUBTLE,
+	volume_icon = create_label(screen, font_text, COLOR_SUBTLE,
 				   LV_SYMBOL_VOLUME_MAX);
-	lv_obj_set_pos(volume_icon, MARGIN + 32, VOLUME_Y - 7);
-	volume_slider = create_slider(screen, VOLUME_Y, MARGIN + 62, CONTENT_W - 62,
+	lv_obj_set_pos(volume_icon, lay.info_x + sc(32), lay.info_y + VOLUME_DY - sc(7));
+	volume_slider = create_slider(screen, lay.info_y + VOLUME_DY, lay.info_x + sc(62),
+				      lay.info_w - sc(62),
 				      on_volume_event);
 	lv_slider_set_range(volume_slider, 0, UINT16_MAX);
 	lv_slider_set_value(volume_slider, UINT16_MAX, LV_ANIM_OFF);
@@ -1098,6 +1226,7 @@ int ui_init(const struct ui_ops *ui_ops)
 		return -ENOMEM;
 	}
 	k_msgq_init(&ui_msgq, msgq_buf, sizeof(struct ui_msg), UI_MSGQ_LEN);
+	compute_layout();
 	create_screen();
 	lvgl_unlock();
 
