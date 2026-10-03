@@ -11,6 +11,7 @@
  * to hand over credentials (or use stored ones), connect, and route decoded
  * PCM to the I2S sink.
  */
+#include <errno.h>
 #include <stdbool.h>
 #include <string.h>
 
@@ -212,15 +213,27 @@ int main(void)
 			LOG_ERR("Zeroconf start failed (%d)", ret);
 			return 0;
 		}
-		LOG_INF("Open Spotify and select \"%s\" in the device list",
-			cspot_device_name());
-		cspot_zeroconf_wait(-1);
 	}
 
-	ret = cspot_connect(on_event, on_pcm, NULL);
-	if (ret != 0) {
+	while (true) {
+		if (!cspot_credentials_available()) {
+			LOG_INF("Open Spotify and select \"%s\" in the device list",
+				cspot_device_name());
+			cspot_zeroconf_wait(-1);
+		}
+
+		ret = cspot_connect(on_event, on_pcm, NULL);
+		if (ret == 0) {
+			break;
+		}
+
 		LOG_ERR("cspot_connect failed (%d)", ret);
-		return 0;
+		if (ret == -EACCES) {
+			/* Rejected credentials: go back to waiting for a hand-over. */
+			cspot_credentials_clear();
+		} else {
+			k_sleep(K_SECONDS(5));
+		}
 	}
 
 	if (cspot_credentials_save_json(credentials, sizeof(credentials)) > 0) {

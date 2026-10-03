@@ -225,23 +225,26 @@ void Crypto::aesCTRXcrypt(const std::vector<uint8_t> &key, std::vector<uint8_t> 
 		import_key(PSA_KEY_TYPE_AES, PSA_ALG_CTR,
 			   PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_DECRYPT, key.data(), key.size());
 	psa_cipher_operation_t op = PSA_CIPHER_OPERATION_INIT;
-	psa_status_t status = psa_cipher_encrypt_setup(&op, id, PSA_ALG_CTR);
+	/* PSA forbids overlapping input and output buffers: work on a copy. */
+	std::vector<uint8_t> out(PSA_CIPHER_UPDATE_OUTPUT_SIZE(PSA_KEY_TYPE_AES, PSA_ALG_CTR, nbytes) +
+				 PSA_CIPHER_FINISH_OUTPUT_SIZE(PSA_KEY_TYPE_AES, PSA_ALG_CTR));
 	size_t produced = 0;
 	size_t len = 0;
+	const char *step = "setup";
+	psa_status_t status = psa_cipher_encrypt_setup(&op, id, PSA_ALG_CTR);
 
 	if (status == PSA_SUCCESS) {
+		step = "set_iv";
 		status = psa_cipher_set_iv(&op, iv.data(), iv.size());
 	}
 	if (status == PSA_SUCCESS) {
-		/*
-		 * CTR is a stream mode: the output never exceeds the input and
-		 * all input is consumed, so encrypting in place is safe.
-		 */
-		status = psa_cipher_update(&op, data, nbytes, data, nbytes, &len);
+		step = "update";
+		status = psa_cipher_update(&op, data, nbytes, out.data(), out.size(), &len);
 		produced += len;
 	}
 	if (status == PSA_SUCCESS) {
-		status = psa_cipher_finish(&op, data + produced, nbytes - produced, &len);
+		step = "finish";
+		status = psa_cipher_finish(&op, out.data() + produced, out.size() - produced, &len);
 		produced += len;
 	}
 
@@ -249,9 +252,11 @@ void Crypto::aesCTRXcrypt(const std::vector<uint8_t> &key, std::vector<uint8_t> 
 	psa_destroy_key(id);
 
 	if (status != PSA_SUCCESS || produced != nbytes) {
-		LOG_ERR("AES-CTR failed: %d", static_cast<int>(status));
+		LOG_ERR("AES-CTR %s failed: %d (%u of %u bytes)", step, static_cast<int>(status),
+			static_cast<unsigned int>(produced), static_cast<unsigned int>(nbytes));
 		throw std::runtime_error("AES-CTR failed");
 	}
+	memcpy(data, out.data(), nbytes);
 }
 
 void Crypto::aesECBdecrypt(const std::vector<uint8_t> &key, std::vector<uint8_t> &data)

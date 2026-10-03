@@ -110,6 +110,9 @@ int cspot_credentials_save_json(char *buf, size_t size);
 
 bool cspot_credentials_available(void);
 
+/** Forgets the current credentials, e.g. after Spotify rejected them. */
+void cspot_credentials_clear(void);
+
 /* --- Zeroconf (CONFIG_CSPOT_ZEROCONF) ------------------------------------ */
 
 /**

@@ -331,6 +331,16 @@ bool cspot_credentials_available(void)
 	return g.have_credentials;
 }
 
+void cspot_credentials_clear(void)
+{
+	g.have_credentials = false;
+	if (g.blob) {
+		g.blob->authData.clear();
+		g.blob->username.clear();
+	}
+	k_sem_reset(&g.credentials_sem);
+}
+
 /* Zeroconf ---------------------------------------------------------------- */
 
 int cspot_zeroconf_start(void)
