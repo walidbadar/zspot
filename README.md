@@ -83,7 +83,7 @@ repository into the workspace and make it the manifest repository.
 
 ```sh
 cd ~/workspace/zephyrproject                      # existing workspace
-ln -s ~/workspace/firmware/cspot-zephyr zspot     # repository checked out elsewhere
+ln -s ~/workspace/firmware/zspot zspot     # repository checked out elsewhere
 west config manifest.path zspot
 west config manifest.file west.yml
 west update zephyr                                # records manifest-rev, keeps the checkout
@@ -98,7 +98,7 @@ back to Zephyr's own manifest run `west config manifest.path zephyr`.
 ### Standalone workspace
 
 ```sh
-west init -m https://github.com/<you>/cspot-zephyr --mr main zspot-workspace
+west init -m https://github.com/<you>/zspot --mr main zspot-workspace
 cd zspot-workspace && west update
 west build -b uedx32480035e_wb_a/esp32s3/procpu zspot/app
 ```
@@ -111,12 +111,12 @@ Add the repository as a project of that manifest:
 manifest:
   projects:
     - name: zspot
-      url: https://github.com/<you>/cspot-zephyr
+      url: https://github.com/<you>/zspot
       revision: main
       path: modules/lib/zspot
 ```
 
-Without west, pass `-DZEPHYR_EXTRA_MODULES=/path/to/cspot-zephyr` to the
+Without west, pass `-DZEPHYR_EXTRA_MODULES=/path/to/zspot` to the
 build (`app/CMakeLists.txt` does this itself when the variable is unset).
 
 ## Configuration
@@ -188,6 +188,12 @@ used: `zspot_queue_size()` and `zspot_queue_position()` describe it,
 holds references) and `zspot_queue_play()` jumps to an entry.
 `ZSPOT_EVENT_QUEUE_CHANGED` reports that the app replaced or edited it.
 
+`zspot_http_request()` performs an arbitrary HTTP(S) request with the
+library's client, for example against the Spotify Web API. The session's own
+access token is of no use there: it belongs to Spotify's client and the
+public Web API answers it with HTTP 429, so the application has to bring an
+OAuth token of its own (see the sample).
+
 Callbacks run on the library's threads.
 
 ## Sample
@@ -205,22 +211,13 @@ west flash
 ```
 
 Wi-Fi credentials are handled by Zephyr's `wifi_credentials` library with the
-settings/NVS backend. Add them once on the shell; they persist across reboots
-and the sample connects with `NET_REQUEST_WIFI_CONNECT_STORED`, retrying
-whenever the link drops:
+settings/NVS backend. Add them once in the Wi-Fi settings of the screen (see
+below) or on the shell; they persist across reboots and the sample connects
+with `NET_REQUEST_WIFI_CONNECT_STORED`, retrying whenever the link drops:
 
 ```
 uart:~$ wifi cred add -s MyNetwork -k 1 -p secret
 uart:~$ wifi cred auto_connect
-```
-
-To bake the credentials into the image instead:
-
-```sh
-west build -p -b uedx32480035e_wb_a/esp32s3/procpu app -- \
-    -DEXTRA_CONF_FILE=wifi_static.conf \
-    -DCONFIG_WIFI_CREDENTIALS_STATIC_SSID=\"MyNetwork\" \
-    -DCONFIG_WIFI_CREDENTIALS_STATIC_PASSWORD=\"secret\"
 ```
 
 Stored Spotify credentials can be passed with
@@ -233,14 +230,44 @@ With `CONFIG_ZSPOT_SAMPLE_UI=y` (the default in `app/prj.conf`) the sample
 drives the chosen display with LVGL. The screen is laid out for 320x480 and
 shows the cover art, title, artist and progress of the current track, with
 touch controls for play/pause, previous/next, seeking and the volume. Before
-playback starts it shows the connection status instead. The list button in
-the top right corner opens the queue: the current track and up to 19 that
-follow it; tapping one plays it.
+playback starts it shows the connection status instead. The Wi-Fi symbol in
+the top right corner is white while the network is connected and red while it
+is not. Holding it for three seconds opens the Wi-Fi settings: the networks
+found by a scan, and after picking one a password entry with an on-screen
+keyboard. The credentials are stored with the `wifi_credentials` library,
+like the ones added on the shell, and the device connects with them.
+
+The list button in the top left corner opens "Your Library": Liked Songs
+and the user's playlists (up to 30 rows per list). Picking one lists its
+tracks, and tapping a track starts playing it on the device, within that
+playlist. Albums, search and paging beyond the first 30 entries are not
+implemented.
+
+The library view uses the Spotify Web API and needs a one-time setup:
+
+1. Create an application at <https://developer.spotify.com/dashboard> with
+   the Web API enabled and the redirect URI `http://127.0.0.1:8888/callback`.
+2. Export its credentials as `ZSPOT_WEB_CLIENT_ID` and
+   `ZSPOT_WEB_CLIENT_SECRET`, e.g. from a private file that `~/.bashrc`
+   sources.
+3. Run `scripts/spotify_authorize.py --save <that file>` on the PC and
+   approve the access in the browser; it adds `ZSPOT_WEB_REFRESH_TOKEN`.
+4. Rebuild from a shell that has the three variables (`west build -p`): the
+   `CONFIG_ZSPOT_SAMPLE_WEB_*` options default to them. They give access to
+   the account, so they stay in the environment and out of version control.
+
+Without them the library view only reports that it is not set up.
 
 - `src/ui.c` builds the screen. The zspot callbacks only queue updates for
   it, and the touch handlers call the playback control API.
 - `src/cover.c` downloads the cover (a 300x300 baseline JPEG) on its own
   thread and decodes it with the TJpgDec copy that ships with LVGL.
+- `src/library.c` talks to the Spotify Web API on its own thread:
+  `/me/playlists`, `/me/tracks` and `/playlists/{id}/items` (or `/tracks`)
+  for the listings, `/me/player/play` to start playback. `src/webapi.c`
+  authorises the requests with an access token renewed from the refresh
+  token, and `src/json_scan.c` picks the few fields needed out of the
+  responses.
 - The LVGL configuration lives in `app/prj.conf`. The memory pool
   (`CONFIG_LV_Z_MEM_POOL_SIZE`) holds the widgets and the cover art; the
   ESP32-S3 board file places the pool, the render buffer and LVGL's globals
@@ -249,15 +276,19 @@ follow it; tapping one plays it.
   scripts show placeholder glyphs.
 
 The screen was developed on `native_sim`. The ESP32-S3 configuration builds
-but has not been verified on the hardware yet.
+but has not been verified on the hardware yet. The library view has only been
+exercised with simulated responses, not against the live Web API.
 
 ### native_sim
 
 The sample also builds for `native_sim`, using the Zephyr IP stack over the
 host TAP interface. The display is an SDL window (needs the SDL2 development
 package on the host) with the mouse acting as the touch screen. Decoded audio
-is appended to `/tmp/zspot.pcm` (`CONFIG_ZSPOT_SAMPLE_PCM_FILE`) at playback
-speed, playable with `aplay -f S16_LE -r 44100 -c 2 /tmp/zspot.pcm`.
+is played on the host: the simulator starts `aplay` (alsa-utils) and pipes the
+PCM into it at playback speed (`CONFIG_ZSPOT_SAMPLE_PCM_COMMAND`; the build
+warns when the player is not installed). To capture the audio instead, clear
+that option and set `CONFIG_ZSPOT_SAMPLE_PCM_FILE` to a host file, playable
+with `aplay -f S16_LE -r 44100 -c 2 <file>`.
 
 Create the TAP device once per boot (root required) and give the simulator
 internet access through NAT:
@@ -304,7 +335,7 @@ lib/zspot/           the library: Kconfig, CMakeLists, src/core (cspot C++ proto
                      protobuf/ (nanopb definitions), third_party/tremor (Vorbis decoder)
 doc/images/          README banner
 tests/lib/           ztest unit tests (run with west twister -T tests)
-scripts/             zeroconf hand-over emulator, native_sim LAN bridge
+scripts/             zeroconf hand-over emulator, native_sim LAN bridge, Web API authorisation
 zephyr/module.yml    Zephyr module descriptor (CMakeLists.txt and Kconfig at the root)
 west.yml             west manifest (shared or standalone workspace, see Getting started)
 .github/workflows/   CI: builds the app and runs the tests with twister
