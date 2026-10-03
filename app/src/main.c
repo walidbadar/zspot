@@ -136,7 +136,7 @@ static int sink_init(void)
 #if defined(CONFIG_ZSPOT_I2S_SINK)
 	return zspot_i2s_sink_init(DEVICE_DT_GET(DT_ALIAS(zspot_i2s)), 44100, 2, 16);
 #elif defined(ZSPOT_SAMPLE_HAVE_PCM_FILE)
-	return pcm_file_sink_init(CONFIG_ZSPOT_SAMPLE_PCM_FILE);
+	return pcm_file_sink_init(CONFIG_ZSPOT_SAMPLE_PCM_COMMAND, CONFIG_ZSPOT_SAMPLE_PCM_FILE);
 #else
 	return 0;
 #endif

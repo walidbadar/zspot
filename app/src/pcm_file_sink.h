@@ -14,8 +14,12 @@
 extern "C" {
 #endif
 
-/** Opens @p path on the host (native_sim) for raw 16-bit stereo PCM output. */
-int pcm_file_sink_init(const char *path);
+/**
+ * Sets up the host (native_sim) output for raw 16-bit stereo PCM at 44.1 kHz:
+ * the standard input of the shell command @p command when that is not empty,
+ * the file @p path otherwise.
+ */
+int pcm_file_sink_init(const char *command, const char *path);
 
 /** zspot_pcm_cb_t compatible writer. */
 size_t pcm_file_sink_write(const uint8_t *pcm, size_t len, void *user_data);

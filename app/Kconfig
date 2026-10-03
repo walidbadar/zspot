@@ -10,12 +10,22 @@ config ZSPOT_SAMPLE_CREDENTIALS_JSON
 	  Output of zspot_credentials_save_json() from a previous session. When
 	  set, the sample skips the zeroconf hand-over.
 
+config ZSPOT_SAMPLE_PCM_COMMAND
+	string "Host command that plays the decoded PCM (native_sim)"
+	default ""
+	help
+	  When set (and the I2S sink is disabled) this shell command is started
+	  on the host and receives the decoded audio on its standard input as
+	  raw 16-bit little-endian stereo PCM at 44.1 kHz, for example
+	  "aplay -q -f S16_LE -r 44100 -c 2".
+
 config ZSPOT_SAMPLE_PCM_FILE
 	string "Host file for decoded PCM (native_sim)"
 	default ""
 	help
-	  When set (and the I2S sink is disabled) the decoded audio is appended
-	  to this host file as raw 16-bit little-endian stereo PCM at 44.1 kHz.
+	  When set (and neither the I2S sink nor ZSPOT_SAMPLE_PCM_COMMAND is
+	  used) the decoded audio is written to this host file as raw 16-bit
+	  little-endian stereo PCM at 44.1 kHz.
 
 config ZSPOT_SAMPLE_USERNAME
 	string "Spotify username (development only)"
