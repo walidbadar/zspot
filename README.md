@@ -158,6 +158,7 @@ Enable `CONFIG_ZSPOT=y` together with `CONFIG_CPP=y` and
 | `ZSPOT_ZEROCONF` / `_PORT`       | Zeroconf credential hand-over endpoint         |
 | `ZSPOT_MDNS`                     | DNS-SD advertisement (`_spotify-connect._tcp`) |
 | `ZSPOT_I2S_SINK`                 | Ready-made PCM sink using the I2S driver       |
+| `ZSPOT_I2S_BUFFER_MS`            | PCM buffered ahead of the I2S output, so it keeps running while the player fetches |
 | `ZSPOT_TLS_SEC_TAG`              | CA credential tag for server verification (-1: no verification) |
 | `ZSPOT_EXTERNAL_HEAP`            | Large buffers from the shared multi heap (PSRAM) |
 | `ZSPOT_STACKS_EXTERNAL`          | Protocol thread stacks in external memory      |

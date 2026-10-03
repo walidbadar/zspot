@@ -15,11 +15,33 @@
 #include <zephyr/drivers/i2s.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/atomic.h>
+#include <zephyr/sys/ring_buffer.h>
 
 LOG_MODULE_DECLARE(zspot, CONFIG_ZSPOT_LOG_LEVEL);
 
 #define BLOCK_SIZE  CONFIG_ZSPOT_I2S_BLOCK_SIZE
 #define BLOCK_COUNT CONFIG_ZSPOT_I2S_BLOCK_COUNT
+
+/*
+ * The I2S blocks are DMA memory and only hold a fraction of a second. The
+ * player, however, stops delivering whenever it fetches the next piece of the
+ * track, for longer than that. With CONFIG_ZSPOT_I2S_BUFFER_MS the PCM first
+ * goes into a FIFO that a feeder thread empties into the I2S blocks at
+ * playback speed, so the player can decode ahead and the output keeps running
+ * through those pauses.
+ */
+#define BYTES_PER_MS 176 /* 44.1 kHz, 16 bit, stereo; rounded down to whole frames */
+#define FIFO_SIZE    (CONFIG_ZSPOT_I2S_BUFFER_MS * BYTES_PER_MS)
+/* Collected before the output (re)starts, so that it does not run dry at once */
+#define PREBUFFER    MIN(FIFO_SIZE / 2, 500 * BYTES_PER_MS)
+/* Input that stopped growing for this long is played out as it is */
+#define STALL_MS     300
+
+/* Logging is immediate, so a warning is formatted on this stack */
+#define FEEDER_STACK_SIZE 4096
+/* Above the player thread: the feeder only copies, and must not wait for it */
+#define FEEDER_PRIORITY   K_PRIO_PREEMPT(1)
 
 K_MEM_SLAB_DEFINE_STATIC(zspot_i2s_slab, BLOCK_SIZE, BLOCK_COUNT, 4);
 
@@ -34,6 +56,26 @@ static struct {
 } sink = {
 	.gain_q15 = 32767,
 };
+
+#if FIFO_SIZE > 0
+/* Too large for the internal RAM of the ESP32: placed in PSRAM there. */
+#if defined(CONFIG_ESP_SPIRAM)
+#define FIFO_SECTION Z_GENERIC_SECTION(.ext_ram.bss.zspot_i2s)
+#else
+#define FIFO_SECTION
+#endif
+
+static uint8_t fifo_memory[FIFO_SIZE] FIFO_SECTION;
+static struct ring_buf fifo;
+static K_SEM_DEFINE(fifo_data, 0, 1);
+static atomic_t sink_paused;
+/* The output stopped: collect PREBUFFER before it starts again */
+static bool prebuffering = true;
+
+static void feeder_thread(void *p1, void *p2, void *p3);
+K_THREAD_DEFINE(zspot_i2s_feeder, FEEDER_STACK_SIZE, feeder_thread, NULL, NULL, NULL,
+		FEEDER_PRIORITY, 0, K_TICKS_FOREVER);
+#endif /* FIFO_SIZE > 0 */
 
 int zspot_i2s_sink_init(const struct device *i2s_dev, uint32_t sample_rate,
 			uint8_t channels, uint8_t bits_per_sample)
@@ -65,8 +107,14 @@ int zspot_i2s_sink_init(const struct device *i2s_dev, uint32_t sample_rate,
 		return ret;
 	}
 
-	LOG_INF("I2S sink ready: %u Hz, %u channels, %u bits", sample_rate, channels,
-		bits_per_sample);
+#if FIFO_SIZE > 0
+	ring_buf_init(&fifo, sizeof(fifo_memory), fifo_memory);
+	k_thread_name_set(zspot_i2s_feeder, "zspot_i2s");
+	k_thread_start(zspot_i2s_feeder);
+#endif
+
+	LOG_INF("I2S sink ready: %u Hz, %u channels, %u bits, %u ms buffered ahead", sample_rate,
+		channels, bits_per_sample, (unsigned int)CONFIG_ZSPOT_I2S_BUFFER_MS);
 	return 0;
 }
 
@@ -80,7 +128,27 @@ static void apply_gain(int16_t *samples, size_t count)
 	}
 }
 
-/* Hands the current block to the driver; returns negative errno on failure. */
+/*
+ * An underrun is audible as a gap: the audio was not delivered as fast as it
+ * is played. One is expected after a pause or between tracks; a steady stream
+ * of them means the player cannot keep up. Reported at most every five
+ * seconds, with the number since the last report.
+ */
+static void report_underrun(void)
+{
+	static int64_t last_report_ms;
+	static unsigned int count;
+	int64_t now = k_uptime_get();
+
+	count++;
+	if (now - last_report_ms >= 5000) {
+		LOG_WRN("I2S output ran dry %u time(s)", count);
+		last_report_ms = now;
+		count = 0;
+	}
+}
+
+/* Hands sink.block over to the driver and starts the output when due. */
 static int submit_block(void)
 {
 	int ret;
@@ -88,17 +156,24 @@ static int submit_block(void)
 	apply_gain(sink.block, sink.fill / sizeof(int16_t));
 
 	ret = i2s_write(sink.dev, sink.block, sink.fill);
+	if (ret == -EIO) {
+		/*
+		 * TX underrun: the output ran dry and the controller is in the
+		 * ERROR state. Re-arm it and queue the block again, so that the
+		 * gap is not followed by lost audio as well.
+		 */
+		report_underrun();
+		i2s_trigger(sink.dev, I2S_DIR_TX, I2S_TRIGGER_PREPARE);
+		sink.started = false;
+		sink.queued = 0;
+#if FIFO_SIZE > 0
+		prebuffering = true;
+#endif
+		ret = i2s_write(sink.dev, sink.block, sink.fill);
+	}
 	if (ret < 0) {
 		k_mem_slab_free(&zspot_i2s_slab, sink.block);
 		sink.block = NULL;
-		if (ret == -EIO) {
-			/* TX underrun: the controller is in ERROR state, re-arm it. */
-			LOG_DBG("I2S underrun, re-arming");
-			i2s_trigger(sink.dev, I2S_DIR_TX, I2S_TRIGGER_PREPARE);
-			sink.started = false;
-			sink.queued = 0;
-			return 0;
-		}
 		return ret;
 	}
 
@@ -115,6 +190,93 @@ static int submit_block(void)
 	}
 	return 0;
 }
+
+#if FIFO_SIZE > 0
+
+static void feeder_thread(void *p1, void *p2, void *p3)
+{
+	uint32_t last_level = 0;
+	int64_t last_growth_ms = 0;
+
+	ARG_UNUSED(p1);
+	ARG_UNUSED(p2);
+	ARG_UNUSED(p3);
+
+	while (true) {
+		uint32_t level = ring_buf_size_get(&fifo);
+		int64_t now = k_uptime_get();
+		bool stalled;
+		void *block;
+
+		if (level != last_level) {
+			last_level = level;
+			last_growth_ms = now;
+		}
+		stalled = now - last_growth_ms >= STALL_MS;
+
+		/*
+		 * Wait for more unless there is a whole block to send, or the
+		 * input stopped and what is left has to be played out.
+		 */
+		if (atomic_get(&sink_paused) || level == 0 ||
+		    (prebuffering && level < PREBUFFER && !stalled) ||
+		    (level < BLOCK_SIZE && !stalled)) {
+			k_sem_take(&fifo_data, K_MSEC(20));
+			continue;
+		}
+
+		/* Paces the feeder: a block only becomes free once it was played. */
+		if (k_mem_slab_alloc(&zspot_i2s_slab, &block, K_MSEC(100)) != 0) {
+			continue;
+		}
+
+		k_mutex_lock(&sink.lock, K_FOREVER);
+		sink.block = block;
+		sink.fill = ring_buf_get(&fifo, block, BLOCK_SIZE);
+		if (sink.fill == 0) {
+			/* Flushed in the meantime */
+			k_mem_slab_free(&zspot_i2s_slab, block);
+			sink.block = NULL;
+		} else {
+			prebuffering = false;
+			(void)submit_block();
+		}
+		last_level = ring_buf_size_get(&fifo);
+		k_mutex_unlock(&sink.lock);
+	}
+}
+
+size_t zspot_i2s_sink_write(const uint8_t *pcm, size_t len, void *user_data)
+{
+	size_t written;
+
+	ARG_UNUSED(user_data);
+
+	if (sink.dev == NULL) {
+		return len; /* no output configured: discard */
+	}
+
+	/* Whole stereo frames only, whatever fits; the player retries the rest. */
+	k_mutex_lock(&sink.lock, K_FOREVER);
+	written = ring_buf_put(&fifo, pcm, MIN(len, ring_buf_space_get(&fifo)) & ~3U);
+	k_mutex_unlock(&sink.lock);
+
+	k_sem_give(&fifo_data);
+	return written;
+}
+
+void zspot_i2s_sink_set_paused(bool paused)
+{
+	atomic_set(&sink_paused, paused);
+	k_sem_give(&fifo_data);
+}
+
+size_t zspot_i2s_sink_buffered(void)
+{
+	return ring_buf_size_get(&fifo);
+}
+
+#else /* FIFO_SIZE == 0: the caller writes straight into the I2S blocks */
 
 size_t zspot_i2s_sink_write(const uint8_t *pcm, size_t len, void *user_data)
 {
@@ -152,6 +314,18 @@ size_t zspot_i2s_sink_write(const uint8_t *pcm, size_t len, void *user_data)
 	return written;
 }
 
+void zspot_i2s_sink_set_paused(bool paused)
+{
+	ARG_UNUSED(paused);
+}
+
+size_t zspot_i2s_sink_buffered(void)
+{
+	return 0;
+}
+
+#endif /* FIFO_SIZE > 0 */
+
 void zspot_i2s_sink_set_volume(uint16_t volume)
 {
 	sink.gain_q15 = volume >> 1;
@@ -164,16 +338,19 @@ void zspot_i2s_sink_flush(void)
 	}
 
 	k_mutex_lock(&sink.lock, K_FOREVER);
-
+#if FIFO_SIZE > 0
+	ring_buf_reset(&fifo);
+	prebuffering = true;
+#endif
 	if (sink.block != NULL) {
 		k_mem_slab_free(&zspot_i2s_slab, sink.block);
 		sink.block = NULL;
 	}
-	if (sink.started) {
+	/* Also blocks that are queued while the output has not started yet */
+	if (sink.started || sink.queued > 0) {
 		i2s_trigger(sink.dev, I2S_DIR_TX, I2S_TRIGGER_DROP);
 		sink.started = false;
 	}
 	sink.queued = 0;
-
 	k_mutex_unlock(&sink.lock);
 }

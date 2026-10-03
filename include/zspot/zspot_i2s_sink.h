@@ -11,6 +11,7 @@
 #ifndef ZSPOT_ZSPOT_I2S_SINK_H_
 #define ZSPOT_ZSPOT_I2S_SINK_H_
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -35,6 +36,19 @@ void zspot_i2s_sink_set_volume(uint16_t volume);
 
 /** Drops queued audio, e.g. on seek or track change. */
 void zspot_i2s_sink_flush(void);
+
+/**
+ * Stops or resumes the output of the audio buffered ahead
+ * (CONFIG_ZSPOT_I2S_BUFFER_MS); without it, playback would go on for that
+ * long after the application stopped writing.
+ */
+void zspot_i2s_sink_set_paused(bool paused);
+
+/**
+ * Bytes accepted by zspot_i2s_sink_write() that are not played yet, to derive
+ * the audible position from the amount written.
+ */
+size_t zspot_i2s_sink_buffered(void);
 
 #ifdef __cplusplus
 }

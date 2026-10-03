@@ -68,8 +68,13 @@ static void position_set(uint32_t position_ms)
 
 static uint32_t position_get(void)
 {
-	return position_base_ms +
-	       (uint32_t)((uint64_t)atomic_get(&position_bytes) * 1000 / PCM_BYTES_PER_SECOND);
+	int64_t bytes = atomic_get(&position_bytes);
+
+#if defined(CONFIG_ZSPOT_I2S_SINK)
+	/* What the sink still holds is not audible yet. */
+	bytes = MAX(bytes - (int64_t)zspot_i2s_sink_buffered(), 0);
+#endif
+	return position_base_ms + (uint32_t)(bytes * 1000 / PCM_BYTES_PER_SECOND);
 }
 
 static void net_event_handler(struct net_mgmt_event_callback *cb, uint64_t event,
@@ -168,6 +173,9 @@ static void on_event(const struct zspot_event *event, void *user_data)
 	case ZSPOT_EVENT_PLAY_PAUSE:
 		LOG_INF("%s", event->paused ? "Paused" : "Playing");
 		paused = event->paused;
+#if defined(CONFIG_ZSPOT_I2S_SINK)
+		zspot_i2s_sink_set_paused(event->paused);
+#endif
 		ui_set_paused(event->paused);
 		break;
 	case ZSPOT_EVENT_VOLUME:

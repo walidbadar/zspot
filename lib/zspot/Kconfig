@@ -160,6 +160,7 @@ endif # ZSPOT_ZEROCONF
 config ZSPOT_I2S_SINK
 	bool "I2S PCM sink helper"
 	select I2S
+	select RING_BUFFER_LARGE
 	help
 	  Provides zspot_i2s_sink_*() on top of the Zephyr I2S driver API.
 
@@ -176,6 +177,19 @@ config ZSPOT_I2S_BLOCK_COUNT
 config ZSPOT_I2S_TIMEOUT_MS
 	int "I2S write timeout (ms)"
 	default 2000
+
+config ZSPOT_I2S_BUFFER_MS
+	int "PCM buffered ahead of the I2S output (ms)"
+	default 2000 if ZSPOT_EXTERNAL_HEAP
+	default 0
+	help
+	  The I2S blocks hold a fraction of a second, while the player stops
+	  delivering PCM for longer than that whenever it fetches the next
+	  piece of a track. With a value above zero the PCM goes through a
+	  FIFO of this length (176 bytes per millisecond; in external RAM on
+	  the ESP32) that a feeder thread empties into the I2S blocks, so the
+	  output keeps running through those pauses. Zero writes straight
+	  into the I2S blocks.
 
 endif # ZSPOT_I2S_SINK
 
