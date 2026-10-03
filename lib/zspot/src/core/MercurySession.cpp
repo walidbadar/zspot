@@ -106,7 +106,7 @@ bool MercurySession::triggerTimeout() {
     return true;
   auto currentTimestamp = timeProvider->getSyncedTimestamp();
 
-  if (currentTimestamp - this->lastPingTimestamp > PING_TIMEOUT_MS) {
+  if (currentTimestamp - this->lastPingTimestamp > static_cast<unsigned long long>(PING_TIMEOUT_MS)) {
     CSPOT_LOG(debug, "Reconnection required, no ping received");
     return true;
   }
@@ -225,17 +225,17 @@ MercurySession::Response MercurySession::decodeResponse(
   Response response = {};
   response.parts = {};
 
-  auto sequenceLength = ntohs(extract<uint16_t>(data, 0));
+  [[maybe_unused]] auto sequenceLength = ntohs(extract<uint16_t>(data, 0));
   response.sequenceId = hton64(extract<uint64_t>(data, 2));
 
-  auto partsNumber = ntohs(extract<uint16_t>(data, 11));
+  [[maybe_unused]] auto partsNumber = ntohs(extract<uint16_t>(data, 11));
 
   auto headerSize = ntohs(extract<uint16_t>(data, 13));
   auto headerBytes =
       std::vector<uint8_t>(data.begin() + 15, data.begin() + 15 + headerSize);
 
   auto pos = 15 + headerSize;
-  while (pos < data.size()) {
+  while (static_cast<size_t>(pos) < data.size()) {
     auto partSize = ntohs(extract<uint16_t>(data, pos));
 
     response.parts.push_back(std::vector<uint8_t>(
@@ -300,7 +300,7 @@ uint64_t MercurySession::executeSubscription(RequestType method,
                          headerBytes.end());
 
   // Encode all the payload parts
-  for (int x = 0; x < payload.size(); x++) {
+  for (size_t x = 0; x < payload.size(); x++) {
     headerSizePayload = pack<uint16_t>(htons(payload[x].size()));
     sequenceIdBytes.insert(sequenceIdBytes.end(), headerSizePayload.begin(),
                            headerSizePayload.end());

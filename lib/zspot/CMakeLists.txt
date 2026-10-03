@@ -61,7 +61,7 @@ zephyr_library_sources(src/api/zspot_api.cpp)
 file(GLOB ZSPOT_TREMOR_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tremor/*.c)
 zephyr_library_sources(${ZSPOT_TREMOR_SOURCES})
 set_source_files_properties(${ZSPOT_TREMOR_SOURCES} PROPERTIES
-  COMPILE_OPTIONS "-Wno-unused-variable;-Wno-unused-but-set-variable;-Wno-sign-compare;-Wno-maybe-uninitialized;-Dalloca=__builtin_alloca;$<$<BOOL:${CONFIG_ZSPOT_EXTERNAL_HEAP}>:-DZSPOT_TREMOR_ALLOC>"
+  COMPILE_OPTIONS "-Wno-unused-variable;-Wno-unused-but-set-variable;-Wno-unused-label;-Wno-sign-compare;-Wno-char-subscripts;-Wno-misleading-indentation;-Wno-maybe-uninitialized;-Dalloca=__builtin_alloca;$<$<BOOL:${CONFIG_ZSPOT_EXTERNAL_HEAP}>:-DZSPOT_TREMOR_ALLOC>"
 )
 
 # Protocol buffers, generated at build time with Zephyr's nanopb module

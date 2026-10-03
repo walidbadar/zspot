@@ -204,7 +204,7 @@ void PlaybackState::addCapability(CapabilityType typ, int intValue,
         0;
   }
 
-  for (int x = 0; x < stringValue.size(); x++) {
+  for (size_t x = 0; x < stringValue.size(); x++) {
     pbPutString(stringValue[x],
                 this->innerFrame.device_state.capabilities[capabilityIndex]
                     .stringValue[x]);

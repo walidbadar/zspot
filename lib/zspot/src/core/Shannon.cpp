@@ -48,7 +48,7 @@ void Shannon::cycle() {
   t = this->R[12] ^ this->R[13] ^ this->konst;
   t = Shannon::sbox1(t) ^ rotl(this->R[0], 1);
   /* shift register */
-  for (i = 1; i < N; ++i)
+  for (i = 1; i < static_cast<int>(N); ++i)
     this->R[i - 1] = this->R[i];
   this->R[N - 1] = t;
   t = Shannon::sbox2(this->R[2] ^ this->R[15]);
@@ -62,7 +62,7 @@ void Shannon::crcfunc(uint32_t i) {
 
   /* Accumulate CRC of input */
   t = this->CRC[0] ^ this->CRC[2] ^ this->CRC[15] ^ i;
-  for (j = 1; j < N; ++j)
+  for (j = 1; j < static_cast<int>(N); ++j)
     this->CRC[j - 1] = this->CRC[j];
   this->CRC[N - 1] = t;
 }
@@ -78,19 +78,19 @@ void Shannon::initState() {
   /* Register initialised to Fibonacci numbers; Counter zeroed. */
   this->R[0] = 1;
   this->R[1] = 1;
-  for (i = 2; i < N; ++i)
+  for (i = 2; i < static_cast<int>(N); ++i)
     this->R[i] = this->R[i - 1] + this->R[i - 2];
   this->konst = Shannon::INITKONST;
 }
 void Shannon::saveState() {
   int i;
-  for (i = 0; i < Shannon::N; ++i)
+  for (i = 0; i < static_cast<int>(Shannon::N); ++i)
     this->initR[i] = this->R[i];
 }
 void Shannon::reloadState() {
   int i;
 
-  for (i = 0; i < Shannon::N; ++i)
+  for (i = 0; i < static_cast<int>(Shannon::N); ++i)
     this->R[i] = this->initR[i];
 }
 void Shannon::genkonst() {
@@ -99,7 +99,7 @@ void Shannon::genkonst() {
 void Shannon::diffuse() {
   int i;
 
-  for (i = 0; i < Shannon::FOLD; ++i)
+  for (i = 0; i < static_cast<int>(Shannon::FOLD); ++i)
     this->cycle();
 }
 
@@ -140,15 +140,15 @@ void Shannon::loadKey(const std::vector<uint8_t>& key) {
   uint8_t xtra[4];
   size_t keylen = key.size();
   /* start folding in key */
-  for (i = 0; i < (keylen & ~0x3); i += 4) {
+  for (i = 0; static_cast<size_t>(i) < (keylen & ~0x3); i += 4) {
     k = BYTE2WORD(&key[i]);
     ADDKEY(k);
     this->cycle();
   }
 
   /* if there were any extra key bytes, zero pad to a word */
-  if (i < keylen) {
-    for (j = 0 /* i unchanged */; i < keylen; ++i)
+  if (static_cast<size_t>(i) < keylen) {
+    for (j = 0 /* i unchanged */; static_cast<size_t>(i) < keylen; ++i)
       xtra[j++] = key[i];
     for (/* j unchanged */; j < 4; ++j)
       xtra[j] = 0;
@@ -162,14 +162,14 @@ void Shannon::loadKey(const std::vector<uint8_t>& key) {
   this->cycle();
 
   /* save a copy of the register */
-  for (i = 0; i < N; ++i)
+  for (i = 0; i < static_cast<int>(N); ++i)
     this->CRC[i] = this->R[i];
 
   /* now diffuse */
   this->diffuse();
 
   /* now xor the copy back -- makes key loading irreversible */
-  for (i = 0; i < N; ++i)
+  for (i = 0; i < static_cast<int>(N); ++i)
     this->R[i] ^= this->CRC[i];
 }
 
@@ -380,7 +380,7 @@ void Shannon::finish(std::vector<uint8_t>& bufVec) {
   this->nbuf = 0;
 
   /* now add the CRC to the stream register and diffuse it */
-  for (i = 0; i < N; ++i)
+  for (i = 0; i < static_cast<int>(N); ++i)
     this->R[i] ^= this->CRC[i];
   this->diffuse();
 
@@ -392,7 +392,7 @@ void Shannon::finish(std::vector<uint8_t>& bufVec) {
       nbytes -= 4;
       buf += 4;
     } else {
-      for (i = 0; i < nbytes; ++i)
+      for (i = 0; static_cast<size_t>(i) < nbytes; ++i)
         buf[i] = Byte(this->sbuf, i);
       break;
     }

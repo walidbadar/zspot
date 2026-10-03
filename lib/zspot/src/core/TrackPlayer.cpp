@@ -190,7 +190,7 @@ void TrackPlayer::runTask() {
         startPaused = false;
       }
 
-      int32_t r =
+      [[maybe_unused]] int32_t r =
           ov_open_callbacks(this, &vorbisFile, NULL, 0, vorbisCallbacks);
 
       if (pendingSeekPositionMs > 0) {
@@ -226,7 +226,7 @@ void TrackPlayer::runTask() {
           // and done :)
           eof = true;
         } else if (ret < 0) {
-          CSPOT_LOG(error, "An error has occured in the stream %d", ret);
+          CSPOT_LOG(error, "An error has occured in the stream %ld", ret);
           currentSongPlaying = false;
         } else {
           if (this->dataCallback != nullptr) {

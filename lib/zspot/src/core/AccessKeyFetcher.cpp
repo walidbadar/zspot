@@ -44,7 +44,7 @@ bool AccessKeyFetcher::isExpired() {
     return true;
   }
 
-  if (ctx->timeProvider->getSyncedTimestamp() > expiresAt) {
+  if (ctx->timeProvider->getSyncedTimestamp() > static_cast<unsigned long long>(expiresAt)) {
     return true;
   }
 

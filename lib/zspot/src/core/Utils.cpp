@@ -82,7 +82,7 @@ std::vector<uint8_t> bigNumAdd(std::vector<uint8_t> num, int n) {
 
 std::vector<uint8_t> bigNumDivide(std::vector<uint8_t> num, int n) {
   auto carry = 0;
-  for (int x = 0; x < num.size(); x++) {
+  for (size_t x = 0; x < num.size(); x++) {
     int res = num[x] + carry * 256;
     if (res < n) {
       carry = res;
@@ -137,7 +137,7 @@ std::string urlDecode(std::string str) {
   char c;
   char code0;
   char code1;
-  for (int i = 0; i < str.length(); i++) {
+  for (size_t i = 0; i < str.length(); i++) {
     c = str[i];
     if (c == '+') {
       encodedString += ' ';

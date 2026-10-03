@@ -59,8 +59,9 @@ bool canPlayTrack(Track& trackInfo, int altIndex, const char* country) {
   if (altIndex < 0) {
 
   } else {
-    for (int x = 0; x < trackInfo.alternative[altIndex].restriction_count;
-         x++) {
+    const int restrictionCount =
+        static_cast<int>(trackInfo.alternative[altIndex].restriction_count);
+    for (int x = 0; x < restrictionCount; x++) {
       if (trackInfo.alternative[altIndex].restriction[x].countries_allowed !=
           nullptr) {
         return countryListContains(
@@ -158,8 +159,7 @@ std::shared_ptr<cspot::CDNAudioFile> QueuedTrack::getAudioFile() {
 }
 
 void QueuedTrack::stepParseMetadata(Track* pbTrack, Episode* pbEpisode) {
-  int alternativeCount, filesCount = 0;
-  bool canPlay = false;
+  int filesCount = 0;
   AudioFile* selectedFiles = nullptr;
 
   const char* countryCode = ctx->config.countryCode.c_str();
@@ -175,7 +175,7 @@ void QueuedTrack::stepParseMetadata(Track* pbTrack, Episode* pbEpisode) {
     if (TrackDataUtils::doRestrictionsApply(
             pbTrack->restriction, pbTrack->restriction_count, countryCode)) {
       // Go through alternatives
-      for (int x = 0; x < pbTrack->alternative_count; x++) {
+      for (int x = 0; x < static_cast<int>(pbTrack->alternative_count); x++) {
         if (!TrackDataUtils::doRestrictionsApply(
                 pbTrack->alternative[x].restriction,
                 pbTrack->alternative[x].restriction_count, countryCode)) {
@@ -444,7 +444,7 @@ std::shared_ptr<QueuedTrack> TrackQueue::consumeTrack(
     std::shared_ptr<QueuedTrack> prevTrack, int& offset) {
   std::scoped_lock lock(tracksMutex);
 
-  if (currentTracksIndex == -1 || currentTracksIndex >= currentTracks.size()) {
+  if (currentTracksIndex == -1 || static_cast<size_t>(currentTracksIndex) >= currentTracks.size()) {
     return nullptr;
   }
 
@@ -472,7 +472,7 @@ std::shared_ptr<QueuedTrack> TrackQueue::consumeTrack(
     offset = 0;
   }
 
-  if (offset >= preloadedTracks.size()) {
+  if (static_cast<size_t>(offset) >= preloadedTracks.size()) {
     // Last track in preloaded queue
     return nullptr;
   }
@@ -509,7 +509,7 @@ void TrackQueue::processTrack(std::shared_ptr<QueuedTrack> track) {
 bool TrackQueue::queueNextTrack(int offset, uint32_t positionMs) {
   const int requestedRefIndex = offset + currentTracksIndex;
 
-  if (requestedRefIndex < 0 || requestedRefIndex >= currentTracks.size()) {
+  if (requestedRefIndex < 0 || static_cast<size_t>(requestedRefIndex) >= currentTracks.size()) {
     return false;
   }
 
@@ -554,7 +554,7 @@ bool TrackQueue::skipTrack(SkipDirection dir, bool expectNotify) {
       queueNextTrack(0);
     }
   } else {
-    if (currentTracks.size() > currentTracksIndex + 1) {
+    if (currentTracks.size() > static_cast<size_t>(currentTracksIndex + 1)) {
       preloadedTracks.pop_front();
 
       if (!queueNextTrack(preloadedTracks.size() + 1)) {
@@ -588,7 +588,7 @@ bool TrackQueue::hasTracks() {
 
 bool TrackQueue::isFinished() {
   std::scoped_lock lock(tracksMutex);
-  return currentTracksIndex >= currentTracks.size() - 1;
+  return static_cast<size_t>(currentTracksIndex) >= currentTracks.size() - 1;
 }
 
 bool TrackQueue::updateTracks(uint32_t requestedPosition, bool initial) {
@@ -603,7 +603,7 @@ bool TrackQueue::updateTracks(uint32_t requestedPosition, bool initial) {
     // Clear preloaded tracks
     preloadedTracks.clear();
 
-    if (currentTracksIndex < currentTracks.size()) {
+    if (static_cast<size_t>(currentTracksIndex) < currentTracks.size()) {
       // Push a song on the preloaded queue
       queueNextTrack(0, requestedPosition);
     }

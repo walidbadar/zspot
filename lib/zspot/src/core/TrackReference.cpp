@@ -25,7 +25,7 @@ void TrackReference::decodeURI() {
     gid = {0};
 
     std::string_view alphabet(base62Alphabet);
-    for (int x = 0; x < idString.size(); x++) {
+    for (size_t x = 0; x < idString.size(); x++) {
       size_t d = alphabet.find(idString[x]);
       gid = bigNumMultiply(gid, 62);
       gid = bigNumAdd(gid, d);
