@@ -6,6 +6,7 @@
 
 #include "port/http.h"
 
+#include <zephyr/kernel.h>
 #include <zephyr/net/http/client.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/net/tls_credentials.h>
@@ -73,6 +74,10 @@ void HttpConnection::close()
 	used_ = false;
 }
 
+/* A lookup that the resolver is too busy for is repeated */
+static const int DNS_ATTEMPTS = 10;
+static const int DNS_RETRY_DELAY_MS = 200;
+
 void HttpConnection::open(const HttpUrl &url)
 {
 	struct zsock_addrinfo hints;
@@ -89,7 +94,17 @@ void HttpConnection::open(const HttpUrl &url)
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
 
-	ret = zsock_getaddrinfo(url.host.c_str(), port_str, &hints, &results);
+	/*
+	 * The resolver handles CONFIG_DNS_NUM_CONCUR_QUERIES lookups at a time
+	 * and turns further ones down at once: wait for a free slot.
+	 */
+	for (int attempt = 0; attempt < DNS_ATTEMPTS; attempt++) {
+		ret = zsock_getaddrinfo(url.host.c_str(), port_str, &hints, &results);
+		if (ret != DNS_EAI_AGAIN) {
+			break;
+		}
+		k_msleep(DNS_RETRY_DELAY_MS);
+	}
 	if (ret != 0 || results == nullptr) {
 		LOG_ERR("DNS lookup of %s failed (%d)", url.host.c_str(), ret);
 		throw std::runtime_error("DNS lookup failed");
