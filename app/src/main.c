@@ -95,7 +95,7 @@ static int network_connect(void)
 	net_mgmt_add_event_callback(&net_cb);
 
 #if defined(CONFIG_WIFI_CREDENTIALS_CONNECT_STORED)
-	/* Credentials come from the wifi_credentials library (settings or static). */
+	/* Credentials come from the wifi_credentials library (settings backend). */
 	int ret = wifi_init();
 
 	if (ret != 0) {
