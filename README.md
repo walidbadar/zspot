@@ -99,7 +99,7 @@ Enable `CONFIG_ZSPOT=y` together with `CONFIG_CPP=y` and
 | `ZSPOT_LOG_LEVEL_*`              | Log level of the `cspot` module                |
 
 TLS towards Spotify needs TLS 1.2 with ECDHE-RSA and AES-GCM; see
-`samples/player/prj.conf` for a working Mbed TLS / PSA configuration.
+`app/prj.conf` for a working Mbed TLS / PSA configuration.
 
 ## API
 
@@ -140,7 +140,7 @@ Callbacks run on the library's threads.
 
 ## Sample
 
-`samples/player` joins Wi-Fi, advertises the device, waits for the Spotify
+`app/` is the player application. It joins Wi-Fi, advertises the device, waits for the Spotify
 app and plays through I2S. The supported board is the VIEWE
 UEDX32480035E-WB-A (`uedx32480035e_wb_a/esp32s3/procpu`, ESP32-S3 with 8 MB
 PSRAM). It has no audio DAC on board, so connect an external I2S DAC to
@@ -148,7 +148,7 @@ BCK = GPIO5, WS/LRCK = GPIO6 and DATA = GPIO7. The console and shell are on
 the native USB serial port.
 
 ```sh
-west build -p -b uedx32480035e_wb_a/esp32s3/procpu samples/player
+west build -p -b uedx32480035e_wb_a/esp32s3/procpu app
 west flash
 ```
 
@@ -165,7 +165,7 @@ uart:~$ wifi cred auto_connect
 To bake the credentials into the image instead:
 
 ```sh
-west build -p -b uedx32480035e_wb_a/esp32s3/procpu samples/player -- \
+west build -p -b uedx32480035e_wb_a/esp32s3/procpu app -- \
     -DEXTRA_CONF_FILE=wifi_static.conf \
     -DCONFIG_WIFI_CREDENTIALS_STATIC_SSID=\"MyNetwork\" \
     -DCONFIG_WIFI_CREDENTIALS_STATIC_PASSWORD=\"secret\"
@@ -194,7 +194,7 @@ sudo iptables -t nat -A POSTROUTING -s 192.0.2.0/24 -j MASQUERADE
 Then build and run:
 
 ```sh
-west build -p -b native_sim/native/64 samples/player
+west build -p -b native_sim/native/64 app
 ./build/zephyr/zephyr.exe
 curl 'http://192.0.2.1:8080/spotify_info?action=getInfo'
 ```
@@ -204,13 +204,13 @@ reach the simulator from the LAN without routing, bridge it from user space
 (both tools need only Python 3; the second one uses `python3-cryptography`):
 
 ```sh
-tools/native_sim_lan_bridge.py 8080 192.0.2.1 &            # LAN:8080 -> simulator
+scripts/native_sim_lan_bridge.py 8080 192.0.2.1 &            # LAN:8080 -> simulator
 avahi-publish-service CSpot _spotify-connect._tcp 8080 \
     VERSION=1.0 CPath=/spotify_info Stack=SP &             # advertise on the LAN
-tools/zeroconf_client.py http://192.0.2.1:8080             # emulate the app's hand-over
+scripts/zeroconf_client.py http://192.0.2.1:8080             # emulate the app's hand-over
 ```
 
-`zeroconf_client.py` performs the same addUser hand-over as the Spotify app
+`scripts/zeroconf_client.py` performs the same addUser hand-over as the Spotify app
 (Diffie-Hellman, blob encryption) with a dummy token, which exercises the
 whole zeroconf and access point path; Spotify then declines the token.
 Alternatively provide credentials at build time with
@@ -220,30 +220,23 @@ testing only, `CONFIG_ZSPOT_SAMPLE_USERNAME` / `CONFIG_ZSPOT_SAMPLE_PASSWORD`.
 ## Layout
 
 ```
-include/zspot/      public C API
-src/core/           Spotify protocol (C++, from cspot)
-src/port/           Zephyr glue: crypto, HTTP, JSON, threads, mDNS, zeroconf
-src/audio/          I2S sink
-protobuf/           Spotify protocol buffer definitions (nanopb)
-third_party/tremor/ Ogg Vorbis decoder
-samples/player/     reference application (C)
-tools/              zeroconf hand-over emulator, native_sim LAN bridge
+app/                 player application (C): CMakeLists, Kconfig, prj.conf, boards/, src/
+include/zspot/       public C API
+lib/zspot/           the library: Kconfig, CMakeLists, src/core (cspot C++ protocol core),
+                     src/port (Zephyr glue), src/api (C facade), src/audio (I2S sink),
+                     protobuf/ (nanopb definitions), third_party/tremor (Vorbis decoder)
+tests/lib/           ztest unit tests (run with west twister -T tests)
+scripts/             zeroconf hand-over emulator, native_sim LAN bridge
+zephyr/module.yml    Zephyr module descriptor (CMakeLists.txt and Kconfig at the root)
+west.yml             manifest for a standalone workspace
+.github/workflows/   CI: builds the app and runs the tests with twister
 ```
 
-## Status
+## Tests
 
-- Builds for `uedx32480035e_wb_a/esp32s3/procpu` and `native_sim/native/64`
-  against Zephyr 4.5.0-rc1 with Zephyr SDK 1.0.1.
-- Verified on native_sim over the TAP interface: mDNS/DNS-SD advertisement
-  (visible to avahi), the zeroconf endpoint, access point resolution over
-  TLS, the access point handshake (Diffie-Hellman, HMAC challenge, Shannon
-  keys) and the encrypted login exchange up to Spotify's reply. Playback
-  needs real credentials and has not been exercised yet; neither has the
-  ESP32-S3 target on hardware.
-- TLS peer verification is off unless `ZSPOT_TLS_SEC_TAG` names a CA
-  credential.
-- Thread stacks in external memory (`ZSPOT_STACKS_EXTERNAL`) must not be
-  combined with flash writes that disable the cache while playing.
+```sh
+west twister -T tests -p native_sim/native/64 --inline-logs
+```
 
 ## Licence
 

@@ -1,4 +1,4 @@
 # Copyright (c) 2026 Muhammad Waleed Badar
 # SPDX-License-Identifier: GPL-3.0-only
 
-rsource "lib/Kconfig"
+add_subdirectory_ifdef(CONFIG_ZSPOT zspot)

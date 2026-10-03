@@ -1,0 +1,29 @@
+# Copyright (c) 2026 Muhammad Waleed Badar
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# West manifest: "west init -m <this repo> && west update" creates a workspace
+# with Zephyr and only the modules zspot needs. The repository itself is a
+# Zephyr module (zephyr/module.yml) and is picked up automatically.
+
+manifest:
+  self:
+    path: zspot
+
+  remotes:
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
+
+  projects:
+    - name: zephyr
+      remote: zephyrproject-rtos
+      # Zephyr 4.5 development snapshot this project was verified against
+      revision: 59b63417ef1b69a8ea91d2f759416c1612203b66
+      import:
+        # Only the modules the library and the player application need
+        name-allowlist:
+          - cmsis_6
+          - hal_espressif
+          - mbedtls
+          - tf-psa-crypto
+          - nanopb
+          - picolibc

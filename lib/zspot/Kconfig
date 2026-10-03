@@ -1,0 +1,186 @@
+# Copyright (c) 2026 Muhammad Waleed Badar
+# SPDX-License-Identifier: GPL-3.0-only
+
+menuconfig ZSPOT
+	bool "zspot Spotify Connect receiver (cspot protocol core)"
+	depends on CPP
+	depends on STD_CPP17 || STD_CPP20 || STD_CPP2B
+	depends on NETWORKING && NET_IPV4
+	select NET_TCP
+	select NET_SOCKETS
+	select REQUIRES_FULL_LIBCPP
+	select CPP_EXCEPTIONS
+	select THREAD_STACK_INFO
+	select DYNAMIC_THREAD
+	select DYNAMIC_THREAD_ALLOC
+	select THREAD_NAME
+	select NANOPB
+	select NANOPB_ENABLE_MALLOC
+	select DNS_RESOLVER
+	select HTTP_CLIENT
+	select NET_SOCKETS_SOCKOPT_TLS
+	select MBEDTLS
+	select PSA_CRYPTO
+	select PSA_WANT_ALG_SHA_1
+	select PSA_WANT_ALG_HMAC
+	select PSA_WANT_KEY_TYPE_HMAC
+	select PSA_WANT_KEY_TYPE_AES
+	select PSA_WANT_ALG_CTR
+	select PSA_WANT_ALG_ECB_NO_PADDING
+	select JSON_LIBRARY
+	select BASE64
+	help
+	  Spotify Connect receiver. The protocol implementation is derived from
+	  cspot; threads, sockets, TLS, HTTP, crypto, JSON, mDNS and audio output
+	  are provided by Zephyr.
+
+	  The Spotify endpoints are reached over TLS 1.2 with ECDHE-RSA key
+	  exchange, so a typical configuration also needs:
+	  CONFIG_MBEDTLS_SSL_PROTO_TLS1_2, CONFIG_MBEDTLS_KEY_EXCHANGE_ECDHE_RSA_ENABLED,
+	  CONFIG_MBEDTLS_CIPHERSUITE_TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+	  CONFIG_MBEDTLS_SSL_SERVER_NAME_INDICATION, CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN=16384
+	  and a sufficiently large CONFIG_MBEDTLS_HEAP_SIZE. See the sample.
+
+if ZSPOT
+
+config ZSPOT_DEVICE_NAME
+	string "Default device name"
+	default "ZSpot"
+	help
+	  Name shown in the Spotify app when the application passes no name.
+
+config ZSPOT_THREAD_PRIORITY
+	int "Base priority of the protocol threads"
+	default 7
+	help
+	  Zephyr preemptive priority used for the least urgent protocol thread.
+	  More urgent threads (audio decoding) use numerically lower priorities.
+
+config ZSPOT_MAIN_STACK_SIZE
+	int "Stack size of the session thread"
+	default 16384
+	help
+	  Runs connection setup, authentication and the Mercury dispatch loop.
+	  TLS handshakes and protobuf decoding happen on this stack.
+
+config ZSPOT_MERCURY_STACK_SIZE
+	int "Stack size of the Mercury receive thread"
+	default 8192
+
+config ZSPOT_TRACKQUEUE_STACK_SIZE
+	int "Stack size of the track queue thread"
+	default 16384
+	help
+	  Fetches metadata, audio keys and CDN URLs (HTTPS).
+
+config ZSPOT_PLAYER_STACK_SIZE
+	int "Stack size of the player thread"
+	default 49152
+	help
+	  Runs the Tremor Vorbis decoder, which makes heavy use of alloca().
+
+config ZSPOT_HTTP_TIMEOUT_MS
+	int "HTTP request timeout (ms)"
+	default 10000
+
+config ZSPOT_HTTP_RECV_BUF_SIZE
+	int "HTTP client receive buffer size"
+	default 2048
+
+config ZSPOT_EXTERNAL_HEAP
+	bool "Use external memory (shared multi heap) for large buffers"
+	default y
+	depends on SHARED_MULTI_HEAP
+	help
+	  Allocates the C++ free store, decoder buffers and the Mbed TLS heap
+	  from the external region of the shared multi heap (PSRAM on ESP32),
+	  falling back to the C heap when none is available.
+
+config ZSPOT_STACKS_EXTERNAL
+	bool "Place protocol thread stacks in external memory"
+	default y
+	depends on ZSPOT_EXTERNAL_HEAP
+	help
+	  Saves roughly 90 KB of internal RAM. Not suitable when the application
+	  performs flash writes that disable the cache while playback runs.
+
+config ZSPOT_EXTERNAL_TLS_HEAP_SIZE
+	int "Mbed TLS heap placed in external memory (bytes)"
+	default 98304 if ZSPOT_EXTERNAL_HEAP
+	default 0
+	depends on MBEDTLS_ENABLE_HEAP
+	help
+	  When non-zero the Mbed TLS buffer allocator is re-initialised on this
+	  external buffer, so CONFIG_MBEDTLS_HEAP_SIZE can stay small.
+
+config ZSPOT_TLS_SEC_TAG
+	int "TLS credential security tag for server verification"
+	default -1
+	help
+	  Security tag (see tls_credential_add()) holding the CA certificate used
+	  to verify Spotify's servers. -1 disables peer verification.
+
+config ZSPOT_MDNS
+	bool "Advertise the device with mDNS/DNS-SD"
+	default y
+	select NET_UDP
+	select MDNS_RESPONDER
+	select DNS_SD
+	select MDNS_RESPONDER_DNS_SD
+	select NET_HOSTNAME_ENABLE
+	help
+	  Publishes _spotify-connect._tcp so the Spotify app can discover the
+	  device.
+
+config ZSPOT_ZEROCONF
+	bool "Zeroconf authentication endpoint"
+	default y
+	help
+	  Serves /spotify_info so the Spotify app can hand over credentials
+	  without a username and password. A minimal HTTP/1.1 responder on
+	  Zephyr sockets is used because Spotify clients require Content-Length
+	  framed replies, which the Zephyr HTTP server cannot produce for
+	  dynamic resources.
+
+if ZSPOT_ZEROCONF
+
+config ZSPOT_ZEROCONF_PORT
+	int "TCP port of the zeroconf endpoint"
+	default 8080
+
+config ZSPOT_ZEROCONF_STACK_SIZE
+	int "Stack size of the zeroconf responder thread"
+	default 8192
+	help
+	  Decodes the credential blob (Diffie-Hellman, PBKDF2, AES) on this
+	  stack.
+
+endif # ZSPOT_ZEROCONF
+
+config ZSPOT_I2S_SINK
+	bool "I2S PCM sink helper"
+	select I2S
+	help
+	  Provides zspot_i2s_sink_*() on top of the Zephyr I2S driver API.
+
+if ZSPOT_I2S_SINK
+
+config ZSPOT_I2S_BLOCK_SIZE
+	int "I2S block size in bytes"
+	default 4096
+
+config ZSPOT_I2S_BLOCK_COUNT
+	int "Number of I2S blocks"
+	default 8
+
+config ZSPOT_I2S_TIMEOUT_MS
+	int "I2S write timeout (ms)"
+	default 2000
+
+endif # ZSPOT_I2S_SINK
+
+module = ZSPOT
+module-str = zspot
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # ZSPOT

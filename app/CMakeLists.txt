@@ -3,9 +3,9 @@
 
 cmake_minimum_required(VERSION 3.20.0)
 
-# When built outside a west workspace that lists this module, point Zephyr at it.
+# When built from another west workspace, point Zephyr at this module.
 if(NOT DEFINED ZEPHYR_EXTRA_MODULES)
-  set(ZEPHYR_EXTRA_MODULES ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+  set(ZEPHYR_EXTRA_MODULES ${CMAKE_CURRENT_SOURCE_DIR}/..)
 endif()
 
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})

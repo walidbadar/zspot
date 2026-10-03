@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Muhammad Waleed Badar
+# SPDX-License-Identifier: GPL-3.0-only
+
+sample:
+  name: zspot player
+  description: Spotify Connect receiver with I2S or file output
+tests:
+  app.zspot.player:
+    build_only: true
+    tags: zspot
+    platform_allow:
+      - native_sim/native/64
+      - uedx32480035e_wb_a/esp32s3/procpu
+    integration_platforms:
+      - native_sim/native/64
