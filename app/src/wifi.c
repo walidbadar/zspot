@@ -46,8 +46,8 @@ static int wifi_connect(void)
 	}
 
 	if (wifi_credentials_is_empty()) {
-		LOG_WRN("No Wi-Fi credentials stored. Add them with: "
-			"wifi cred add -s <ssid> -k 1 -p <passphrase>");
+		LOG_WRN("No Wi-Fi credentials stored. Hold the Wi-Fi symbol on the screen for "
+			"three seconds to add them");
 		return -ENOENT;
 	}
 

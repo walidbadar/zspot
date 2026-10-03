@@ -212,13 +212,8 @@ west flash
 
 Wi-Fi credentials are handled by Zephyr's `wifi_credentials` library with the
 settings/NVS backend. Add them once in the Wi-Fi settings of the screen (see
-below) or on the shell; they persist across reboots and the sample connects
-with `NET_REQUEST_WIFI_CONNECT_STORED`, retrying whenever the link drops:
-
-```
-uart:~$ wifi cred add -s MyNetwork -k 1 -p secret
-uart:~$ wifi cred auto_connect
-```
+below); they persist across reboots and the sample connects with
+`NET_REQUEST_WIFI_CONNECT_STORED`, retrying whenever the link drops.
 
 Stored Spotify credentials can be passed with
 `-DCONFIG_ZSPOT_SAMPLE_CREDENTIALS_JSON='"..."'` (the JSON printed by the
@@ -241,8 +236,8 @@ playback starts it shows the connection status instead. The Wi-Fi symbol in
 the top right corner is white while the network is connected and red while it
 is not. Holding it for three seconds opens the Wi-Fi settings: the networks
 found by a scan, and after picking one a password entry with an on-screen
-keyboard. The credentials are stored with the `wifi_credentials` library,
-like the ones added on the shell, and the device connects with them.
+keyboard. The credentials are stored with the `wifi_credentials` library and
+the device connects with them.
 
 The list button in the top left corner opens "Your Library": Liked Songs
 and the user's playlists (up to 30 rows per list). Picking one lists its
