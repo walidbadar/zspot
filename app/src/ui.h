@@ -26,6 +26,13 @@ struct ui_ops {
 	void (*set_volume)(uint16_t volume, bool commit);
 	/** Current playback position, polled while a track is shown. */
 	uint32_t (*position_ms)(void);
+	/**
+	 * The queue view wants its content: answer with ui_queue_reset() and
+	 * one ui_queue_add() per entry.
+	 */
+	void (*queue_refresh)(void);
+	/** A queue entry was tapped. */
+	void (*queue_play)(int index);
 };
 
 #if defined(CONFIG_ZSPOT_SAMPLE_UI)
@@ -49,6 +56,24 @@ void ui_set_paused(bool paused);
 /** @param volume 0..65535 */
 void ui_set_volume(uint16_t volume);
 
+/** Most entries the queue view shows */
+#define UI_QUEUE_MAX 20
+
+/**
+ * Starts a new queue listing of @p count entries (at most UI_QUEUE_MAX), the
+ * first being the current track at queue index @p first. @p generation tags
+ * the listing: entries added with another value are ignored, so results of an
+ * outdated lookup cannot end up in it.
+ */
+void ui_queue_reset(uint32_t generation, int first, int count);
+
+/** Fills in the entry at queue index @p index of the listing @p generation. */
+void ui_queue_add(uint32_t generation, int index, const char *title, const char *artist,
+		  uint32_t duration_ms);
+
+/** The play queue changed; the queue view reloads if it is open. */
+void ui_queue_changed(void);
+
 #else
 
 static inline void ui_show_message(const char *headline, const char *detail)
@@ -65,6 +90,10 @@ static inline void ui_set_paused(bool paused)
 }
 
 static inline void ui_set_volume(uint16_t volume)
+{
+}
+
+static inline void ui_queue_changed(void)
 {
 }
 

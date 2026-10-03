@@ -207,6 +207,7 @@ void SpircHandler::handleFrame(std::vector<uint8_t>& data) {
                                true);
 
       this->notify();
+      sendEvent(EventType::QUEUE);
 
       // Stop the current track, if any
       trackPlayer->resetState();
@@ -225,6 +226,7 @@ void SpircHandler::handleFrame(std::vector<uint8_t>& data) {
           false);
 
       this->notify();
+      sendEvent(EventType::QUEUE);
 
       // need to re-load all if streaming track is completed
       if (cleared) {
@@ -265,6 +267,16 @@ bool SpircHandler::skipSong(TrackQueue::SkipDirection dir) {
 
   // send NEXT or PREV event only when successful
   return skipped;
+}
+
+bool SpircHandler::playIndex(int index) {
+  // The queue is only ours to play while this device is the active one
+  if (!playbackState->isActive() || !trackQueue->jumpTo(index)) {
+    return false;
+  }
+
+  trackPlayer->resetState();
+  return true;
 }
 
 bool SpircHandler::nextSong() {

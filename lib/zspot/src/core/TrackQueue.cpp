@@ -116,7 +116,7 @@ void TrackInfo::loadPbEpisode(Episode* pbEpisode,
 
   name = std::string(pbEpisode->name);
 
-  if (pbEpisode->covers->image_count > 0) {
+  if (pbEpisode->covers != nullptr && pbEpisode->covers->image_count > 0) {
     // Handle episode info
     auto imageId = pbArrayToVector(pbEpisode->covers->image[0].file_id);
     imageUrl = "https://i.scdn.co/image/" + bytesToHexString(imageId);
@@ -578,6 +578,85 @@ bool TrackQueue::skipTrack(SkipDirection dir, bool expectNotify) {
   }
 
   return skipped;
+}
+
+size_t TrackQueue::getTrackCount() {
+  std::scoped_lock lock(tracksMutex);
+
+  return currentTracks.size();
+}
+
+int TrackQueue::getCurrentIndex() {
+  std::scoped_lock lock(tracksMutex);
+
+  return currentTracksIndex;
+}
+
+bool TrackQueue::requestTrackInfo(int index, TrackInfoCallback callback) {
+  TrackReference ref;
+  {
+    std::scoped_lock lock(tracksMutex);
+
+    if (index < 0 || static_cast<size_t>(index) >= currentTracks.size()) {
+      return false;
+    }
+    ref = currentTracks[index];
+  }
+
+  bool isTrack = ref.type == TrackReference::Type::TRACK;
+  std::string requestUrl =
+      string_format("hm://metadata/3/%s/%s", isTrack ? "track" : "episode",
+                    bytesToHexString(ref.gid).c_str());
+
+  auto responseHandler = [gid = ref.gid, isTrack,
+                          callback](MercurySession::Response& res) {
+    TrackInfo info = {};
+    bool valid = false;
+
+    if (!res.fail && res.parts.size() > 0) {
+      if (isTrack) {
+        Track pbTrack = Track_init_zero;
+
+        pbDecode(pbTrack, Track_fields, res.parts[0]);
+        valid = pbTrack.name != nullptr;
+        if (valid) {
+          info.loadPbTrack(&pbTrack, gid);
+        }
+        pb_release(Track_fields, &pbTrack);
+      } else {
+        Episode pbEpisode = Episode_init_zero;
+
+        pbDecode(pbEpisode, Episode_fields, res.parts[0]);
+        valid = pbEpisode.name != nullptr;
+        if (valid) {
+          info.loadPbEpisode(&pbEpisode, gid);
+        }
+        pb_release(Episode_fields, &pbEpisode);
+      }
+    }
+    callback(valid ? &info : nullptr);
+  };
+
+  ctx->session->execute(MercurySession::RequestType::GET, requestUrl,
+                        responseHandler);
+  return true;
+}
+
+bool TrackQueue::jumpTo(int index) {
+  std::scoped_lock lock(tracksMutex);
+
+  if (index < 0 || static_cast<size_t>(index) >= currentTracks.size()) {
+    return false;
+  }
+
+  currentTracksIndex = index;
+  preloadedTracks.clear();
+  queueNextTrack(0);
+
+  // Update frame data
+  playbackState->innerFrame.state.playing_track_index = currentTracksIndex;
+  notifyPending = true;
+  return true;
 }
 
 bool TrackQueue::hasTracks() {

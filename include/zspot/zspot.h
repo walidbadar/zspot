@@ -58,6 +58,8 @@ enum zspot_event_type {
 	 * audio is audible to receive ZSPOT_EVENT_TRACK_INFO.
 	 */
 	ZSPOT_EVENT_TRACK_BEGIN,
+	/** The controlling app replaced or edited the play queue. */
+	ZSPOT_EVENT_QUEUE_CHANGED,
 };
 
 struct zspot_track_info {
@@ -170,6 +172,36 @@ void zspot_notify_audio_ended(void);
 
 /** Reports the playback position to keep the Spotify UI in sync. */
 void zspot_update_position_ms(uint32_t position_ms);
+
+/* --- Play queue ---------------------------------------------------------- */
+
+/**
+ * The queue is the list of tracks handed over by the controlling app. Its
+ * entries are only references; names are fetched per entry on request.
+ */
+
+/** Number of tracks in the queue. */
+int zspot_queue_size(void);
+
+/** Index of the current track within the queue, or -1 without a queue. */
+int zspot_queue_position(void);
+
+/**
+ * Result of zspot_queue_get_track(), called from a library thread. @p track is
+ * only valid during the callback and NULL when the lookup failed.
+ */
+typedef void (*zspot_queue_track_cb_t)(int index, const struct zspot_track_info *track,
+				       void *user_data);
+
+/**
+ * Requests the metadata of the queue entry @p index.
+ * @return 0 when the request was sent, -EINVAL for an index outside of the
+ *         queue, -ENOTCONN without a session.
+ */
+int zspot_queue_get_track(int index, zspot_queue_track_cb_t cb, void *user_data);
+
+/** Plays the queue entry @p index; false when that is not possible. */
+bool zspot_queue_play(int index);
 
 /* --- Utilities ----------------------------------------------------------- */
 

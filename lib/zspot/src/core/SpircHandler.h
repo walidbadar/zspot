@@ -36,7 +36,8 @@ class SpircHandler {
     SEEK,
     DEPLETED,
     FLUSH,
-    PLAYBACK_START
+    PLAYBACK_START,
+    QUEUE
   };
 
   typedef std::variant<TrackInfo, int, bool> EventData;
@@ -60,6 +61,9 @@ class SpircHandler {
   bool nextSong();
 
   void seekMs(uint32_t position);
+
+  // Plays an entry of the current queue
+  bool playIndex(int index);
 
   void notifyAudioReachedPlayback();
   void notifyAudioEnded();

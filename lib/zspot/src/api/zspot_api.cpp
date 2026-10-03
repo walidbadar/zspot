@@ -149,6 +149,9 @@ void on_spirc_event(std::unique_ptr<cspot::SpircHandler::Event> ev)
 		out.position_ms = static_cast<uint32_t>(std::get<int>(ev->data));
 		g.track_restarted = true;
 		break;
+	case EventType::QUEUE:
+		out.type = ZSPOT_EVENT_QUEUE_CHANGED;
+		break;
 	default:
 		return;
 	}
@@ -519,6 +522,54 @@ void zspot_update_position_ms(uint32_t position_ms)
 	if (g.handler) {
 		g.handler->updatePositionMs(position_ms);
 	}
+}
+
+/* Play queue -------------------------------------------------------------- */
+
+int zspot_queue_size(void)
+{
+	return g.handler ? static_cast<int>(g.handler->getTrackQueue()->getTrackCount()) : 0;
+}
+
+int zspot_queue_position(void)
+{
+	return g.handler ? g.handler->getTrackQueue()->getCurrentIndex() : -1;
+}
+
+int zspot_queue_get_track(int index, zspot_queue_track_cb_t cb, void *user_data)
+{
+	if (cb == nullptr) {
+		return -EINVAL;
+	}
+	if (!g.handler) {
+		return -ENOTCONN;
+	}
+
+	bool sent = g.handler->getTrackQueue()->requestTrackInfo(
+		index, [index, cb, user_data](const cspot::TrackInfo *info) {
+			struct zspot_track_info track = {};
+
+			if (info == nullptr) {
+				cb(index, nullptr, user_data);
+				return;
+			}
+			track.name = info->name.c_str();
+			track.album = info->album.c_str();
+			track.artist = info->artist.c_str();
+			track.image_url = info->imageUrl.c_str();
+			track.track_id = info->trackId.c_str();
+			track.duration_ms = info->duration;
+			track.number = info->number;
+			track.disc_number = info->discNumber;
+			cb(index, &track, user_data);
+		});
+
+	return sent ? 0 : -EINVAL;
+}
+
+bool zspot_queue_play(int index)
+{
+	return g.handler ? g.handler->playIndex(index) : false;
 }
 
 /* Utilities --------------------------------------------------------------- */

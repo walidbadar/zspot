@@ -107,6 +107,17 @@ class TrackQueue : public zspot::Task {
   bool skipTrack(SkipDirection dir, bool expectNotify = true);
   bool updateTracks(uint32_t requestedPosition = 0, bool initial = false);
   TrackInfo getTrackInfo(std::string_view identifier);
+
+  // Play queue as handed over by the controlling app
+  typedef std::function<void(const TrackInfo*)> TrackInfoCallback;
+
+  size_t getTrackCount();
+  int getCurrentIndex();
+  // Fetches the metadata of a queue entry; the callback receives nullptr when
+  // that failed. Returns false for an index outside of the queue.
+  bool requestTrackInfo(int index, TrackInfoCallback callback);
+  // Makes a queue entry the current track
+  bool jumpTo(int index);
   std::shared_ptr<QueuedTrack> consumeTrack(
       std::shared_ptr<QueuedTrack> prevSong, int& offset);
 
