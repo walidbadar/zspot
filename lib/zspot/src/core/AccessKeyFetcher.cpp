@@ -101,11 +101,17 @@ void AccessKeyFetcher::updateAccessKey() {
               encodedRequest.size());
 
     // Perform a login5 request, containing the encoded protobuf data
-    auto response = zspot::HttpConnection::fetch(
-        "POST", "https://login5.spotify.com/v3/login", {}, encodedRequest,
-        "application/x-protobuf");
-
-    auto responseBytes = response.body;
+    std::vector<uint8_t> responseBytes;
+    try {
+      responseBytes = zspot::HttpConnection::fetch(
+                          "POST", "https://login5.spotify.com/v3/login", {},
+                          encodedRequest, "application/x-protobuf")
+                          .body;
+    } catch (const std::exception& e) {
+      // Not reachable right now: the caller asks again later
+      CSPOT_LOG(error, "Access token request failed: %s", e.what());
+      break;
+    }
 
     // Deserialize the response
     pbDecode(loginResponse, LoginResponse_fields, responseBytes);

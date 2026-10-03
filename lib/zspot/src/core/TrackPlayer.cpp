@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+#include <exception>  // for exception
 #include "core/TrackPlayer.h"
 
 #include <mutex>        // for mutex, scoped_lock
@@ -110,6 +111,10 @@ void TrackPlayer::seekMs(size_t ms) {
   this->pendingSeekPositionMs = ms > 0 ? ms : 1;
 }
 
+// A request to the audio CDN that fails is repeated before the track is given up
+static const int STREAM_ATTEMPTS = 3;
+static const int STREAM_RETRY_DELAY_MS = 1000;
+
 void TrackPlayer::runTask() {
   std::scoped_lock lock(runningMutex);
 
@@ -179,10 +184,29 @@ void TrackPlayer::runTask() {
 
       currentTrackStream = track->getAudioFile();
 
-      // Open the stream
-      currentTrackStream->openStream();
+      // Open the stream; the CDN may be unreachable for a moment
+      bool opened = false;
+      for (int attempt = 0;
+           attempt < STREAM_ATTEMPTS && !opened && !pendingReset &&
+           currentSongPlaying;
+           attempt++) {
+        try {
+          currentTrackStream->openStream();
+          opened = true;
+        } catch (const std::exception& e) {
+          CSPOT_LOG(error, "Cannot open the audio stream: %s", e.what());
+          k_msleep(STREAM_RETRY_DELAY_MS);
+        }
+      }
 
       if (pendingReset || !currentSongPlaying) {
+        continue;
+      }
+
+      if (!opened) {
+        CSPOT_LOG(error, "Giving up on this track, skipping it");
+        currentTrackStream = nullptr;
+        this->eofCallback();
         continue;
       }
 
@@ -275,7 +299,21 @@ size_t TrackPlayer::_vorbisRead(void* ptr, size_t size, size_t nmemb) {
   if (this->currentTrackStream == nullptr) {
     return 0;
   }
-  return this->currentTrackStream->readBytes((uint8_t*)ptr, nmemb * size);
+
+  // Called by the C decoder, which an exception must not unwind through.
+  // After the last attempt the track ends here, as if the file did.
+  for (int attempt = 0; attempt < STREAM_ATTEMPTS; attempt++) {
+    try {
+      return this->currentTrackStream->readBytes((uint8_t*)ptr, nmemb * size);
+    } catch (const std::exception& e) {
+      CSPOT_LOG(error, "Audio stream read failed: %s", e.what());
+      if (pendingReset || !currentSongPlaying) {
+        break;
+      }
+      k_msleep(STREAM_RETRY_DELAY_MS);
+    }
+  }
+  return 0;
 }
 
 size_t TrackPlayer::_vorbisClose() {
