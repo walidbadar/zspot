@@ -19,6 +19,7 @@ speaker with a screen of its own:
 - Shows up as a device in the Spotify app and plays through an I2S DAC.
 - Now Playing screen with cover art, progress, seeking, transport and volume
   controls.
+- Search: type a song or artist on the screen and play a hit.
 - Your Library: browse Liked Songs and playlists on the device and start a
   track from there.
 - Lyrics that follow the music.
@@ -267,13 +268,17 @@ line highlighted; when only plain lyrics exist they are shown as text. The
 lyrics come from [LRCLIB](https://lrclib.net), a free service that needs no
 account, looked up by title, artist and duration while the lyrics are shown.
 
+The search bar at the top asks for a song or artist with the on-screen
+keyboard and lists the matching songs; tapping one plays it, followed by the
+hits after it.
+
 The list button in the top left corner opens "Your Library": Liked Songs
 and the user's playlists (up to 30 rows per list). Picking one lists its
 tracks, and tapping a track starts playing it on the device, within that
-playlist. Albums, search and paging beyond the first 30 entries are not
-implemented.
+playlist. Albums and paging beyond the first 30 entries are not implemented.
 
-The library view uses the Spotify Web API and needs a one-time setup:
+The library view and the search use the Spotify Web API and need a one-time
+setup:
 
 1. Create an application at <https://developer.spotify.com/dashboard> with
    the Web API enabled and the redirect URI `http://127.0.0.1:8888/callback`.
@@ -286,7 +291,8 @@ The library view uses the Spotify Web API and needs a one-time setup:
    `CONFIG_ZSPOT_WEB_*` options default to them. They give access to
    the account, so they stay in the environment and out of version control.
 
-Without them the library view only reports that it is not set up.
+Without them the library view and the search only report that they are not
+set up.
 
 - `src/ui.c` builds the screen. The zspot callbacks only queue updates for
   it, and the touch handlers call the playback control API.
@@ -296,7 +302,8 @@ Without them the library view only reports that it is not set up.
   timed lines.
 - `src/library.c` talks to the Spotify Web API on its own thread:
   `/me/playlists`, `/me/tracks` and `/playlists/{id}/items` (or `/tracks`)
-  for the listings, `/me/player/play` to start playback. `src/webapi.c`
+  for the listings, `/search` for the search, `/me/player/play` to start
+  playback. `src/webapi.c`
   authorises the requests with an access token renewed from the refresh
   token, and `src/json_scan.c` picks the few fields needed out of the
   responses.
