@@ -17,7 +17,7 @@
 };
 
 &pinctrl {
-	i2s0_cspot: i2s0_cspot {
+	i2s0_zspot: i2s0_zspot {
 		group1 {
 			pinmux = <I2S0_O_BCK_GPIO5>,
 				 <I2S0_O_WS_GPIO6>,
@@ -29,7 +29,7 @@
 
 &i2s0 {
 	status = "okay";
-	pinctrl-0 = <&i2s0_cspot>;
+	pinctrl-0 = <&i2s0_zspot>;
 	pinctrl-names = "default";
 };
 

@@ -69,6 +69,11 @@ static void wifi_event_handler(struct net_mgmt_event_callback *cb, uint64_t mgmt
 			LOG_WRN("Wi-Fi connect failed (%d), retrying", status->status);
 			(void)k_work_reschedule(&reconnect_work, WIFI_RECONNECT_DELAY);
 		} else {
+			/*
+			 * DHCP is handled by the Wi-Fi driver (it starts the client
+			 * after association and reports the result again once an
+			 * address is bound), so nothing else to do here.
+			 */
 			LOG_INF("Wi-Fi connected");
 			(void)k_work_cancel_delayable(&reconnect_work);
 		}

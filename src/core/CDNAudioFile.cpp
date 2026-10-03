@@ -50,6 +50,12 @@ void CDNAudioFile::openStream() {
   this->header = std::move(response.body);
   this->header.resize(OPUS_HEADER_SIZE);
   this->totalFileSize = response.totalLength() - SPOTIFY_OPUS_HEADER;
+  CSPOT_LOG(debug, "CDN status %d, range %u-%u/%u, content length %u, file size %u",
+            response.status, static_cast<unsigned>(response.range_start),
+            static_cast<unsigned>(response.range_end),
+            static_cast<unsigned>(response.range_total),
+            static_cast<unsigned>(response.content_length),
+            static_cast<unsigned>(this->totalFileSize));
   this->decrypt(header.data(), OPUS_HEADER_SIZE, 0);
 
   // Footer start must be divisible by 16 (AES block)
@@ -81,6 +87,9 @@ size_t CDNAudioFile::readBytes(uint8_t* dst, size_t bytes) {
   size_t actualFileSize = this->totalFileSize + SPOTIFY_OPUS_HEADER;
 
   if (position + bytes >= this->totalFileSize) {
+    CSPOT_LOG(debug, "CDN read at end: position %u + %u >= %u",
+              static_cast<unsigned>(position), static_cast<unsigned>(bytes),
+              static_cast<unsigned>(this->totalFileSize));
     return 0;
   }
 
@@ -144,6 +153,10 @@ size_t CDNAudioFile::readBytes(uint8_t* dst, size_t bytes) {
   this->httpBuffer = std::move(response.body);
   this->lastRequestPosition = requestPosition;
   this->lastRequestCapacity = this->httpBuffer.size();
+  CSPOT_LOG(debug, "CDN range %u+%u -> status %d, %u bytes",
+            static_cast<unsigned>(requestPosition),
+            static_cast<unsigned>(HTTP_BUFFER_SIZE), response.status,
+            static_cast<unsigned>(lastRequestCapacity));
   this->decrypt(this->httpBuffer.data(), lastRequestCapacity,
                 this->lastRequestPosition);
 

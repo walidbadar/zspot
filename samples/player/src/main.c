@@ -5,7 +5,7 @@
  */
 
 /*
- * cspot player sample: Spotify Connect receiver with I2S output.
+ * zspot player sample: Spotify Connect receiver with I2S output.
  *
  * Flow: bring the network up, advertise the device, wait for the Spotify app
  * to hand over credentials (or use stored ones), connect, and route decoded

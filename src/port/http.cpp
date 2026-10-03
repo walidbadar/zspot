@@ -252,6 +252,9 @@ HttpResponse HttpConnection::request(const char *method, const std::string &url,
 		throw std::runtime_error("HTTP request failed");
 	}
 
+	LOG_DBG("%s %s%s -> %d, %u bytes (ret %d)", method, parsed.host.c_str(),
+		parsed.path.substr(0, 40).c_str(), response.status,
+		static_cast<unsigned int>(response.body.size()), ret);
 	used_ = true;
 	return response;
 }

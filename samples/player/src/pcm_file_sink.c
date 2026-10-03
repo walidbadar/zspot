@@ -6,7 +6,7 @@
 
 /*
  * PCM sink for native_sim: appends the decoded audio to a host file, playable
- * with e.g. "aplay -f S16_LE -r 44100 -c 2 /tmp/cspot.pcm".
+ * with e.g. "aplay -f S16_LE -r 44100 -c 2 /tmp/zspot.pcm".
  */
 
 #include "pcm_file_sink.h"
