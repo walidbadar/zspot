@@ -1,5 +1,9 @@
 # zspot
 
+<p align="center">
+  <img src="doc/images/zspot-banner.svg" alt="zspot: Zephyr RTOS and Spotify Connect" width="720">
+</p>
+
 Spotify Connect receiver library for [Zephyr RTOS](https://zephyrproject.org),
 packaged as a Zephyr module with a plain C API.
 
@@ -259,6 +263,7 @@ include/zspot/       public C API
 lib/zspot/           the library: Kconfig, CMakeLists, src/core (cspot C++ protocol core),
                      src/port (Zephyr glue), src/api (C facade), src/audio (I2S sink),
                      protobuf/ (nanopb definitions), third_party/tremor (Vorbis decoder)
+doc/images/          README banner
 tests/lib/           ztest unit tests (run with west twister -T tests)
 scripts/             zeroconf hand-over emulator, native_sim LAN bridge
 zephyr/module.yml    Zephyr module descriptor (CMakeLists.txt and Kconfig at the root)
@@ -275,3 +280,8 @@ west twister -T tests -p native_sim/native/64 --inline-logs
 ## Licence
 
 GPL-3.0, like cspot. Tremor is BSD-licensed (see `third_party/tremor/COPYING`).
+
+Zephyr and the Zephyr logo are trademarks of The Linux Foundation; the logo
+comes from the Zephyr documentation assets (Apache-2.0). Spotify and the
+Spotify icon are trademarks of Spotify AB and identify the Spotify Connect
+protocol only; this project is not affiliated with or endorsed by Spotify.

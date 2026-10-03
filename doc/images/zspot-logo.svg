@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  zspot logo: a "z" followed by a spot, above a piano keyboard. Original
+  artwork for this project,
+  Copyright (c) 2026 Muhammad Waleed Badar, SPDX-License-Identifier: GPL-3.0-only
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
+     role="img" aria-label="zspot">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff8a3d"/>
+      <stop offset="1" stop-color="#f0386b"/>
+    </linearGradient>
+    <clipPath id="keys-clip">
+      <rect x="40" y="176" width="176" height="52" rx="9"/>
+    </clipPath>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#tile)"/>
+  <path d="M78 56H178L78 140H126" fill="none" stroke="#ffffff" stroke-width="26"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="172" cy="140" r="15" fill="#ffffff"/>
+  <!-- Piano keyboard -->
+  <g clip-path="url(#keys-clip)">
+    <rect x="40" y="176" width="176" height="52" fill="#ffffff"/>
+    <path d="M65.14 176V228M90.29 176V228M115.43 176V228M140.57 176V228M165.71 176V228M190.86 176V228" stroke="#3b1027" stroke-width="2.5"/>
+    <g fill="#3b1027">
+      <rect x="58.14" y="176" width="14" height="31" rx="2"/>
+      <rect x="83.29" y="176" width="14" height="31" rx="2"/>
+      <rect x="133.57" y="176" width="14" height="31" rx="2"/>
+      <rect x="158.71" y="176" width="14" height="31" rx="2"/>
+      <rect x="183.86" y="176" width="14" height="31" rx="2"/>
+    </g>
+  </g>
+</svg>

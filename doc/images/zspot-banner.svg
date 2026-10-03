@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  zspot banner: the zspot logo (see zspot-logo.svg) with the project name.
+  Original artwork for this project,
+  Copyright (c) 2026 Muhammad Waleed Badar, SPDX-License-Identifier: GPL-3.0-only
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" width="1200" height="320"
+     role="img" aria-label="zspot: Spotify Connect player for Zephyr RTOS">
+  <!-- Transparent background: the text colour follows the viewer's colour scheme -->
+  <style>
+    :root { --fg: #1b1d21; --fg2: #57606a; }
+    @media (prefers-color-scheme: dark) { :root { --fg: #ffffff; --fg2: #b0b5bd; } }
+  </style>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff8a3d"/>
+      <stop offset="1" stop-color="#f0386b"/>
+    </linearGradient>
+    <clipPath id="keys-clip">
+      <rect x="40" y="176" width="176" height="52" rx="9"/>
+    </clipPath>
+  </defs>
+  <!-- Logo (viewBox 256x256) scaled to 200x200 -->
+  <g transform="translate(170,60) scale(0.78125)">
+    <rect width="256" height="256" rx="56" fill="url(#tile)"/>
+    <path d="M78 56H178L78 140H126" fill="none" stroke="#ffffff" stroke-width="26"
+          stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="172" cy="140" r="15" fill="#ffffff"/>
+    <!-- Piano keyboard -->
+    <g clip-path="url(#keys-clip)">
+      <rect x="40" y="176" width="176" height="52" fill="#ffffff"/>
+      <path d="M65.14 176V228M90.29 176V228M115.43 176V228M140.57 176V228M165.71 176V228M190.86 176V228" stroke="#3b1027" stroke-width="2.5"/>
+      <g fill="#3b1027">
+        <rect x="58.14" y="176" width="14" height="31" rx="2"/>
+        <rect x="83.29" y="176" width="14" height="31" rx="2"/>
+        <rect x="133.57" y="176" width="14" height="31" rx="2"/>
+        <rect x="158.71" y="176" width="14" height="31" rx="2"/>
+        <rect x="183.86" y="176" width="14" height="31" rx="2"/>
+      </g>
+    </g>
+  </g>
+  <text x="410" y="178" font-family="DejaVu Sans, Helvetica, Arial, sans-serif"
+        font-size="120" font-weight="bold" style="fill:var(--fg)">zspot</text>
+  <text x="414" y="232" font-family="DejaVu Sans, Helvetica, Arial, sans-serif"
+        font-size="30" style="fill:var(--fg2)">Spotify Connect player for Zephyr RTOS</text>
+</svg>
