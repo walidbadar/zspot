@@ -10,6 +10,8 @@
 #include <zephyr/net/socket.h>
 #include <zephyr/net/tls_credentials.h>
 
+#include <mbedtls/ssl_ciphersuites.h>
+
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
@@ -93,43 +95,69 @@ void HttpConnection::open(const HttpUrl &url)
 		throw std::runtime_error("DNS lookup failed");
 	}
 
-	for (struct zsock_addrinfo *ai = results; ai != nullptr; ai = ai->ai_next) {
-		struct timeval timeout;
+	/*
+	 * Cipher suites offered, in two rounds. The Spotify hosts are reached
+	 * with ECDHE-RSA, as verified; several of them would pick ECDHE-ECDSA as
+	 * soon as it is offered. That is only offered when a host accepts
+	 * nothing else.
+	 */
+	static const int rsa_suites[] = {MBEDTLS_TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+					 MBEDTLS_TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384};
+	static const int ecdsa_suites[] = {MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256};
+	const int rounds = url.tls ? 2 : 1;
+	int last_errno = 0;
 
-		sock = zsock_socket(ai->ai_family, ai->ai_socktype,
-				    url.tls ? static_cast<int>(IPPROTO_TLS_1_2)
-					    : static_cast<int>(IPPROTO_TCP));
-		if (sock < 0) {
-			continue;
-		}
+	for (int round = 0; round < rounds && sock < 0; round++) {
+		for (struct zsock_addrinfo *ai = results; ai != nullptr; ai = ai->ai_next) {
+			struct timeval timeout;
 
-		if (url.tls) {
+			sock = zsock_socket(ai->ai_family, ai->ai_socktype,
+					    url.tls ? static_cast<int>(IPPROTO_TLS_1_2)
+						    : static_cast<int>(IPPROTO_TCP));
+			if (sock < 0) {
+				continue;
+			}
+
+			if (url.tls) {
 #if CONFIG_ZSPOT_TLS_SEC_TAG >= 0
-			static const sec_tag_t sec_tags[] = {CONFIG_ZSPOT_TLS_SEC_TAG};
-			int verify = TLS_PEER_VERIFY_REQUIRED;
+				static const sec_tag_t sec_tags[] = {CONFIG_ZSPOT_TLS_SEC_TAG};
+				int verify = TLS_PEER_VERIFY_REQUIRED;
 
-			zsock_setsockopt(sock, SOL_TLS, TLS_SEC_TAG_LIST, sec_tags,
-					 sizeof(sec_tags));
+				zsock_setsockopt(sock, SOL_TLS, TLS_SEC_TAG_LIST, sec_tags,
+						 sizeof(sec_tags));
 #else
-			int verify = TLS_PEER_VERIFY_NONE;
+				int verify = TLS_PEER_VERIFY_NONE;
 #endif
-			zsock_setsockopt(sock, SOL_TLS, TLS_HOSTNAME, url.host.c_str(),
-					 url.host.size() + 1);
-			zsock_setsockopt(sock, SOL_TLS, TLS_PEER_VERIFY, &verify, sizeof(verify));
+				zsock_setsockopt(sock, SOL_TLS, TLS_HOSTNAME, url.host.c_str(),
+						 url.host.size() + 1);
+				zsock_setsockopt(sock, SOL_TLS, TLS_PEER_VERIFY, &verify,
+						 sizeof(verify));
+				if (round == 0) {
+					zsock_setsockopt(sock, SOL_TLS, TLS_CIPHERSUITE_LIST,
+							 rsa_suites, sizeof(rsa_suites));
+				} else {
+					zsock_setsockopt(sock, SOL_TLS, TLS_CIPHERSUITE_LIST,
+							 ecdsa_suites, sizeof(ecdsa_suites));
+				}
+			}
+
+			timeout.tv_sec = CONFIG_ZSPOT_HTTP_TIMEOUT_MS / 1000;
+			timeout.tv_usec = (CONFIG_ZSPOT_HTTP_TIMEOUT_MS % 1000) * 1000;
+			zsock_setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+			zsock_setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+
+			if (zsock_connect(sock, ai->ai_addr, ai->ai_addrlen) == 0) {
+				break;
+			}
+
+			last_errno = errno;
+			zsock_close(sock);
+			sock = -1;
 		}
-
-		timeout.tv_sec = CONFIG_ZSPOT_HTTP_TIMEOUT_MS / 1000;
-		timeout.tv_usec = (CONFIG_ZSPOT_HTTP_TIMEOUT_MS % 1000) * 1000;
-		zsock_setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-		zsock_setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
-
-		if (zsock_connect(sock, ai->ai_addr, ai->ai_addrlen) == 0) {
-			break;
-		}
-
-		LOG_ERR("Connect to %s:%u failed (errno %d)", url.host.c_str(), url.port, errno);
-		zsock_close(sock);
-		sock = -1;
+	}
+	if (sock < 0) {
+		LOG_ERR("Connect to %s:%u failed (errno %d)", url.host.c_str(), url.port,
+			last_errno);
 	}
 	zsock_freeaddrinfo(results);
 
