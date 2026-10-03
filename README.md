@@ -30,6 +30,7 @@ from Zephyr:
 | Protocol buffers   | Zephyr `nanopb` module (generated at build time)         |
 | Logging            | Zephyr logging, module `zspot`                           |
 | Audio output       | Zephyr I2S driver API (optional helper sink)             |
+| Display (sample)   | Zephyr `lvgl` module, display and input drivers          |
 
 The only vendored third-party code is Tremor, the integer Ogg Vorbis decoder
 (`third_party/tremor`, BSD licence), because Zephyr has no Vorbis decoder.
@@ -171,15 +172,22 @@ zspot_credentials_save_json(json, sizeof(json));  /* persist for next boot  */
 
 On the next boot `zspot_credentials_load_json()` skips the zeroconf step.
 Playback control (`zspot_set_pause`, `zspot_next`, `zspot_previous`,
-`zspot_set_volume`) and position feedback (`zspot_update_position_ms`) are
-available for local buttons and displays.
+`zspot_seek`, `zspot_set_volume`) and position feedback
+(`zspot_update_position_ms`) are available for local buttons and displays.
+
+Track metadata arrives with `ZSPOT_EVENT_TRACK_INFO` (title, artist, album,
+cover URL, duration). The library raises `ZSPOT_EVENT_TRACK_BEGIN` when the
+PCM of a new track starts; answer it with
+`zspot_notify_audio_reached_playback()` once that audio is audible, which
+advances the queue and triggers the track info event. `zspot_http_get()`
+downloads a resource such as the cover art with the library's HTTP(S) client.
 
 Callbacks run on the library's threads.
 
 ## Sample
 
 `app/` is the player application. It joins Wi-Fi, advertises the device, waits for the Spotify
-app and plays through I2S. The supported board is the VIEWE
+app, plays through I2S and shows a "Now Playing" screen on the display. The supported board is the VIEWE
 UEDX32480035E-WB-A (`uedx32480035e_wb_a/esp32s3/procpu`, ESP32-S3 with 8 MB
 PSRAM). It has no audio DAC on board, so connect an external I2S DAC to
 BCK = GPIO5, WS/LRCK = GPIO6 and DATA = GPIO7. The console and shell are on
@@ -213,12 +221,35 @@ Stored Spotify credentials can be passed with
 `-DCONFIG_ZSPOT_SAMPLE_CREDENTIALS_JSON='"..."'` (the JSON printed by the
 sample after its first connection) to skip the zeroconf hand-over.
 
+### Now Playing screen
+
+With `CONFIG_ZSPOT_SAMPLE_UI=y` (the default in `app/prj.conf`) the sample
+drives the chosen display with LVGL. The screen is laid out for 320x480 and
+shows the cover art, title, artist and progress of the current track, with
+touch controls for play/pause, previous/next, seeking and the volume. Before
+playback starts it shows the connection status instead.
+
+- `src/ui.c` builds the screen. The zspot callbacks only queue updates for
+  it, and the touch handlers call the playback control API.
+- `src/cover.c` downloads the cover (a 300x300 baseline JPEG) on its own
+  thread and decodes it with the TJpgDec copy that ships with LVGL.
+- The LVGL configuration lives in `app/prj.conf`. The memory pool
+  (`CONFIG_LV_Z_MEM_POOL_SIZE`) holds the widgets and the cover art; the
+  ESP32-S3 board file places the pool, the render buffer and LVGL's globals
+  in PSRAM.
+- The built-in Montserrat fonts cover Latin text only; titles in other
+  scripts show placeholder glyphs.
+
+The screen was developed on `native_sim`. The ESP32-S3 configuration builds
+but has not been verified on the hardware yet.
+
 ### native_sim
 
 The sample also builds for `native_sim`, using the Zephyr IP stack over the
-host TAP interface. Decoded audio is appended to `/tmp/cspot.pcm`
-(`CONFIG_ZSPOT_SAMPLE_PCM_FILE`), playable with
-`aplay -f S16_LE -r 44100 -c 2 /tmp/cspot.pcm`.
+host TAP interface. The display is an SDL window (needs the SDL2 development
+package on the host) with the mouse acting as the touch screen. Decoded audio
+is appended to `/tmp/zspot.pcm` (`CONFIG_ZSPOT_SAMPLE_PCM_FILE`) at playback
+speed, playable with `aplay -f S16_LE -r 44100 -c 2 /tmp/zspot.pcm`.
 
 Create the TAP device once per boot (root required) and give the simulator
 internet access through NAT:
