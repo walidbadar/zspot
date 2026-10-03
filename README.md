@@ -24,7 +24,7 @@ from Zephyr:
 | Crypto             | PSA Crypto API (SHA-1, HMAC, AES-CTR/ECB, RNG), `sys/base64.h` |
 | JSON               | `zephyr/data/json.h`                                     |
 | Protocol buffers   | Zephyr `nanopb` module (generated at build time)         |
-| Logging            | Zephyr logging, module `cspot`                           |
+| Logging            | Zephyr logging, module `zspot`                           |
 | Audio output       | Zephyr I2S driver API (optional helper sink)             |
 
 The only vendored third-party code is Tremor, the integer Ogg Vorbis decoder
@@ -64,9 +64,43 @@ chmod +x ~/.venvs/protoc/bin/protoc
 export PATH=~/.venvs/protoc/bin:$PATH
 ```
 
-## Adding the module
+## Getting started
 
-In your `west.yml`:
+The repository follows the layout of Zephyr's
+[example-application](https://github.com/zephyrproject-rtos/example-application):
+it is a west manifest repository and a Zephyr module at the same time. Its
+`west.yml` pins Zephyr and the few modules the library needs.
+
+### Shared Zephyr workspace (recommended)
+
+Reuse an existing workspace instead of cloning Zephyr per project: link the
+repository into the workspace and make it the manifest repository.
+
+```sh
+cd ~/workspace/zephyrproject                      # existing workspace
+ln -s ~/workspace/firmware/cspot-zephyr zspot     # repository checked out elsewhere
+west config manifest.path zspot
+west config manifest.file west.yml
+west update zephyr                                # records manifest-rev, keeps the checkout
+west build -b uedx32480035e_wb_a/esp32s3/procpu zspot/app
+west twister -T zspot/tests -p native_sim/native/64
+```
+
+`west.yml` pins `zephyr` and `hal_espressif` to the revisions this project was
+verified with, so `west update` does not move them. To switch the workspace
+back to Zephyr's own manifest run `west config manifest.path zephyr`.
+
+### Standalone workspace
+
+```sh
+west init -m https://github.com/<you>/cspot-zephyr --mr main zspot-workspace
+cd zspot-workspace && west update
+west build -b uedx32480035e_wb_a/esp32s3/procpu zspot/app
+```
+
+### From another manifest
+
+Add the repository as a project of that manifest:
 
 ```yaml
 manifest:
@@ -77,8 +111,8 @@ manifest:
       path: modules/lib/zspot
 ```
 
-or, without west, pass `-DZEPHYR_EXTRA_MODULES=/path/to/cspot-zephyr` to the
-build.
+Without west, pass `-DZEPHYR_EXTRA_MODULES=/path/to/cspot-zephyr` to the
+build (`app/CMakeLists.txt` does this itself when the variable is unset).
 
 ## Configuration
 
@@ -96,7 +130,7 @@ Enable `CONFIG_ZSPOT=y` together with `CONFIG_CPP=y` and
 | `ZSPOT_STACKS_EXTERNAL`          | Protocol thread stacks in external memory      |
 | `ZSPOT_EXTERNAL_TLS_HEAP_SIZE`   | Mbed TLS heap relocated to external memory     |
 | `ZSPOT_*_STACK_SIZE`             | Stacks of the protocol threads                 |
-| `ZSPOT_LOG_LEVEL_*`              | Log level of the `cspot` module                |
+| `ZSPOT_LOG_LEVEL_*`              | Log level of the `zspot` module                |
 
 TLS towards Spotify needs TLS 1.2 with ECDHE-RSA and AES-GCM; see
 `app/prj.conf` for a working Mbed TLS / PSA configuration.
@@ -228,7 +262,7 @@ lib/zspot/           the library: Kconfig, CMakeLists, src/core (cspot C++ proto
 tests/lib/           ztest unit tests (run with west twister -T tests)
 scripts/             zeroconf hand-over emulator, native_sim LAN bridge
 zephyr/module.yml    Zephyr module descriptor (CMakeLists.txt and Kconfig at the root)
-west.yml             manifest for a standalone workspace
+west.yml             west manifest (shared or standalone workspace, see Getting started)
 .github/workflows/   CI: builds the app and runs the tests with twister
 ```
 

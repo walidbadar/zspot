@@ -14,6 +14,14 @@ manifest:
       url-base: https://github.com/zephyrproject-rtos
 
   projects:
+    # Projects listed here override the definitions imported from zephyr.
+    # The Espressif HAL is kept at the revision this project was verified
+    # with (newer than Zephyr's pin at the time).
+    - name: hal_espressif
+      remote: zephyrproject-rtos
+      revision: 0bd7ba4cdeb218fad291ae06f728c335a97e588d
+      path: modules/hal/espressif
+
     - name: zephyr
       remote: zephyrproject-rtos
       # Zephyr 4.5 development snapshot this project was verified against
