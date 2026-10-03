@@ -91,7 +91,7 @@ static int network_connect(void)
 static void sink_flush(void)
 {
 #if defined(CONFIG_ZSPOT_I2S_SINK)
-	sink_flush();
+	zspot_i2s_sink_flush();
 #endif
 }
 
