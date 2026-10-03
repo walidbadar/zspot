@@ -115,6 +115,7 @@ bool MercurySession::triggerTimeout() {
 }
 
 void MercurySession::unregister(uint64_t sequenceId) {
+  std::scoped_lock lock(this->requestMutex);
   auto callback = this->callbacks.find(sequenceId);
 
   if (callback != this->callbacks.end()) {
@@ -180,10 +181,19 @@ void MercurySession::handlePacket() {
       CSPOT_LOG(debug, "Received mercury packet");
 
       auto response = this->decodeResponse(packet.data);
-      if (this->callbacks.count(response.sequenceId) > 0) {
-        auto seqId = response.sequenceId;
-        this->callbacks[response.sequenceId](response);
-        this->callbacks.erase(this->callbacks.find(seqId));
+      ResponseCallback callback = nullptr;
+      {
+        std::scoped_lock lock(this->requestMutex);
+        auto it = this->callbacks.find(response.sequenceId);
+
+        if (it != this->callbacks.end()) {
+          callback = it->second;
+          this->callbacks.erase(it);
+        }
+      }
+      // Called unlocked: handlers issue requests of their own
+      if (callback != nullptr) {
+        callback(response);
       }
       break;
     }
@@ -205,19 +215,24 @@ void MercurySession::failAllPending() {
   Response response = {};
   response.fail = true;
 
+  // Take the tables over, the handlers run unlocked
+  std::unordered_map<uint64_t, ResponseCallback> pendingCallbacks;
+  std::unordered_map<std::string, ResponseCallback> pendingSubscriptions;
+  {
+    std::scoped_lock lock(this->requestMutex);
+    pendingCallbacks.swap(this->callbacks);
+    pendingSubscriptions.swap(this->subscriptions);
+  }
+
   // Fail all callbacks
-  for (auto& it : this->callbacks) {
+  for (auto& it : pendingCallbacks) {
     it.second(response);
   }
 
   // Fail all subscriptions
-  for (auto& it : this->subscriptions) {
+  for (auto& it : pendingSubscriptions) {
     it.second(response);
   }
-
-  // Remove references
-  this->subscriptions = {};
-  this->callbacks = {};
 }
 
 MercurySession::Response MercurySession::decodeResponse(
@@ -254,6 +269,8 @@ uint64_t MercurySession::executeSubscription(RequestType method,
                                              ResponseCallback callback,
                                              ResponseCallback subscription,
                                              DataParts& payload) {
+  std::scoped_lock lock(this->requestMutex);
+
   CSPOT_LOG(debug, "Executing Mercury Request, type %s",
             RequestTypeMap[method].c_str());
 

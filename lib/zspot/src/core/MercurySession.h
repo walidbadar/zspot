@@ -131,6 +131,9 @@ class MercurySession : public zspot::Task, public cspot::Session {
   std::string countryCode = "";
 
   zspot::Mutex isRunningMutex;
+  // Guards the request state (sequence ids, header scratch, callback tables):
+  // requests are issued from several threads
+  zspot::Mutex requestMutex;
   std::atomic<bool> isRunning = false;
   std::atomic<bool> isReconnecting = false;
   std::atomic<bool> executeEstabilishedCallback = false;
