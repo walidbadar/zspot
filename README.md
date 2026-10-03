@@ -208,10 +208,14 @@ samples/player/     reference application (C)
 
 ## Status
 
-- Builds for `uedx32480035e_wb_a/esp32s3/procpu` against Zephyr 4.5.0-rc1
-  with Zephyr SDK 1.0.1. It has not yet been run on hardware; the first
-  on-target checks should be the zeroconf hand-over, the access point
-  handshake and audio output.
+- Builds for `uedx32480035e_wb_a/esp32s3/procpu` and `native_sim/native/64`
+  against Zephyr 4.5.0-rc1 with Zephyr SDK 1.0.1.
+- Verified on native_sim over the TAP interface: mDNS/DNS-SD advertisement
+  (visible to avahi), the zeroconf endpoint, access point resolution over
+  TLS, the access point handshake (Diffie-Hellman, HMAC challenge, Shannon
+  keys) and the encrypted login exchange up to Spotify's reply. Playback
+  needs real credentials and has not been exercised yet; neither has the
+  ESP32-S3 target on hardware.
 - TLS peer verification is off unless `CSPOT_TLS_SEC_TAG` names a CA
   credential.
 - Thread stacks in external memory (`CSPOT_STACKS_EXTERNAL`) must not be
