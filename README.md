@@ -252,7 +252,10 @@ player after its first connection) to skip the zeroconf hand-over.
 ### Now Playing screen
 
 With `CONFIG_ZSPOT_UI=y` (the default in `app/prj.conf`) the player
-drives the chosen display with LVGL. The screen is laid out for 320x480 and
+drives the chosen display with LVGL. The layout follows the resolution of
+the display: it is drawn for 320x480, scales up with larger fonts on bigger
+displays, shrinks the cover on smaller ones and puts the cover beside the
+controls in landscape. It
 shows the cover art, title, artist and progress of the current track, with
 touch controls for play/pause, previous/next, seeking and the volume. Before
 playback starts it shows the connection status instead. The Wi-Fi symbol in
