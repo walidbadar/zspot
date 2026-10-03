@@ -27,12 +27,14 @@ struct ui_ops {
 	/** Current playback position, polled while a track is shown. */
 	uint32_t (*position_ms)(void);
 	/**
-	 * The queue view wants its content: answer with ui_queue_reset() and
-	 * one ui_queue_add() per entry.
+	 * The library view was opened: answer with ui_list_reset() and one
+	 * ui_list_add() per row.
 	 */
-	void (*queue_refresh)(void);
-	/** A queue entry was tapped. */
-	void (*queue_play)(int index);
+	void (*library_open)(void);
+	/** Back was tapped on a listing below the top level. */
+	void (*library_back)(void);
+	/** The row @p index of the current listing was tapped. */
+	void (*library_select)(int index);
 };
 
 #if defined(CONFIG_ZSPOT_SAMPLE_UI)
@@ -56,23 +58,28 @@ void ui_set_paused(bool paused);
 /** @param volume 0..65535 */
 void ui_set_volume(uint16_t volume);
 
-/** Most entries the queue view shows */
-#define UI_QUEUE_MAX 20
+/** Most rows the library view shows */
+#define UI_LIST_MAX 30
 
 /**
- * Starts a new queue listing of @p count entries (at most UI_QUEUE_MAX), the
- * first being the current track at queue index @p first. @p generation tags
- * the listing: entries added with another value are ignored, so results of an
- * outdated lookup cannot end up in it.
+ * Starts a new listing in the library view.
+ *
+ * @param generation  tags the listing; rows added with another value are
+ *                    ignored, so a superseded listing cannot leak into it
+ * @param heading     shown in the top bar
+ * @param top_level   true for the list of collections: back then closes the
+ *                    view, and tapping a row keeps it open. On other
+ *                    listings a tap returns to the Now Playing screen.
+ * @param status      shown instead of rows, e.g. while loading; NULL for none
  */
-void ui_queue_reset(uint32_t generation, int first, int count);
+void ui_list_reset(uint32_t generation, const char *heading, bool top_level, const char *status);
 
-/** Fills in the entry at queue index @p index of the listing @p generation. */
-void ui_queue_add(uint32_t generation, int index, const char *title, const char *artist,
-		  uint32_t duration_ms);
-
-/** The play queue changed; the queue view reloads if it is open. */
-void ui_queue_changed(void);
+/**
+ * Appends a row to the listing @p generation; rows are added in order.
+ * @param duration_ms  shown at the right edge, 0 for none
+ */
+void ui_list_add(uint32_t generation, const char *title, const char *subtitle,
+		 uint32_t duration_ms);
 
 #else
 
@@ -90,10 +97,6 @@ static inline void ui_set_paused(bool paused)
 }
 
 static inline void ui_set_volume(uint16_t volume)
-{
-}
-
-static inline void ui_queue_changed(void)
 {
 }
 

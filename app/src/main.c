@@ -36,6 +36,9 @@
 #include "pcm_file_sink.h"
 #endif
 #include "ui.h"
+#if defined(CONFIG_ZSPOT_SAMPLE_UI)
+#include "library.h"
+#endif
 
 /* Decoded PCM: 44.1 kHz, 16 bit, stereo */
 #define PCM_BYTES_PER_SECOND (44100 * 4)
@@ -198,7 +201,6 @@ static void on_event(const struct zspot_event *event, void *user_data)
 		zspot_notify_audio_reached_playback();
 		break;
 	case ZSPOT_EVENT_QUEUE_CHANGED:
-		ui_queue_changed();
 		break;
 	case ZSPOT_EVENT_DISCONNECT:
 		LOG_INF("Playback moved to another device");
@@ -252,37 +254,6 @@ static void ui_volume(uint16_t volume, bool commit)
 	}
 }
 
-/* Tags the queue listings so that late answers to an older one are dropped. */
-static atomic_t queue_generation;
-
-static void on_queue_track(int index, const struct zspot_track_info *track, void *user_data)
-{
-	if (track != NULL) {
-		ui_queue_add((uint32_t)(uintptr_t)user_data, index, track->name, track->artist,
-			     track->duration_ms);
-	}
-}
-
-/* Lists the current track and the ones that follow it. */
-static void ui_queue_refresh(void)
-{
-	uint32_t generation = (uint32_t)atomic_inc(&queue_generation) + 1;
-	int first = zspot_queue_position();
-	int count = first < 0 ? 0 : MIN(zspot_queue_size() - first, UI_QUEUE_MAX);
-
-	ui_queue_reset(generation, first, count);
-	for (int i = 0; i < count; i++) {
-		zspot_queue_get_track(first + i, on_queue_track, (void *)(uintptr_t)generation);
-	}
-}
-
-static void ui_queue_play(int index)
-{
-	if (zspot_queue_play(index)) {
-		sink_flush();
-	}
-}
-
 static const struct ui_ops ui_ops = {
 	.set_paused = zspot_set_pause,
 	.next = ui_next,
@@ -290,8 +261,9 @@ static const struct ui_ops ui_ops = {
 	.seek = zspot_seek,
 	.set_volume = ui_volume,
 	.position_ms = position_get,
-	.queue_refresh = ui_queue_refresh,
-	.queue_play = ui_queue_play,
+	.library_open = library_open,
+	.library_back = library_back,
+	.library_select = library_select,
 };
 #endif
 
@@ -306,7 +278,9 @@ int main(void)
 	int ret;
 
 #if defined(CONFIG_ZSPOT_SAMPLE_UI)
-	ui_init(config.device_name, &ui_ops);
+	if (ui_init(config.device_name, &ui_ops) == 0) {
+		library_init();
+	}
 #endif
 	ui_show_message("Connecting", "Waiting for the network");
 

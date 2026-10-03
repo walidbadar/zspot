@@ -50,4 +50,31 @@ config ZSPOT_SAMPLE_UI
 	  controls for play/pause, skipping, seeking and the volume. See
 	  prj.conf for the LVGL configuration it needs.
 
+if ZSPOT_SAMPLE_UI
+
+# The defaults come from the environment of the build, so that the values stay
+# out of the repository and of the command line.
+
+config ZSPOT_SAMPLE_WEB_CLIENT_ID
+	string "Client ID of the Spotify developer application"
+	default "$(ZSPOT_WEB_CLIENT_ID)"
+	help
+	  "Your Library" on the Now Playing screen uses the Spotify Web API,
+	  which needs an application registered at developer.spotify.com and a
+	  one-time authorisation by the user with scripts/spotify_authorize.py.
+	  The three values default to the environment variables
+	  ZSPOT_WEB_CLIENT_ID, ZSPOT_WEB_CLIENT_SECRET and
+	  ZSPOT_WEB_REFRESH_TOKEN. Without them the library view only says that
+	  it is not set up.
+
+config ZSPOT_SAMPLE_WEB_CLIENT_SECRET
+	string "Client secret of the Spotify developer application"
+	default "$(ZSPOT_WEB_CLIENT_SECRET)"
+
+config ZSPOT_SAMPLE_WEB_REFRESH_TOKEN
+	string "Refresh token of the authorised user"
+	default "$(ZSPOT_WEB_REFRESH_TOKEN)"
+
+endif # ZSPOT_SAMPLE_UI
+
 source "Kconfig.zephyr"
