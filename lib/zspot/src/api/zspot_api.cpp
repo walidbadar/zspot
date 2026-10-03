@@ -21,6 +21,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include "core/Context.h"
 #include "core/LoginBlob.h"
@@ -594,6 +595,40 @@ int zspot_http_get(const char *url, uint8_t *buf, size_t size)
 		return static_cast<int>(response.body.size());
 	} catch (const std::exception &e) {
 		LOG_WRN("GET %s failed: %s", url, e.what());
+		return -EIO;
+	}
+}
+
+int zspot_http_request(const char *method, const char *url, const char *const *headers,
+		       const char *content_type, const char *body, uint8_t *buf, size_t size,
+		       size_t *len)
+{
+	if (method == nullptr || url == nullptr || buf == nullptr || len == nullptr) {
+		return -EINVAL;
+	}
+
+	try {
+		zspot::HttpConnection::Headers header_lines;
+		std::vector<uint8_t> payload;
+
+		for (; headers != nullptr && *headers != nullptr; headers++) {
+			header_lines.emplace_back(*headers);
+		}
+		if (body != nullptr) {
+			payload.assign(body, body + strlen(body));
+		}
+
+		auto response = zspot::HttpConnection::fetch(method, url, header_lines, payload,
+							     content_type);
+
+		if (response.body.size() > size) {
+			return -ENOMEM;
+		}
+		memcpy(buf, response.body.data(), response.body.size());
+		*len = response.body.size();
+		return response.status;
+	} catch (const std::exception &e) {
+		LOG_WRN("%s %s failed: %s", method, url, e.what());
 		return -EIO;
 	}
 }

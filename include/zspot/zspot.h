@@ -214,6 +214,24 @@ bool zspot_queue_play(int index);
  */
 int zspot_http_get(const char *url, uint8_t *buf, size_t size);
 
+/**
+ * Performs an HTTP(S) request with the library's client, e.g. against the
+ * Spotify Web API. Blocks until the transfer finished.
+ *
+ * @param method        "GET", "PUT", "POST", ...
+ * @param headers       NULL terminated array of header lines without CRLF
+ *                      ("Authorization: Bearer ..."), or NULL
+ * @param content_type  type of @p body, or NULL without a body
+ * @param body          NUL terminated request body, or NULL
+ * @param buf           receives the response body, not NUL terminated
+ * @param len           receives the number of bytes stored in @p buf
+ * @return the HTTP status code, -ENOMEM when the response does not fit, or
+ *         another negative errno.
+ */
+int zspot_http_request(const char *method, const char *url, const char *const *headers,
+		       const char *content_type, const char *body, uint8_t *buf, size_t size,
+		       size_t *len);
+
 #ifdef __cplusplus
 }
 #endif
