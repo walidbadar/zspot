@@ -182,6 +182,12 @@ PCM of a new track starts; answer it with
 advances the queue and triggers the track info event. `zspot_http_get()`
 downloads a resource such as the cover art with the library's HTTP(S) client.
 
+The play queue handed over by the controlling app can be inspected and
+used: `zspot_queue_size()` and `zspot_queue_position()` describe it,
+`zspot_queue_get_track()` looks up the metadata of one entry (the queue only
+holds references) and `zspot_queue_play()` jumps to an entry.
+`ZSPOT_EVENT_QUEUE_CHANGED` reports that the app replaced or edited it.
+
 Callbacks run on the library's threads.
 
 ## Sample
@@ -227,7 +233,9 @@ With `CONFIG_ZSPOT_SAMPLE_UI=y` (the default in `app/prj.conf`) the sample
 drives the chosen display with LVGL. The screen is laid out for 320x480 and
 shows the cover art, title, artist and progress of the current track, with
 touch controls for play/pause, previous/next, seeking and the volume. Before
-playback starts it shows the connection status instead.
+playback starts it shows the connection status instead. The list button in
+the top right corner opens the queue: the current track and up to 19 that
+follow it; tapping one plays it.
 
 - `src/ui.c` builds the screen. The zspot callbacks only queue updates for
   it, and the touch handlers call the playback control API.
