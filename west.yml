@@ -32,6 +32,7 @@ manifest:
         name-allowlist:
           - cmsis_6
           - hal_espressif
+          - lvgl
           - mbedtls
           - tf-psa-crypto
           - nanopb

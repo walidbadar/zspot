@@ -9,7 +9,8 @@
  *
  * Flow: bring the network up, advertise the device, wait for the Spotify app
  * to hand over credentials (or use stored ones), connect, and route decoded
- * PCM to the I2S sink.
+ * PCM to the I2S sink. With CONFIG_ZSPOT_SAMPLE_UI a "Now Playing" screen shows
+ * the track and controls playback.
  */
 #include <errno.h>
 #include <stdbool.h>
@@ -17,6 +18,7 @@
 
 #include <zephyr/device.h>
 #include <zephyr/kernel.h>
+#include <zephyr/sys/atomic.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/net/net_event.h>
 #include <zephyr/net/net_if.h>
@@ -33,6 +35,10 @@
 #elif defined(ZSPOT_SAMPLE_HAVE_PCM_FILE)
 #include "pcm_file_sink.h"
 #endif
+#include "ui.h"
+
+/* Decoded PCM: 44.1 kHz, 16 bit, stereo */
+#define PCM_BYTES_PER_SECOND (44100 * 4)
 
 LOG_MODULE_REGISTER(zspot_player, LOG_LEVEL_INF);
 
@@ -40,6 +46,27 @@ static K_SEM_DEFINE(ipv4_ready, 0, 1);
 static struct net_mgmt_event_callback net_cb;
 
 static volatile bool paused;
+
+/*
+ * Playback position: where the track was (re)started plus the PCM handed to
+ * the sink since then.
+ */
+static volatile uint32_t position_base_ms;
+static atomic_t position_bytes;
+/* PLAYBACK_START already set the position of the track that begins next */
+static bool position_preset;
+
+static void position_set(uint32_t position_ms)
+{
+	position_base_ms = position_ms;
+	atomic_clear(&position_bytes);
+}
+
+static uint32_t position_get(void)
+{
+	return position_base_ms +
+	       (uint32_t)((uint64_t)atomic_get(&position_bytes) * 1000 / PCM_BYTES_PER_SECOND);
+}
 
 static void net_event_handler(struct net_mgmt_event_callback *cb, uint64_t event,
 			      struct net_if *iface)
@@ -136,26 +163,45 @@ static void on_event(const struct zspot_event *event, void *user_data)
 	case ZSPOT_EVENT_PLAY_PAUSE:
 		LOG_INF("%s", event->paused ? "Paused" : "Playing");
 		paused = event->paused;
+		ui_set_paused(event->paused);
 		break;
 	case ZSPOT_EVENT_VOLUME:
 		LOG_INF("Volume %u", event->volume);
 		sink_set_volume(event->volume);
+		ui_set_volume(event->volume);
 		break;
 	case ZSPOT_EVENT_TRACK_INFO:
 		LOG_INF("Now playing: %s - %s (%s)", event->track.artist, event->track.name,
 			event->track.album);
+		ui_show_track(event->track.name, event->track.artist, event->track.image_url,
+			      event->track.duration_ms);
 		break;
 	case ZSPOT_EVENT_SEEK:
 		LOG_INF("Seek to %u ms", event->position_ms);
 		sink_flush();
+		position_set(event->position_ms);
 		break;
 	case ZSPOT_EVENT_FLUSH:
+		sink_flush();
+		break;
 	case ZSPOT_EVENT_PLAYBACK_START:
 		sink_flush();
+		position_set(event->position_ms);
+		position_preset = true;
+		break;
+	case ZSPOT_EVENT_TRACK_BEGIN:
+		/* A gapless transition comes without PLAYBACK_START. */
+		if (!position_preset) {
+			position_set(0);
+		}
+		position_preset = false;
+		zspot_notify_audio_reached_playback();
 		break;
 	case ZSPOT_EVENT_DISCONNECT:
 		LOG_INF("Playback moved to another device");
 		sink_flush();
+		ui_show_message("Playing on another device",
+				"Pick this device in Spotify to listen here");
 		break;
 	case ZSPOT_EVENT_NEXT:
 	case ZSPOT_EVENT_PREV:
@@ -169,11 +215,49 @@ static void on_event(const struct zspot_event *event, void *user_data)
 
 static size_t on_pcm(const uint8_t *pcm, size_t len, void *user_data)
 {
+	size_t accepted;
+
 	if (paused) {
 		return 0; /* player retries shortly */
 	}
-	return sink_write(pcm, len, user_data);
+
+	accepted = sink_write(pcm, len, user_data);
+	atomic_add(&position_bytes, accepted);
+	return accepted;
 }
+
+#if defined(CONFIG_ZSPOT_SAMPLE_UI)
+static void ui_next(void)
+{
+	if (zspot_next()) {
+		sink_flush();
+	}
+}
+
+static void ui_previous(void)
+{
+	if (zspot_previous()) {
+		sink_flush();
+	}
+}
+
+static void ui_volume(uint16_t volume, bool commit)
+{
+	sink_set_volume(volume);
+	if (commit) {
+		zspot_set_volume(volume);
+	}
+}
+
+static const struct ui_ops ui_ops = {
+	.set_paused = zspot_set_pause,
+	.next = ui_next,
+	.previous = ui_previous,
+	.seek = zspot_seek,
+	.set_volume = ui_volume,
+	.position_ms = position_get,
+};
+#endif
 
 int main(void)
 {
@@ -184,6 +268,11 @@ int main(void)
 		.initial_volume = 0xFFFF, /* unity gain at the sink */
 	};
 	int ret;
+
+#if defined(CONFIG_ZSPOT_SAMPLE_UI)
+	ui_init(config.device_name, &ui_ops);
+#endif
+	ui_show_message("Connecting", "Waiting for the network");
 
 	if (network_connect() != 0) {
 		return 0;
@@ -220,9 +309,12 @@ int main(void)
 		if (!zspot_credentials_available()) {
 			LOG_INF("Open Spotify and select \"%s\" in the device list",
 				zspot_device_name());
+			ui_show_message(zspot_device_name(),
+					"Open Spotify and pick this device");
 			zspot_zeroconf_wait(-1);
 		}
 
+		ui_show_message("Connecting", "Signing in to Spotify");
 		ret = zspot_connect(on_event, on_pcm, NULL);
 		if (ret == 0) {
 			break;
@@ -240,6 +332,8 @@ int main(void)
 	if (zspot_credentials_save_json(credentials, sizeof(credentials)) > 0) {
 		LOG_INF("Reusable credentials (store these): %s", credentials);
 	}
+
+	ui_show_message("Ready", "Pick this device in Spotify to start playing");
 
 	/* Everything else happens on the library threads. */
 	return 0;

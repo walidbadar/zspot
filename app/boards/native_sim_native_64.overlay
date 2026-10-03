@@ -1,0 +1,11 @@
+/*
+ * Copyright (c) 2026 Muhammad Waleed Badar
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
+
+/* Same resolution as the panel of the VIEWE UEDX32480035E-WB-A. */
+&sdl_dc {
+	width = <320>;
+	height = <480>;
+};

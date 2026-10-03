@@ -28,6 +28,7 @@
 #include "core/SpircHandler.h"
 #include "core/TrackPlayer.h"
 #include "core/TrackQueue.h"
+#include "port/http.h"
 #include "port/log.h"
 #include "port/mem.h"
 #include "port/thread.h"
@@ -64,6 +65,10 @@ struct state {
 	std::atomic<bool> running = false;
 	std::atomic<bool> connected = false;
 	std::atomic<bool> have_credentials = false;
+
+	/* Track boundary detection in on_pcm() */
+	std::atomic<bool> track_restarted = false;
+	std::string pcm_track_id;
 
 	struct k_sem credentials_sem;
 	struct k_sem connect_sem;
@@ -142,6 +147,7 @@ void on_spirc_event(std::unique_ptr<cspot::SpircHandler::Event> ev)
 	case EventType::PLAYBACK_START:
 		out.type = ZSPOT_EVENT_PLAYBACK_START;
 		out.position_ms = static_cast<uint32_t>(std::get<int>(ev->data));
+		g.track_restarted = true;
 		break;
 	default:
 		return;
@@ -149,8 +155,21 @@ void on_spirc_event(std::unique_ptr<cspot::SpircHandler::Event> ev)
 	emit(out);
 }
 
-size_t on_pcm(uint8_t *data, size_t len, std::string_view)
+size_t on_pcm(uint8_t *data, size_t len, std::string_view track_id)
 {
+	/*
+	 * Gapless transitions carry no event of their own: the track id of the
+	 * PCM changes. A freshly loaded track may keep the id (restart), which
+	 * PLAYBACK_START covers.
+	 */
+	if (g.track_restarted.exchange(false) || track_id != g.pcm_track_id) {
+		struct zspot_event event = {};
+
+		g.pcm_track_id = track_id;
+		event.type = ZSPOT_EVENT_TRACK_BEGIN;
+		emit(event);
+	}
+
 	if (g.pcm_cb == nullptr) {
 		return len; /* nobody listening: discard */
 	}
@@ -474,6 +493,13 @@ void zspot_set_volume(uint16_t volume)
 	}
 }
 
+void zspot_seek(uint32_t position_ms)
+{
+	if (g.handler) {
+		g.handler->seekMs(position_ms);
+	}
+}
+
 void zspot_notify_audio_reached_playback(void)
 {
 	if (g.handler) {
@@ -492,5 +518,31 @@ void zspot_update_position_ms(uint32_t position_ms)
 {
 	if (g.handler) {
 		g.handler->updatePositionMs(position_ms);
+	}
+}
+
+/* Utilities --------------------------------------------------------------- */
+
+int zspot_http_get(const char *url, uint8_t *buf, size_t size)
+{
+	if (url == nullptr || buf == nullptr) {
+		return -EINVAL;
+	}
+
+	try {
+		auto response = zspot::HttpConnection::fetch("GET", url);
+
+		if (response.status != 200) {
+			LOG_WRN("GET %s: HTTP %d", url, response.status);
+			return -EIO;
+		}
+		if (response.body.size() > size) {
+			return -ENOMEM;
+		}
+		memcpy(buf, response.body.data(), response.body.size());
+		return static_cast<int>(response.body.size());
+	} catch (const std::exception &e) {
+		LOG_WRN("GET %s failed: %s", url, e.what());
+		return -EIO;
 	}
 }

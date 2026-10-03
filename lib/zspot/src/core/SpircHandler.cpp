@@ -125,6 +125,16 @@ void SpircHandler::updatePositionMs(uint32_t position) {
   notify();
 }
 
+void SpircHandler::seekMs(uint32_t position) {
+  this->trackPlayer->seekMs(position);
+
+  playbackState->updatePositionMs(position);
+
+  notify();
+
+  sendEvent(EventType::SEEK, (int)position);
+}
+
 void SpircHandler::disconnect() {
   this->trackQueue->stopTask();
   this->trackPlayer->stop();
@@ -151,13 +161,7 @@ void SpircHandler::handleFrame(std::vector<uint8_t>& data) {
       break;
     }
     case MessageType_kMessageTypeSeek: {
-      this->trackPlayer->seekMs(playbackState->remoteFrame.position);
-
-      playbackState->updatePositionMs(playbackState->remoteFrame.position);
-
-      notify();
-
-      sendEvent(EventType::SEEK, (int)playbackState->remoteFrame.position);
+      seekMs(playbackState->remoteFrame.position);
       break;
     }
     case MessageType_kMessageTypeVolume:

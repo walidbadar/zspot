@@ -13,6 +13,7 @@ project(zspot_player)
 
 target_sources(app PRIVATE src/main.c)
 target_sources_ifdef(CONFIG_WIFI_CREDENTIALS_CONNECT_STORED app PRIVATE src/wifi.c)
+target_sources_ifdef(CONFIG_ZSPOT_SAMPLE_UI app PRIVATE src/ui.c src/cover.c)
 if(NOT "${CONFIG_ZSPOT_SAMPLE_PCM_FILE}" STREQUAL "")
   target_sources(app PRIVATE src/pcm_file_sink.c)
   target_compile_definitions(app PRIVATE ZSPOT_SAMPLE_HAVE_PCM_FILE=1)

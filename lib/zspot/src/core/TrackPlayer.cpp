@@ -106,7 +106,8 @@ void TrackPlayer::seekMs(size_t ms) {
   }
 
   CSPOT_LOG(info, "Seeking...");
-  this->pendingSeekPositionMs = ms;
+  // 0 means "no seek pending", so the very start is requested as 1 ms
+  this->pendingSeekPositionMs = ms > 0 ? ms : 1;
 }
 
 void TrackPlayer::runTask() {

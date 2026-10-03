@@ -59,6 +59,8 @@ class SpircHandler {
 
   bool nextSong();
 
+  void seekMs(uint32_t position);
+
   void notifyAudioReachedPlayback();
   void notifyAudioEnded();
   void updatePositionMs(uint32_t position);

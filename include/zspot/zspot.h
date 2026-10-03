@@ -52,6 +52,12 @@ enum zspot_event_type {
 	ZSPOT_EVENT_DEPLETED,       /**< queue finished */
 	ZSPOT_EVENT_FLUSH,          /**< drop buffered audio */
 	ZSPOT_EVENT_PLAYBACK_START, /**< event.position_ms */
+	/**
+	 * The PCM that follows belongs to a new track (also raised when a track
+	 * is restarted). Call zspot_notify_audio_reached_playback() once that
+	 * audio is audible to receive ZSPOT_EVENT_TRACK_INFO.
+	 */
+	ZSPOT_EVENT_TRACK_BEGIN,
 };
 
 struct zspot_track_info {
@@ -153,6 +159,9 @@ bool zspot_previous(void);
 /** Reports a local volume change (0..65535) to Spotify. */
 void zspot_set_volume(uint16_t volume);
 
+/** Seeks within the current track; answered with ZSPOT_EVENT_SEEK. */
+void zspot_seek(uint32_t position_ms);
+
 /** Call when the first PCM of a new track reached the output. */
 void zspot_notify_audio_reached_playback(void);
 
@@ -161,6 +170,17 @@ void zspot_notify_audio_ended(void);
 
 /** Reports the playback position to keep the Spotify UI in sync. */
 void zspot_update_position_ms(uint32_t position_ms);
+
+/* --- Utilities ----------------------------------------------------------- */
+
+/**
+ * Downloads a resource over HTTP(S) with the library's client, e.g. the cover
+ * art behind zspot_track_info.image_url. Blocks until the transfer finished.
+ *
+ * @return number of bytes stored in @p buf, -ENOMEM when the body does not
+ *         fit, or another negative errno.
+ */
+int zspot_http_get(const char *url, uint8_t *buf, size_t size);
 
 #ifdef __cplusplus
 }

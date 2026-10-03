@@ -31,4 +31,13 @@ config ZSPOT_SAMPLE_PASSWORD
 	string "Spotify password (development only)"
 	default ""
 
+config ZSPOT_SAMPLE_UI
+	bool "Now Playing screen (LVGL)"
+	depends on LVGL && LV_Z_RUN_LVGL_ON_WORKQUEUE && LV_USE_TJPGD
+	help
+	  Shows the cover art, title, artist and progress of the current track
+	  on the chosen display (laid out for 320x480) and offers touch
+	  controls for play/pause, skipping, seeking and the volume. See
+	  prj.conf for the LVGL configuration it needs.
+
 source "Kconfig.zephyr"
