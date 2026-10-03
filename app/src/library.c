@@ -129,9 +129,9 @@ static void show_collections(void)
 {
 	model->tracks_shown = false;
 
-	ui_list_reset(++generation, TOP_HEADING, true, NULL);
+	ui_list_reset(UI_LIST_LIBRARY, ++generation, TOP_HEADING, true, NULL);
 	for (int i = 0; i < model->collection_count; i++) {
-		ui_list_add(generation, model->collections[i].name,
+		ui_list_add(UI_LIST_LIBRARY, generation, model->collections[i].name,
 			    model->collections[i].subtitle, 0);
 	}
 }
@@ -144,13 +144,13 @@ static void load_collections(void)
 	char url[80];
 	char *response;
 
-	ui_list_reset(++generation, TOP_HEADING, true, "Loading...");
+	ui_list_reset(UI_LIST_LIBRARY, ++generation, TOP_HEADING, true, "Loading...");
 
 	/* One row is taken by Liked Songs. */
 	snprintf(url, sizeof(url), API "/me/playlists?limit=%d", UI_LIST_MAX - 1);
 	response = request("GET", url, NULL, error, sizeof(error), NULL);
 	if (response == NULL) {
-		ui_list_reset(++generation, TOP_HEADING, true, error);
+		ui_list_reset(UI_LIST_LIBRARY, ++generation, TOP_HEADING, true, error);
 		return;
 	}
 
@@ -198,7 +198,7 @@ static void open_collection(int index)
 	model->current = index;
 	model->track_count = 0;
 	model->tracks_shown = true;
-	ui_list_reset(++generation, collection->name, false, "Loading...");
+	ui_list_reset(UI_LIST_LIBRARY, ++generation, collection->name, false, "Loading...");
 
 	if (liked) {
 		snprintf(url, sizeof(url), API "/me/tracks?market=from_token&limit=%d",
@@ -217,11 +217,11 @@ static void open_collection(int index)
 		}
 	}
 	if (response == NULL) {
-		ui_list_reset(++generation, collection->name, false, error);
+		ui_list_reset(UI_LIST_LIBRARY, ++generation, collection->name, false, error);
 		return;
 	}
 
-	ui_list_reset(++generation, collection->name, false, NULL);
+	ui_list_reset(UI_LIST_LIBRARY, ++generation, collection->name, false, NULL);
 	for (const char *item = json_first(json_member(response, "items"));
 	     item != NULL && model->track_count < UI_LIST_MAX; item = json_next(item)) {
 		const char *track = json_member(item, "track");
@@ -238,14 +238,14 @@ static void open_collection(int index)
 		json_string(json_member(json_first(json_member(track, "artists")), "name"), artist,
 			    sizeof(artist));
 
-		ui_list_add(generation, title, artist,
+		ui_list_add(UI_LIST_LIBRARY, generation, title, artist,
 			    json_uint(json_member(track, "duration_ms"), 0));
 		model->track_count++;
 	}
 	response_free(response);
 
 	if (model->track_count == 0) {
-		ui_list_reset(++generation, collection->name, false, "Nothing to play here");
+		ui_list_reset(UI_LIST_LIBRARY, ++generation, collection->name, false, "Nothing to play here");
 	}
 }
 

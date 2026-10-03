@@ -17,6 +17,19 @@ extern "C" {
  */
 int wifi_init(void);
 
+/**
+ * @brief Scans for networks and lists them in the UI (UI_LIST_WIFI).
+ */
+void wifi_scan(void);
+
+/**
+ * @brief Stores the credentials of a network with the wifi_credentials
+ *        library and connects to it.
+ *
+ * @param password  empty for an open network
+ */
+void wifi_join(const char *ssid, const char *password);
+
 #ifdef __cplusplus
 }
 #endif

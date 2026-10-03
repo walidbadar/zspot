@@ -35,6 +35,13 @@ struct ui_ops {
 	void (*library_back)(void);
 	/** The row @p index of the current listing was tapped. */
 	void (*library_select)(int index);
+	/**
+	 * The Wi-Fi settings were opened: answer with ui_list_reset() and one
+	 * ui_list_add() per network found, for UI_LIST_WIFI.
+	 */
+	void (*wifi_scan)(void);
+	/** A network was picked and its password entered (empty for an open one). */
+	void (*wifi_connect)(const char *ssid, const char *password);
 };
 
 #if defined(CONFIG_ZSPOT_SAMPLE_UI)
@@ -58,11 +65,23 @@ void ui_set_paused(bool paused);
 /** @param volume 0..65535 */
 void ui_set_volume(uint16_t volume);
 
+/**
+ * Updates the network indicator in the top right corner. Holding it for three
+ * seconds opens the Wi-Fi settings.
+ */
+void ui_set_network(bool connected);
+
+/** The listings of the list view; only the one that is open accepts content. */
+enum ui_list {
+	UI_LIST_LIBRARY, /**< "Your Library", opened with the list button */
+	UI_LIST_WIFI,    /**< Networks found, opened from the network indicator */
+};
+
 /** Most rows the library view shows */
 #define UI_LIST_MAX 30
 
 /**
- * Starts a new listing in the library view.
+ * Starts a new listing in the list view.
  *
  * @param generation  tags the listing; rows added with another value are
  *                    ignored, so a superseded listing cannot leak into it
@@ -72,13 +91,14 @@ void ui_set_volume(uint16_t volume);
  *                    listings a tap returns to the Now Playing screen.
  * @param status      shown instead of rows, e.g. while loading; NULL for none
  */
-void ui_list_reset(uint32_t generation, const char *heading, bool top_level, const char *status);
+void ui_list_reset(enum ui_list list, uint32_t generation, const char *heading, bool top_level,
+		   const char *status);
 
 /**
  * Appends a row to the listing @p generation; rows are added in order.
  * @param duration_ms  shown at the right edge, 0 for none
  */
-void ui_list_add(uint32_t generation, const char *title, const char *subtitle,
+void ui_list_add(enum ui_list list, uint32_t generation, const char *title, const char *subtitle,
 		 uint32_t duration_ms);
 
 #else
@@ -97,6 +117,10 @@ static inline void ui_set_paused(bool paused)
 }
 
 static inline void ui_set_volume(uint16_t volume)
+{
+}
+
+static inline void ui_set_network(bool connected)
 {
 }
 

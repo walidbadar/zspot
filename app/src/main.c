@@ -115,6 +115,7 @@ static int network_connect(void)
 		k_sem_take(&ipv4_ready, K_FOREVER);
 	}
 	LOG_INF("Network ready");
+	ui_set_network(true);
 	return 0;
 }
 
@@ -254,6 +255,20 @@ static void ui_volume(uint16_t volume, bool commit)
 	}
 }
 
+#if !defined(CONFIG_WIFI_CREDENTIALS_CONNECT_STORED)
+/* Boards without Wi-Fi, such as native_sim, are connected by other means. */
+static void wifi_scan(void)
+{
+	ui_list_reset(UI_LIST_WIFI, 1, "Wi-Fi", true, "This board has no Wi-Fi");
+}
+
+static void wifi_join(const char *ssid, const char *password)
+{
+	ARG_UNUSED(ssid);
+	ARG_UNUSED(password);
+}
+#endif
+
 static const struct ui_ops ui_ops = {
 	.set_paused = zspot_set_pause,
 	.next = ui_next,
@@ -264,6 +279,8 @@ static const struct ui_ops ui_ops = {
 	.library_open = library_open,
 	.library_back = library_back,
 	.library_select = library_select,
+	.wifi_scan = wifi_scan,
+	.wifi_connect = wifi_join,
 };
 #endif
 

@@ -6,7 +6,8 @@
 
 /*
  * "Now Playing" screen for a 320x480 portrait display, plus a list view for
- * browsing the user's library.
+ * browsing the user's library and picking a Wi-Fi network, and a password
+ * entry screen for the latter.
  *
  * LVGL runs on its own workqueue (CONFIG_LV_Z_RUN_LVGL_ON_WORKQUEUE). Updates
  * from other threads go through a message queue that an LVGL timer drains:
@@ -38,6 +39,7 @@ LOG_MODULE_DECLARE(zspot_player, LOG_LEVEL_INF);
 #define COLOR_SUBTLE  lv_color_hex(0xB3B3B3)
 #define COLOR_TRACK   lv_color_hex(0x4D4D4D)
 #define COLOR_ACCENT  lv_color_hex(0x1DB954)
+#define COLOR_ERROR   lv_color_hex(0xE22134)
 
 #define MARGIN       24
 #define CONTENT_W    (320 - 2 * MARGIN)
@@ -56,11 +58,17 @@ LOG_MODULE_DECLARE(zspot_player, LOG_LEVEL_INF);
 #define TICK_MS          50
 #define POSITION_TICKS   5 /* progress refresh: every 250 ms */
 
+/* How long the network indicator has to be held to open the Wi-Fi settings */
+#define WIFI_HOLD_MS     3000
+#define WIFI_SSID_MAX    32
+#define WIFI_PSK_MAX     64
+
 enum ui_msg_type {
 	UI_MSG_MESSAGE,
 	UI_MSG_TRACK,
 	UI_MSG_PAUSED,
 	UI_MSG_VOLUME,
+	UI_MSG_NETWORK,
 	UI_MSG_LIST_RESET,
 	UI_MSG_LIST_ROW,
 };
@@ -79,18 +87,21 @@ struct ui_msg {
 			uint32_t duration_ms;
 		} track;
 		struct {
+			enum ui_list list;
 			uint32_t generation;
 			bool top_level;
 			char heading[64];
 			char status[64];
 		} list_reset;
 		struct {
+			enum ui_list list;
 			uint32_t generation;
 			char title[96];
 			char subtitle[96];
 			uint32_t duration_ms;
 		} list_row;
 		bool paused;
+		bool connected;
 		uint16_t volume;
 	};
 };
@@ -105,6 +116,7 @@ static const struct ui_ops *ops;
 static bool ready;
 
 static lv_obj_t *main_screen;
+static lv_obj_t *network_icon;
 static lv_obj_t *cover_image;
 static lv_obj_t *title_label;
 static lv_obj_t *artist_label;
@@ -121,8 +133,15 @@ static lv_obj_t *list_screen;
 static lv_obj_t *list_heading;
 static lv_obj_t *list_rows;
 static lv_obj_t *list_status;
+static enum ui_list list_shown;
 static uint32_t list_generation;
 static bool list_top_level;
+
+static lv_obj_t *wifi_screen;
+static lv_obj_t *wifi_heading;
+static lv_obj_t *wifi_password;
+static lv_timer_t *wifi_hold_timer;
+static char wifi_ssid[WIFI_SSID_MAX + 1];
 
 static lv_draw_buf_t *cover_buf;
 static char cover_url[sizeof(((struct ui_msg *)0)->track.image_url)];
@@ -199,6 +218,17 @@ static lv_obj_t *create_label(lv_obj_t *parent, const lv_font_t *font, lv_color_
 
 static void on_list_row_clicked(lv_event_t *e)
 {
+	if (list_shown == UI_LIST_WIFI) {
+		/* The row's title is the SSID: ask for the password next. */
+		lv_obj_t *title = lv_obj_get_child(lv_event_get_current_target_obj(e), 0);
+
+		copy_text(wifi_ssid, sizeof(wifi_ssid), lv_label_get_text(title));
+		lv_label_set_text(wifi_heading, wifi_ssid);
+		lv_textarea_set_text(wifi_password, "");
+		lv_screen_load(wifi_screen);
+		return;
+	}
+
 	ops->library_select((int)(intptr_t)lv_event_get_user_data(e));
 	if (!list_top_level) {
 		lv_screen_load(main_screen);
@@ -282,12 +312,22 @@ static void apply(const struct ui_msg *msg)
 			cover_request(cover_url);
 		}
 		break;
+	case UI_MSG_NETWORK:
+		lv_obj_set_style_text_color(network_icon,
+					    msg->connected ? COLOR_TEXT : COLOR_ERROR, 0);
+		lv_obj_set_style_text_color(network_icon,
+					    msg->connected ? COLOR_SUBTLE : COLOR_ERROR,
+					    LV_STATE_PRESSED);
+		break;
 	case UI_MSG_LIST_RESET:
-		list_reset(msg->list_reset.generation, msg->list_reset.heading,
-			   msg->list_reset.top_level, msg->list_reset.status);
+		if (msg->list_reset.list == list_shown) {
+			list_reset(msg->list_reset.generation, msg->list_reset.heading,
+				   msg->list_reset.top_level, msg->list_reset.status);
+		}
 		break;
 	case UI_MSG_LIST_ROW:
-		if (msg->list_row.generation == list_generation) {
+		if (msg->list_row.list == list_shown &&
+		    msg->list_row.generation == list_generation) {
 			list_add(msg->list_row.title, msg->list_row.subtitle,
 				 msg->list_row.duration_ms);
 		}
@@ -360,11 +400,54 @@ static void on_next_clicked(lv_event_t *e)
 	ops->next();
 }
 
+/* Shows the list view empty; its content arrives through ui_list_reset(). */
+static void open_list(enum ui_list list, const char *heading)
+{
+	list_shown = list;
+	/* No listing of the new kind is current yet: 0 matches none. */
+	list_reset(0, heading, true, "");
+	lv_screen_load(list_screen);
+}
+
 static void on_library_clicked(lv_event_t *e)
 {
 	ARG_UNUSED(e);
-	lv_screen_load(list_screen);
+	open_list(UI_LIST_LIBRARY, "Your Library");
 	ops->library_open();
+}
+
+static void on_wifi_hold_elapsed(lv_timer_t *timer)
+{
+	ARG_UNUSED(timer);
+	wifi_hold_timer = NULL; /* one-shot: LVGL deletes it */
+	open_list(UI_LIST_WIFI, "Wi-Fi");
+	ops->wifi_scan();
+}
+
+/* The Wi-Fi settings open once the network indicator was held long enough. */
+static void on_network_event(lv_event_t *e)
+{
+	if (wifi_hold_timer != NULL) {
+		lv_timer_delete(wifi_hold_timer);
+		wifi_hold_timer = NULL;
+	}
+	if (lv_event_get_code(e) == LV_EVENT_PRESSED) {
+		wifi_hold_timer = lv_timer_create(on_wifi_hold_elapsed, WIFI_HOLD_MS, NULL);
+		lv_timer_set_repeat_count(wifi_hold_timer, 1);
+	}
+}
+
+static void on_wifi_connect(lv_event_t *e)
+{
+	ARG_UNUSED(e);
+	ops->wifi_connect(wifi_ssid, lv_textarea_get_text(wifi_password));
+	lv_screen_load(main_screen);
+}
+
+static void on_wifi_back_clicked(lv_event_t *e)
+{
+	ARG_UNUSED(e);
+	lv_screen_load(list_screen);
 }
 
 static void on_list_back_clicked(lv_event_t *e)
@@ -463,7 +546,9 @@ static lv_obj_t *create_icon_button(lv_obj_t *parent, const char *symbol, lv_eve
 	lv_obj_add_flag(button, LV_OBJ_FLAG_CLICKABLE);
 	lv_obj_set_style_text_color(button, COLOR_TEXT, 0);
 	lv_obj_set_style_text_color(button, COLOR_SUBTLE, LV_STATE_PRESSED);
-	lv_obj_add_event_cb(button, clicked_cb, LV_EVENT_CLICKED, NULL);
+	if (clicked_cb != NULL) {
+		lv_obj_add_event_cb(button, clicked_cb, LV_EVENT_CLICKED, NULL);
+	}
 
 	label = lv_label_create(button);
 	lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
@@ -502,6 +587,60 @@ static void create_list_screen(void)
 	lv_obj_center(list_status);
 }
 
+/* Password entry for the network picked in the Wi-Fi listing */
+static void create_wifi_screen(void)
+{
+	lv_obj_t *button;
+	lv_obj_t *label;
+	lv_obj_t *keyboard;
+
+	wifi_screen = lv_obj_create(NULL);
+	lv_obj_remove_flag(wifi_screen, LV_OBJ_FLAG_SCROLLABLE);
+	lv_obj_set_style_bg_color(wifi_screen, COLOR_BG, 0);
+	lv_obj_set_style_bg_opa(wifi_screen, LV_OPA_COVER, 0);
+
+	button = create_icon_button(wifi_screen, LV_SYMBOL_LEFT, on_wifi_back_clicked);
+	lv_obj_set_pos(button, 8, 2);
+
+	wifi_heading = create_label(wifi_screen, &lv_font_montserrat_14, COLOR_TEXT, "");
+	lv_label_set_long_mode(wifi_heading, LV_LABEL_LONG_MODE_DOTS);
+	lv_obj_set_style_text_align(wifi_heading, LV_TEXT_ALIGN_CENTER, 0);
+	lv_obj_set_size(wifi_heading, 320 - 2 * 56, lv_font_get_line_height(&lv_font_montserrat_14));
+	lv_obj_align(wifi_heading, LV_ALIGN_TOP_MID, 0, (BAR_H - 14) / 2);
+
+	label = create_label(wifi_screen, &lv_font_montserrat_12, COLOR_SUBTLE,
+			     "Password (leave empty for an open network)");
+	lv_obj_set_pos(label, MARGIN, BAR_H + 16);
+
+	wifi_password = lv_textarea_create(wifi_screen);
+	lv_textarea_set_one_line(wifi_password, true);
+	/* Shown as bullets; the character typed last stays readable briefly. */
+	lv_textarea_set_password_mode(wifi_password, true);
+	lv_textarea_set_max_length(wifi_password, WIFI_PSK_MAX);
+	lv_obj_set_width(wifi_password, CONTENT_W);
+	lv_obj_set_pos(wifi_password, MARGIN, BAR_H + 40);
+	lv_obj_add_state(wifi_password, LV_STATE_FOCUSED); /* shows the cursor */
+
+	button = create_box(wifi_screen, 120, 40);
+	lv_obj_align(button, LV_ALIGN_TOP_MID, 0, BAR_H + 104);
+	lv_obj_add_flag(button, LV_OBJ_FLAG_CLICKABLE);
+	lv_obj_set_style_radius(button, LV_RADIUS_CIRCLE, 0);
+	lv_obj_set_style_bg_color(button, COLOR_ACCENT, 0);
+	lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
+	lv_obj_set_style_bg_opa(button, LV_OPA_70, LV_STATE_PRESSED);
+	lv_obj_add_event_cb(button, on_wifi_connect, LV_EVENT_CLICKED, NULL);
+	label = create_label(button, &lv_font_montserrat_14, COLOR_BG, "Connect");
+	lv_obj_center(label);
+
+	/* The keyboard's confirm key connects too, its close key goes back. */
+	keyboard = lv_keyboard_create(wifi_screen);
+	lv_obj_set_size(keyboard, 320, 220);
+	lv_obj_align(keyboard, LV_ALIGN_BOTTOM_MID, 0, 0);
+	lv_keyboard_set_textarea(keyboard, wifi_password);
+	lv_obj_add_event_cb(keyboard, on_wifi_connect, LV_EVENT_READY, NULL);
+	lv_obj_add_event_cb(keyboard, on_wifi_back_clicked, LV_EVENT_CANCEL, NULL);
+}
+
 static void create_screen(const char *device_name)
 {
 	lv_obj_t *screen = lv_screen_active();
@@ -525,6 +664,15 @@ static void create_screen(const char *device_name)
 	lv_label_set_text_fmt(header, "PLAYING ON %s", device_name);
 	lv_obj_set_style_text_letter_space(header, 1, 0);
 	lv_obj_align(header, LV_ALIGN_TOP_MID, 0, 12);
+
+	/* Red until the application reports the network as connected */
+	network_icon = create_icon_button(screen, LV_SYMBOL_WIFI, NULL);
+	lv_obj_align(network_icon, LV_ALIGN_TOP_RIGHT, -4, -4);
+	lv_obj_set_style_text_color(network_icon, COLOR_ERROR, 0);
+	lv_obj_set_style_text_color(network_icon, COLOR_ERROR, LV_STATE_PRESSED);
+	lv_obj_add_event_cb(network_icon, on_network_event, LV_EVENT_PRESSED, NULL);
+	lv_obj_add_event_cb(network_icon, on_network_event, LV_EVENT_RELEASED, NULL);
+	lv_obj_add_event_cb(network_icon, on_network_event, LV_EVENT_PRESS_LOST, NULL);
 
 	library_button = create_icon_button(screen, LV_SYMBOL_LIST, on_library_clicked);
 	lv_obj_set_pos(library_button, 4, -4);
@@ -579,6 +727,7 @@ static void create_screen(const char *device_name)
 	lv_slider_set_value(volume_slider, UINT16_MAX, LV_ANIM_OFF);
 
 	create_list_screen();
+	create_wifi_screen();
 
 	lv_timer_create(on_tick, TICK_MS, NULL);
 }
@@ -653,11 +802,19 @@ void ui_set_volume(uint16_t volume)
 	post(&msg);
 }
 
-void ui_list_reset(uint32_t generation, const char *heading, bool top_level, const char *status)
+void ui_set_network(bool connected)
+{
+	const struct ui_msg msg = {.type = UI_MSG_NETWORK, .connected = connected};
+
+	post(&msg);
+}
+
+void ui_list_reset(enum ui_list list, uint32_t generation, const char *heading, bool top_level,
+		   const char *status)
 {
 	struct ui_msg msg = {
 		.type = UI_MSG_LIST_RESET,
-		.list_reset = {.generation = generation, .top_level = top_level},
+		.list_reset = {.list = list, .generation = generation, .top_level = top_level},
 	};
 
 	copy_text(msg.list_reset.heading, sizeof(msg.list_reset.heading), heading);
@@ -665,12 +822,12 @@ void ui_list_reset(uint32_t generation, const char *heading, bool top_level, con
 	post(&msg);
 }
 
-void ui_list_add(uint32_t generation, const char *title, const char *subtitle,
+void ui_list_add(enum ui_list list, uint32_t generation, const char *title, const char *subtitle,
 		 uint32_t duration_ms)
 {
 	struct ui_msg msg = {
 		.type = UI_MSG_LIST_ROW,
-		.list_row = {.generation = generation, .duration_ms = duration_ms},
+		.list_row = {.list = list, .generation = generation, .duration_ms = duration_ms},
 	};
 
 	copy_text(msg.list_row.title, sizeof(msg.list_row.title), title);
