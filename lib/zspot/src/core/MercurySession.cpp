@@ -41,6 +41,7 @@ void MercurySession::runTask() {
   std::scoped_lock lock(this->isRunningMutex);
 
   this->executeEstabilishedCallback = true;
+  this->lastPingTimestamp = timeProvider->getSyncedTimestamp();
   while (isRunning) {
     cspot::Packet packet = {};
     try {
@@ -57,10 +58,11 @@ void MercurySession::runTask() {
       }
     } catch (const std::runtime_error& e) {
       CSPOT_LOG(error, "Error while receiving packet: %s", e.what());
-      failAllPending();
 
-      if (!isRunning)
+      if (!isRunning) {
+        failAllPending();
         return;
+      }
 
       reconnect();
       continue;
@@ -69,30 +71,53 @@ void MercurySession::runTask() {
 }
 
 void MercurySession::reconnect() {
-  isReconnecting = true;
+  {
+    // Waits for a request that is being sent. From here on requests fail
+    // without touching the connection
+    std::scoped_lock lock(this->requestMutex);
+    isReconnecting = true;
+    reconnectRequested = false;
+  }
+  failAllPending();
 
-  try {
-    this->conn = nullptr;
-    this->shanConn = nullptr;
+  int delayMs = RECONNECT_MIN_DELAY_MS;
 
-    this->connectWithRandomAp();
-    this->authenticate(this->authBlob);
+  while (isRunning) {
+    try {
+      // The handshake reads go through triggerTimeout() as well
+      lastPingTimestamp = timeProvider->getSyncedTimestamp();
 
-    CSPOT_LOG(info, "Reconnection successful");
+      this->shanConn = nullptr;
+      this->conn = nullptr;
 
-    k_msleep(100);
+      this->connectWithRandomAp();
+      if (this->authenticate(this->authBlob).empty()) {
+        throw std::runtime_error("Authentication failed");
+      }
 
-    lastPingTimestamp = timeProvider->getSyncedTimestamp();
-    isReconnecting = false;
+      CSPOT_LOG(info, "Reconnection successful");
 
-    this->executeEstabilishedCallback = true;
-  } catch (...) {
-    CSPOT_LOG(error, "Cannot reconnect, will retry in 5s");
-    k_msleep(5000);
+      k_msleep(100);
 
-    if (isRunning) {
-      return reconnect();
+      lastPingTimestamp = timeProvider->getSyncedTimestamp();
+      {
+        std::scoped_lock lock(this->requestMutex);
+        isReconnecting = false;
+      }
+
+      this->executeEstabilishedCallback = true;
+      return;
+    } catch (const std::exception& e) {
+      CSPOT_LOG(error, "Cannot reconnect (%s), will retry in %d ms", e.what(),
+                delayMs);
     }
+
+    // Sleep in slices so that disconnect() does not wait for the full delay
+    for (int slept = 0; slept < delayMs && isRunning; slept += 100) {
+      k_msleep(100);
+    }
+    delayMs = delayMs * 2 < RECONNECT_MAX_DELAY_MS ? delayMs * 2
+                                                   : RECONNECT_MAX_DELAY_MS;
   }
 }
 
@@ -104,6 +129,12 @@ void MercurySession::setConnectedHandler(
 bool MercurySession::triggerTimeout() {
   if (!isRunning)
     return true;
+
+  if (reconnectRequested) {
+    CSPOT_LOG(debug, "Reconnection required, a send failed");
+    return true;
+  }
+
   auto currentTimestamp = timeProvider->getSyncedTimestamp();
 
   if (currentTimestamp - this->lastPingTimestamp > static_cast<unsigned long long>(PING_TIMEOUT_MS)) {
@@ -124,6 +155,7 @@ void MercurySession::unregister(uint64_t sequenceId) {
 }
 
 void MercurySession::unregisterAudioKey(uint32_t sequenceId) {
+  std::scoped_lock lock(this->requestMutex);
   auto callback = this->audioKeyCallbacks.find(sequenceId);
 
   if (callback != this->audioKeyCallbacks.end()) {
@@ -134,7 +166,14 @@ void MercurySession::unregisterAudioKey(uint32_t sequenceId) {
 void MercurySession::disconnect() {
   CSPOT_LOG(info, "Disconnecting mercury session");
   this->isRunning = false;
-  conn->close();
+  {
+    // While reconnecting the receive thread owns the connection, it stops
+    // on its own
+    std::scoped_lock lock(this->requestMutex);
+    if (!isReconnecting && conn != nullptr) {
+      conn->close();
+    }
+  }
   std::scoped_lock lock(this->isRunningMutex);
 }
 
@@ -146,6 +185,8 @@ void MercurySession::handlePacket() {
   Packet packet = {};
 
   this->packetQueue.wtpop(packet, 200);
+
+  failUnsent();
 
   if (executeEstabilishedCallback && this->connectionReadyCallback != nullptr) {
     executeEstabilishedCallback = false;
@@ -167,10 +208,19 @@ void MercurySession::handlePacket() {
       // First four bytes mark the sequence id
       auto seqId = ntohl(extract<uint32_t>(packet.data, 0));
 
-      if (this->audioKeyCallbacks.count(seqId) > 0) {
+      AudioKeyCallback callback = nullptr;
+      {
+        std::scoped_lock lock(this->requestMutex);
+        auto it = this->audioKeyCallbacks.find(seqId);
+
+        if (it != this->audioKeyCallbacks.end()) {
+          callback = it->second;
+        }
+      }
+      if (callback != nullptr) {
         auto success = static_cast<RequestType>(packet.command) ==
                        RequestType::AUDIO_KEY_SUCCESS_RESPONSE;
-        this->audioKeyCallbacks[seqId](success, packet.data);
+        callback(success, packet.data);
       }
 
       break;
@@ -201,8 +251,17 @@ void MercurySession::handlePacket() {
       auto response = decodeResponse(packet.data);
 
       auto uri = std::string(response.mercuryHeader.uri);
-      if (this->subscriptions.count(uri) > 0) {
-        this->subscriptions[uri](response);
+      ResponseCallback subscription = nullptr;
+      {
+        std::scoped_lock lock(this->requestMutex);
+        auto it = this->subscriptions.find(uri);
+
+        if (it != this->subscriptions.end()) {
+          subscription = it->second;
+        }
+      }
+      if (subscription != nullptr) {
+        subscription(response);
       }
       break;
     }
@@ -218,10 +277,12 @@ void MercurySession::failAllPending() {
   // Take the tables over, the handlers run unlocked
   std::unordered_map<uint64_t, ResponseCallback> pendingCallbacks;
   std::unordered_map<std::string, ResponseCallback> pendingSubscriptions;
+  std::unordered_map<uint32_t, AudioKeyCallback> pendingAudioKeys;
   {
     std::scoped_lock lock(this->requestMutex);
     pendingCallbacks.swap(this->callbacks);
     pendingSubscriptions.swap(this->subscriptions);
+    pendingAudioKeys.swap(this->audioKeyCallbacks);
   }
 
   // Fail all callbacks
@@ -232,6 +293,50 @@ void MercurySession::failAllPending() {
   // Fail all subscriptions
   for (auto& it : pendingSubscriptions) {
     it.second(response);
+  }
+
+  // Fail all audio key requests
+  for (auto& it : pendingAudioKeys) {
+    it.second(false, {});
+  }
+}
+
+void MercurySession::failUnsent() {
+  std::vector<ResponseCallback> failedRequests;
+  std::vector<AudioKeyCallback> failedAudioKeys;
+  {
+    std::scoped_lock lock(this->requestMutex);
+
+    for (auto id : this->unsentRequests) {
+      auto it = this->callbacks.find(id);
+
+      if (it != this->callbacks.end()) {
+        failedRequests.push_back(it->second);
+        this->callbacks.erase(it);
+      }
+    }
+    this->unsentRequests.clear();
+
+    for (auto id : this->unsentAudioKeys) {
+      auto it = this->audioKeyCallbacks.find(id);
+
+      if (it != this->audioKeyCallbacks.end()) {
+        failedAudioKeys.push_back(it->second);
+        this->audioKeyCallbacks.erase(it);
+      }
+    }
+    this->unsentAudioKeys.clear();
+  }
+
+  Response response = {};
+  response.fail = true;
+
+  for (auto& callback : failedRequests) {
+    callback(response);
+  }
+
+  for (auto& callback : failedAudioKeys) {
+    callback(false, {});
   }
 }
 
@@ -287,7 +392,8 @@ uint64_t MercurySession::executeSubscription(RequestType method,
     method = RequestType::SEND;
   }
 
-  if (method == RequestType::SUB) {
+  // Subscribed to again once the connection is back, see setConnectedHandler()
+  if (method == RequestType::SUB && !isReconnecting) {
     this->subscriptions.insert({uri, subscription});
   }
 
@@ -328,12 +434,21 @@ uint64_t MercurySession::executeSubscription(RequestType method,
   // Bump sequence id
   this->sequenceId += 1;
 
+  if (isReconnecting) {
+    this->unsentRequests.push_back(this->sequenceId - 1);
+    return this->sequenceId - 1;
+  }
+
   try {
     this->shanConn->sendPacket(
         static_cast<std::underlying_type<RequestType>::type>(method),
         sequenceIdBytes);
-  } catch (...) {
-    // @TODO: handle disconnect
+  } catch (const std::exception& e) {
+    // A partly written packet leaves the cipher out of step with the server,
+    // the connection cannot be used any further
+    CSPOT_LOG(error, "Cannot send mercury request: %s", e.what());
+    this->unsentRequests.push_back(this->sequenceId - 1);
+    reconnectRequested = true;
   }
 
   return this->sequenceId - 1;
@@ -342,6 +457,7 @@ uint64_t MercurySession::executeSubscription(RequestType method,
 uint32_t MercurySession::requestAudioKey(const std::vector<uint8_t>& trackId,
                                          const std::vector<uint8_t>& fileId,
                                          AudioKeyCallback audioCallback) {
+  std::scoped_lock lock(this->requestMutex);
   auto buffer = fileId;
 
   // Store callback
@@ -358,13 +474,18 @@ uint32_t MercurySession::requestAudioKey(const std::vector<uint8_t>& trackId,
   // Bump audio key sequence
   this->audioKeySequence += 1;
 
-  // Used for broken connection detection
-  // this->lastRequestTimestamp = timeProvider->getSyncedTimestamp();
+  if (isReconnecting) {
+    this->unsentAudioKeys.push_back(this->audioKeySequence - 1);
+    return this->audioKeySequence - 1;
+  }
+
   try {
     this->shanConn->sendPacket(
         static_cast<uint8_t>(RequestType::AUDIO_KEY_REQUEST_COMMAND), buffer);
-  } catch (...) {
-    // @TODO: Handle disconnect
+  } catch (const std::exception& e) {
+    CSPOT_LOG(error, "Cannot send audio key request: %s", e.what());
+    this->unsentAudioKeys.push_back(this->audioKeySequence - 1);
+    reconnectRequested = true;
   }
   return audioKeySequence - 1;
 }

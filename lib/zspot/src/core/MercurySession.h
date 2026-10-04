@@ -109,6 +109,8 @@ class MercurySession : public zspot::Task, public cspot::Session {
 
  private:
   const int PING_TIMEOUT_MS = 2 * 60 * 1000 + 5000;
+  const int RECONNECT_MIN_DELAY_MS = 1000;
+  const int RECONNECT_MAX_DELAY_MS = 30 * 1000;
 
   std::shared_ptr<cspot::TimeProvider> timeProvider;
   Header tempMercuryHeader = {};
@@ -123,6 +125,11 @@ class MercurySession : public zspot::Task, public cspot::Session {
   std::unordered_map<std::string, ResponseCallback> subscriptions;
   std::unordered_map<uint32_t, AudioKeyCallback> audioKeyCallbacks;
 
+  // Requests that could not be sent. handlePacket() fails them, so the
+  // handlers run on the dispatch thread and never inside the request call
+  std::vector<uint64_t> unsentRequests;
+  std::vector<uint32_t> unsentAudioKeys;
+
   uint64_t sequenceId = 1;
   uint32_t audioKeySequence = 1;
 
@@ -132,13 +139,18 @@ class MercurySession : public zspot::Task, public cspot::Session {
 
   zspot::Mutex isRunningMutex;
   // Guards the request state (sequence ids, header scratch, callback tables):
-  // requests are issued from several threads
+  // requests are issued from several threads. Also held while sending, so
+  // the connection is only replaced between requests
   zspot::Mutex requestMutex;
   std::atomic<bool> isRunning = false;
+  // No connection to send on. Changes with requestMutex held
   std::atomic<bool> isReconnecting = false;
+  // A send failed: the receive thread drops the connection at its next timeout
+  std::atomic<bool> reconnectRequested = false;
   std::atomic<bool> executeEstabilishedCallback = false;
 
   void failAllPending();
+  void failUnsent();
 
   Response decodeResponse(const std::vector<uint8_t>& data);
 };
