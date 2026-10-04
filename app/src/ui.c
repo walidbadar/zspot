@@ -23,6 +23,7 @@
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/display.h>
+#include <zephyr/drivers/regulator.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
@@ -344,6 +345,10 @@ static struct k_msgq ui_msgq;
 
 static const struct ui_ops *ops;
 static bool ready;
+
+/* Screen timeout: covers the screen while it is off and takes the waking touch */
+static lv_obj_t *wake_overlay;
+static bool screen_off;
 
 static lv_obj_t *main_screen;
 static lv_obj_t *network_icon;
@@ -766,6 +771,72 @@ static void apply(const struct ui_msg *msg)
 	}
 }
 
+static void set_backlight(bool on)
+{
+#if DT_HAS_ALIAS(zspot_backlight)
+	const struct device *backlight = DEVICE_DT_GET(DT_ALIAS(zspot_backlight));
+
+	if (!device_is_ready(backlight)) {
+		return;
+	}
+	if (on) {
+		regulator_enable(backlight);
+	} else {
+		regulator_disable(backlight);
+	}
+#else
+	ARG_UNUSED(on);
+#endif
+}
+
+static void screen_sleep(void)
+{
+	const struct device *display = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
+
+	screen_off = true;
+	lv_obj_remove_flag(wake_overlay, LV_OBJ_FLAG_HIDDEN);
+	/* Nothing is drawn or sent to the panel while it is off */
+	lv_display_enable_invalidation(NULL, false);
+	set_backlight(false);
+	display_blanking_on(display);
+}
+
+static void screen_wake(void)
+{
+	const struct device *display = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
+
+	screen_off = false;
+	lv_display_enable_invalidation(NULL, true);
+	lv_obj_invalidate(lv_screen_active());
+	/* The panel kept the picture it had when it was turned off */
+	lv_refr_now(NULL);
+	display_blanking_off(display);
+	set_backlight(true);
+}
+
+static void on_wake_event(lv_event_t *e)
+{
+	if (lv_event_get_code(e) == LV_EVENT_PRESSED) {
+		if (screen_off) {
+			screen_wake();
+		}
+	} else {
+		/* The touch that woke the screen ends here, below nothing saw it */
+		lv_obj_add_flag(wake_overlay, LV_OBJ_FLAG_HIDDEN);
+	}
+}
+
+static void create_wake_overlay(void)
+{
+	wake_overlay = lv_obj_create(lv_layer_top());
+	lv_obj_remove_style_all(wake_overlay);
+	lv_obj_set_size(wake_overlay, LV_PCT(100), LV_PCT(100));
+	lv_obj_add_flag(wake_overlay, LV_OBJ_FLAG_HIDDEN);
+	lv_obj_add_event_cb(wake_overlay, on_wake_event, LV_EVENT_PRESSED, NULL);
+	lv_obj_add_event_cb(wake_overlay, on_wake_event, LV_EVENT_RELEASED, NULL);
+	lv_obj_add_event_cb(wake_overlay, on_wake_event, LV_EVENT_PRESS_LOST, NULL);
+}
+
 static void on_tick(lv_timer_t *timer)
 {
 	static uint32_t ticks;
@@ -775,6 +846,12 @@ static void on_tick(lv_timer_t *timer)
 
 	while (k_msgq_get(&ui_msgq, &msg, K_NO_WAIT) == 0) {
 		apply(&msg);
+	}
+
+	if (CONFIG_ZSPOT_SCREEN_TIMEOUT_SECONDS > 0 && !screen_off &&
+	    lv_display_get_inactive_time(NULL) >=
+		    CONFIG_ZSPOT_SCREEN_TIMEOUT_SECONDS * MSEC_PER_SEC) {
+		screen_sleep();
 	}
 
 	if (++ticks % POSITION_TICKS == 0 && track_shown &&
@@ -1246,6 +1323,7 @@ static void create_screen(void)
 
 	create_list_screen();
 	create_entry_screen();
+	create_wake_overlay();
 
 	lv_timer_create(on_tick, TICK_MS, NULL);
 }

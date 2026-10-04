@@ -4,6 +4,13 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+/* Turned off together with the display by the screen timeout. */
+/ {
+	aliases {
+		zspot-backlight = &{/lcd_backlight_en};
+	};
+};
+
 /*
  * VIEWE UEDX32480035E-WB-A in landscape (480x320).
  *

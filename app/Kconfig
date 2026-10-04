@@ -110,6 +110,16 @@ config ZSPOT_BATTERY_POLL_SECONDS
 	default 30
 	range 1 3600
 
+config ZSPOT_SCREEN_TIMEOUT_SECONDS
+	int "Seconds without a touch after which the screen turns off"
+	default 60
+	range 0 3600
+	help
+	  Turns the display off, and its backlight when the board has the
+	  devicetree alias zspot-backlight (a regulator), once the screen has
+	  not been touched for this long. The next touch turns it back on and
+	  does nothing else. Playback is not affected. 0 keeps the screen on.
+
 endif # ZSPOT_UI
 
 source "Kconfig.zephyr"
