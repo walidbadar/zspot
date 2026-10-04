@@ -200,12 +200,12 @@ std::string LoginBlob::buildZeroconfInfo() {
   return zspot::json::encodeZeroconfInfo(info);
 }
 
-std::string LoginBlob::getDeviceId() {
+const std::string& LoginBlob::getDeviceId() {
   return this->deviceId;
 }
-std::string LoginBlob::getDeviceName() {
+const std::string& LoginBlob::getDeviceName() {
   return this->name;
 }
-std::string LoginBlob::getUserName() {
+const std::string& LoginBlob::getUserName() {
   return this->username;
 }

@@ -44,9 +44,9 @@ class LoginBlob {
   void loadJson(const std::string& json);
 
   std::string buildZeroconfInfo();
-  std::string getDeviceId();
-  std::string getDeviceName();
-  std::string getUserName();
+  const std::string& getDeviceId();
+  const std::string& getDeviceName();
+  const std::string& getUserName();
 
   std::string toJson();
 };
