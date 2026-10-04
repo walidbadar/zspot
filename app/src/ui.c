@@ -1096,6 +1096,7 @@ static void create_screen(void)
 	int32_t controls_x;
 	int32_t controls_step;
 	const int32_t battery_w = IS_ENABLED(CONFIG_ZSPOT_BATTERY) ? sc(28) : 0;
+	const int32_t search_w = lay.w - 2 * sc(52) - battery_w;
 	lv_obj_t *search_bar;
 	lv_obj_t *search_image;
 	lv_obj_t *search_hint;
@@ -1117,7 +1118,7 @@ static void create_screen(void)
 	/* Search bar between the two corner buttons; tapping it asks for the text */
 	/* Centred on the icons of the corner buttons, clear of the cover below */
 	/* and of the battery indicator, when there is one */
-	search_bar = create_box(screen, lay.w - 2 * sc(52) - battery_w, SEARCH_BAR_H);
+	search_bar = create_box(screen, search_w, SEARCH_BAR_H);
 	lv_obj_align(search_bar, LV_ALIGN_TOP_MID, -battery_w / 2, sc(18) - SEARCH_BAR_H / 2);
 	lv_obj_add_flag(search_bar, LV_OBJ_FLAG_CLICKABLE);
 	lv_obj_set_style_radius(search_bar, LV_RADIUS_CIRCLE, 0);
@@ -1131,11 +1132,16 @@ static void create_screen(void)
 	lv_obj_set_style_image_recolor(search_image, COLOR_SUBTLE, 0);
 	lv_obj_set_style_image_recolor_opa(search_image, LV_OPA_COVER, 0);
 	lv_image_set_scale(search_image, LV_SCALE_NONE * lay.scale / 100);
-	lv_obj_align(search_image, LV_ALIGN_LEFT_MID, sc(12), 0);
+	lv_obj_align(search_image, LV_ALIGN_LEFT_MID, sc(10), 0);
 
+	/* A shorter hint when the bar has no room for the question */
 	search_hint = create_label(search_bar, font_small, COLOR_SUBTLE,
 				   "What do you want to play?");
-	lv_obj_align(search_hint, LV_ALIGN_LEFT_MID, sc(36), 0);
+	lv_obj_update_layout(search_hint);
+	if (lv_obj_get_width(search_hint) > search_w - sc(32) - sc(14)) {
+		lv_label_set_text(search_hint, "Search");
+	}
+	lv_obj_align(search_hint, LV_ALIGN_LEFT_MID, sc(32), 0);
 
 	/* Red until the application reports the network as connected */
 	network_icon = create_icon_button(screen, LV_SYMBOL_WIFI, NULL);
