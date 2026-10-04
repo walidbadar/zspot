@@ -8,6 +8,12 @@ if(NOT DEFINED ZEPHYR_EXTRA_MODULES)
   set(ZEPHYR_EXTRA_MODULES ${CMAKE_CURRENT_SOURCE_DIR}/..)
 endif()
 
+# The binding of the native_sim fuel gauge driver in drivers/, unless this
+# Zephyr brings the driver and its binding itself.
+if(NOT EXISTS "$ENV{ZEPHYR_BASE}/drivers/fuel_gauge/linux_fuel_gauge")
+  list(APPEND DTS_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
+endif()
+
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(zspot_player)
 

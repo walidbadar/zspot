@@ -5,6 +5,19 @@
  */
 
 /* Same resolution as the panel of the VIEWE UEDX32480035E-WB-A. */
+/* Battery of the host, shown on the screen when the host has one of this name. */
+/ {
+	aliases {
+		fuel-gauge0 = &fuel_gauge0;
+	};
+
+	fuel_gauge0: fuel_gauge {
+		compatible = "zephyr,native-linux-fuel-gauge";
+		path = "BAT0";
+		status = "okay";
+	};
+};
+
 &sdl_dc {
 	width = <320>;
 	height = <480>;

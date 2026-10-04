@@ -5,4 +5,5 @@
 # point of the Zephyr module (see zephyr/module.yml); the application lives
 # in app/ and is built like any Zephyr application.
 
+add_subdirectory(drivers)
 add_subdirectory(lib)
