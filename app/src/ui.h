@@ -45,6 +45,8 @@ struct ui_ops {
 	void (*wifi_scan)(void);
 	/** A network was picked and its password entered (empty for an open one). */
 	void (*wifi_connect)(const char *ssid, const char *password);
+	/** A network of the Wi-Fi settings was held: forget it when it is a stored one. */
+	void (*wifi_forget)(const char *ssid);
 	/**
 	 * The lyrics of the current track are wanted (the lyrics button is on):
 	 * answer with ui_show_lyrics() or ui_set_lyrics_status().
@@ -97,8 +99,8 @@ void ui_set_paused(bool paused);
 void ui_set_volume(uint16_t volume);
 
 /**
- * Updates the network indicator in the top right corner. Holding it for three
- * seconds opens the Wi-Fi settings.
+ * Updates the network indicator in the top right corner. Holding it for one
+ * second opens the Wi-Fi settings.
  */
 void ui_set_network(bool connected);
 

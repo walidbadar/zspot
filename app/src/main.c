@@ -287,6 +287,11 @@ static void wifi_join(const char *ssid, const char *password)
 	ARG_UNUSED(ssid);
 	ARG_UNUSED(password);
 }
+
+static void wifi_forget(const char *ssid)
+{
+	ARG_UNUSED(ssid);
+}
 #endif
 
 static const struct ui_ops ui_ops = {
@@ -301,6 +306,7 @@ static const struct ui_ops ui_ops = {
 	.library_select = library_select,
 	.wifi_scan = wifi_scan,
 	.wifi_connect = wifi_join,
+	.wifi_forget = wifi_forget,
 	.lyrics_request = lyrics_request,
 	.search = library_search,
 	.search_select = library_search_select,

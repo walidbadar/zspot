@@ -170,7 +170,8 @@ static void compute_layout(void)
 #define POSITION_TICKS   5 /* progress refresh: every 250 ms */
 
 /* How long the network indicator has to be held to open the Wi-Fi settings */
-#define WIFI_HOLD_MS     3000
+#define WIFI_HOLD_MS     1000
+#define WIFI_FORGET_HOLD_MS 1000
 #define WIFI_SSID_MAX    32
 /* The battery indicator turns red at this charge level */
 #define BATTERY_LOW_PERCENT 15
@@ -509,6 +510,36 @@ static void on_list_row_clicked(lv_event_t *e)
 	}
 }
 
+/* A row held for WIFI_FORGET_HOLD_MS without scrolling forgets its network. */
+static void on_list_row_held(lv_event_t *e)
+{
+	static uint32_t pressed_at;
+	char ssid[WIFI_SSID_MAX + 1];
+
+	if (list_shown != UI_LIST_WIFI) {
+		return;
+	}
+	if (lv_event_get_code(e) == LV_EVENT_PRESSED) {
+		pressed_at = lv_tick_get();
+		return;
+	}
+	/* LVGL repeats the event while the row stays pressed */
+	if (lv_tick_elaps(pressed_at) < WIFI_FORGET_HOLD_MS) {
+		return;
+	}
+
+	/*
+	 * The rest of this touch is ignored: it neither picks the network nor
+	 * holds a row of the listing that follows
+	 */
+	lv_indev_wait_release(lv_indev_active());
+
+	/* That listing deletes the row, hence the copy */
+	copy_text(ssid, sizeof(ssid),
+		  lv_label_get_text(lv_obj_get_child(lv_event_get_current_target_obj(e), 0)));
+	ops->wifi_forget(ssid);
+}
+
 static void list_reset(uint32_t generation, const char *heading, bool top_level,
 		       const char *status)
 {
@@ -539,6 +570,8 @@ static void list_add(const char *title, const char *subtitle, uint32_t duration_
 	lv_obj_set_style_bg_color(row, COLOR_SURFACE, LV_STATE_PRESSED);
 	lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
 	lv_obj_add_event_cb(row, on_list_row_clicked, LV_EVENT_CLICKED, (void *)(intptr_t)index);
+	lv_obj_add_event_cb(row, on_list_row_held, LV_EVENT_PRESSED, NULL);
+	lv_obj_add_event_cb(row, on_list_row_held, LV_EVENT_LONG_PRESSED_REPEAT, NULL);
 
 	label = create_label(row, font_text, COLOR_TEXT, title);
 	lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);

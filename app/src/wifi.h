@@ -30,6 +30,13 @@ void wifi_scan(void);
  */
 void wifi_join(const char *ssid, const char *password);
 
+/**
+ * @brief Deletes the stored credentials of a network, leaves it when it is
+ *        the one in use, and lists the networks again. Does nothing for a
+ *        network that is not stored.
+ */
+void wifi_forget(const char *ssid);
+
 #ifdef __cplusplus
 }
 #endif

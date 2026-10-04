@@ -25,10 +25,14 @@ LOG_MODULE_DECLARE(zspot_player, LOG_LEVEL_INF);
 static struct k_work_delayable reconnect_work;
 static struct net_mgmt_event_callback wifi_mgmt_cb;
 
-/* Networks of the scan shown in the UI; an access point may answer per band. */
+/*
+ * Networks shown in the UI: the stored ones first, then those of the scan. An
+ * access point may answer per band.
+ */
 struct scan_entry {
 	char ssid[WIFI_SSID_MAX_LEN + 1];
 	enum wifi_security_type security;
+	bool saved;
 };
 
 static struct scan_entry scan_entries[UI_LIST_MAX];
@@ -47,7 +51,7 @@ static int wifi_connect(void)
 
 	if (wifi_credentials_is_empty()) {
 		LOG_WRN("No Wi-Fi credentials stored. Hold the Wi-Fi symbol on the screen for "
-			"three seconds to add them");
+			"one second to add them");
 		return -ENOENT;
 	}
 
@@ -70,27 +74,66 @@ static void reconnect_handler(struct k_work *work)
 	}
 }
 
-static void on_scan_result(const struct wifi_scan_result *result)
+static struct scan_entry *find_entry(const char *ssid, size_t ssid_len)
+{
+	for (int i = 0; i < scan_count; i++) {
+		if (strlen(scan_entries[i].ssid) == ssid_len &&
+		    memcmp(scan_entries[i].ssid, ssid, ssid_len) == 0) {
+			return &scan_entries[i];
+		}
+	}
+	return NULL;
+}
+
+/* Lists a stored network; it stays in the list when it is out of range. */
+static void on_saved_ssid(void *cb_arg, const char *ssid, size_t ssid_len)
 {
 	struct scan_entry *entry = &scan_entries[scan_count];
+
+	ARG_UNUSED(cb_arg);
+
+	if (ssid_len == 0 || ssid_len > WIFI_SSID_MAX_LEN ||
+	    scan_count == ARRAY_SIZE(scan_entries)) {
+		return;
+	}
+
+	memcpy(entry->ssid, ssid, ssid_len);
+	entry->ssid[ssid_len] = '\0';
+	entry->security = WIFI_SECURITY_TYPE_UNKNOWN;
+	entry->saved = true;
+	scan_count++;
+
+	ui_list_add(UI_LIST_WIFI, scan_generation, entry->ssid,
+		    "Saved \xE2\x80\xA2 hold to forget", 0);
+}
+
+static void on_scan_result(const struct wifi_scan_result *result)
+{
+	struct scan_entry *entry = find_entry(result->ssid, result->ssid_length);
 	char subtitle[48];
 
 	/* Hidden networks cannot be picked by name. */
-	if (result->ssid_length == 0 || scan_count == ARRAY_SIZE(scan_entries)) {
+	if (result->ssid_length == 0) {
 		return;
 	}
-	for (int i = 0; i < scan_count; i++) {
-		if (strlen(scan_entries[i].ssid) == result->ssid_length &&
-		    memcmp(scan_entries[i].ssid, result->ssid, result->ssid_length) == 0) {
-			return;
+	if (entry != NULL) {
+		/* Already listed; a stored network learns its security type here */
+		if (entry->saved) {
+			entry->security = result->security;
 		}
+		return;
+	}
+	if (scan_count == ARRAY_SIZE(scan_entries)) {
+		return;
 	}
 
+	entry = &scan_entries[scan_count];
 	memcpy(entry->ssid, result->ssid, result->ssid_length);
 	entry->ssid[result->ssid_length] = '\0';
 	entry->security = result->security;
+	entry->saved = false;
 
-	/* The first result replaces the "Scanning..." notice. */
+	/* The first row replaces the "Scanning..." notice. */
 	if (scan_count++ == 0) {
 		ui_list_reset(UI_LIST_WIFI, ++scan_generation, "Wi-Fi", true, NULL);
 	}
@@ -163,13 +206,49 @@ void wifi_scan(void)
 	struct net_if *iface = net_if_get_wifi_sta();
 
 	scan_count = 0;
+	ui_list_reset(UI_LIST_WIFI, ++scan_generation, "Wi-Fi", true, NULL);
+	wifi_credentials_for_each_ssid(on_saved_ssid, NULL);
+
 	if (iface == NULL || net_mgmt(NET_REQUEST_WIFI_SCAN, iface, NULL, 0) != 0) {
-		/* E.g. a connection attempt is in progress. */
-		ui_list_reset(UI_LIST_WIFI, ++scan_generation, "Wi-Fi", true,
-			      "Scan failed, try again");
+		/* E.g. a connection attempt is in progress. The notices take the place of the rows. */
+		if (scan_count == 0) {
+			ui_list_reset(UI_LIST_WIFI, ++scan_generation, "Wi-Fi", true,
+				      "Scan failed, try again");
+		}
 		return;
 	}
-	ui_list_reset(UI_LIST_WIFI, ++scan_generation, "Wi-Fi", true, "Scanning...");
+	if (scan_count == 0) {
+		ui_list_reset(UI_LIST_WIFI, ++scan_generation, "Wi-Fi", true, "Scanning...");
+	}
+}
+
+void wifi_forget(const char *ssid)
+{
+	struct net_if *iface = net_if_get_wifi_sta();
+	struct scan_entry *entry = find_entry(ssid, strlen(ssid));
+	struct wifi_iface_status status = {0};
+	int ret;
+
+	if (entry == NULL || !entry->saved) {
+		return;
+	}
+
+	ret = wifi_credentials_delete_by_ssid(ssid, strlen(ssid));
+	if (ret != 0) {
+		LOG_ERR("Cannot forget \"%s\" (%d)", ssid, ret);
+		return;
+	}
+	LOG_INF("Forgot the credentials of \"%s\"", ssid);
+
+	/* Leave the network when it is the one in use; another stored one is joined next. */
+	if (iface != NULL &&
+	    net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, iface, &status, sizeof(status)) == 0 &&
+	    status.state >= WIFI_STATE_ASSOCIATED && status.ssid_len == strlen(ssid) &&
+	    memcmp(status.ssid, ssid, status.ssid_len) == 0) {
+		(void)net_mgmt(NET_REQUEST_WIFI_DISCONNECT, iface, NULL, 0);
+	}
+
+	wifi_scan();
 }
 
 void wifi_join(const char *ssid, const char *password)

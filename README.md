@@ -80,7 +80,7 @@ west flash
 
 | Control                         | Action                                         |
 |---------------------------------|------------------------------------------------|
-| Wi-Fi symbol, held 3 seconds    | Wi-Fi settings: pick a network, type the password. The symbol is red while disconnected. |
+| Wi-Fi symbol, held 1 second     | Wi-Fi settings: pick a network, type the password; hold a saved network for 1 second to forget it. The symbol is red while disconnected. |
 | Search bar                      | Search for a song or artist and play a hit     |
 | List button                     | Your Library: Liked Songs and playlists        |
 | Microphone button               | Switch between cover and lyrics                |
