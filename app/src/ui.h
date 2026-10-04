@@ -103,6 +103,13 @@ void ui_set_volume(uint16_t volume);
 void ui_set_network(bool connected);
 
 /**
+ * Shows the battery charge next to the network indicator.
+ *
+ * @param percent 0..100, or negative to hide the indicator
+ */
+void ui_set_battery(int percent);
+
+/**
  * Shows lyrics in place of the cover while the lyrics button is on. On success the UI owns @p lyrics and
  * releases it with lv_free(); on failure (false) it stays with the caller.
  */
@@ -162,6 +169,10 @@ static inline void ui_set_volume(uint16_t volume)
 }
 
 static inline void ui_set_network(bool connected)
+{
+}
+
+static inline void ui_set_battery(int percent)
 {
 }
 

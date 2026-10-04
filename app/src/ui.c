@@ -171,6 +171,8 @@ static void compute_layout(void)
 /* How long the network indicator has to be held to open the Wi-Fi settings */
 #define WIFI_HOLD_MS     3000
 #define WIFI_SSID_MAX    32
+/* The battery indicator turns red at this charge level */
+#define BATTERY_LOW_PERCENT 15
 /* Longest Wi-Fi password, and search text */
 #define ENTRY_TEXT_MAX   64
 
@@ -180,6 +182,7 @@ enum ui_msg_type {
 	UI_MSG_PAUSED,
 	UI_MSG_VOLUME,
 	UI_MSG_NETWORK,
+	UI_MSG_BATTERY,
 	UI_MSG_LYRICS,
 	UI_MSG_LYRICS_STATUS,
 	UI_MSG_LIST_RESET,
@@ -220,6 +223,7 @@ struct ui_msg {
 		} lyrics_status;
 		bool paused;
 		bool connected;
+		int battery_percent;
 		uint16_t volume;
 	};
 };
@@ -343,6 +347,7 @@ static bool ready;
 
 static lv_obj_t *main_screen;
 static lv_obj_t *network_icon;
+static lv_obj_t *battery_icon;
 static lv_obj_t *cover_image;
 static lv_obj_t *title_label;
 static lv_obj_t *artist_label;
@@ -650,6 +655,20 @@ static void on_lyrics_clicked(lv_event_t *e)
 	}
 }
 
+static const char *battery_symbol(int percent)
+{
+	if (percent > 87) {
+		return LV_SYMBOL_BATTERY_FULL;
+	} else if (percent > 62) {
+		return LV_SYMBOL_BATTERY_3;
+	} else if (percent > 37) {
+		return LV_SYMBOL_BATTERY_2;
+	} else if (percent > 12) {
+		return LV_SYMBOL_BATTERY_1;
+	}
+	return LV_SYMBOL_BATTERY_EMPTY;
+}
+
 static void apply(const struct ui_msg *msg)
 {
 	switch (msg->type) {
@@ -697,6 +716,17 @@ static void apply(const struct ui_msg *msg)
 		lv_obj_set_style_text_color(network_icon,
 					    msg->connected ? COLOR_SUBTLE : COLOR_ERROR,
 					    LV_STATE_PRESSED);
+		break;
+	case UI_MSG_BATTERY:
+		if (msg->battery_percent < 0) {
+			lv_obj_add_flag(battery_icon, LV_OBJ_FLAG_HIDDEN);
+			break;
+		}
+		lv_label_set_text(battery_icon, battery_symbol(msg->battery_percent));
+		lv_obj_set_style_text_color(battery_icon,
+					    msg->battery_percent <= BATTERY_LOW_PERCENT
+						    ? COLOR_ERROR : COLOR_TEXT, 0);
+		lv_obj_remove_flag(battery_icon, LV_OBJ_FLAG_HIDDEN);
 		break;
 	case UI_MSG_LYRICS:
 		/* Lyrics of a track that is no longer on screen are stale. */
@@ -1065,6 +1095,7 @@ static void create_screen(void)
 	lv_obj_t *library_button;
 	int32_t controls_x;
 	int32_t controls_step;
+	const int32_t battery_w = IS_ENABLED(CONFIG_ZSPOT_BATTERY) ? sc(28) : 0;
 	lv_obj_t *search_bar;
 	lv_obj_t *search_image;
 	lv_obj_t *search_hint;
@@ -1085,8 +1116,9 @@ static void create_screen(void)
 
 	/* Search bar between the two corner buttons; tapping it asks for the text */
 	/* Centred on the icons of the corner buttons, clear of the cover below */
-	search_bar = create_box(screen, lay.w - 2 * sc(52), SEARCH_BAR_H);
-	lv_obj_align(search_bar, LV_ALIGN_TOP_MID, 0, sc(18) - SEARCH_BAR_H / 2);
+	/* and of the battery indicator, when there is one */
+	search_bar = create_box(screen, lay.w - 2 * sc(52) - battery_w, SEARCH_BAR_H);
+	lv_obj_align(search_bar, LV_ALIGN_TOP_MID, -battery_w / 2, sc(18) - SEARCH_BAR_H / 2);
 	lv_obj_add_flag(search_bar, LV_OBJ_FLAG_CLICKABLE);
 	lv_obj_set_style_radius(search_bar, LV_RADIUS_CIRCLE, 0);
 	lv_obj_set_style_bg_color(search_bar, COLOR_SURFACE, 0);
@@ -1107,12 +1139,18 @@ static void create_screen(void)
 
 	/* Red until the application reports the network as connected */
 	network_icon = create_icon_button(screen, LV_SYMBOL_WIFI, NULL);
-	lv_obj_align(network_icon, LV_ALIGN_TOP_RIGHT, -sc(4), -sc(4));
+	lv_obj_align(network_icon, LV_ALIGN_TOP_RIGHT, -sc(4) - battery_w, -sc(4));
 	lv_obj_set_style_text_color(network_icon, COLOR_ERROR, 0);
 	lv_obj_set_style_text_color(network_icon, COLOR_ERROR, LV_STATE_PRESSED);
 	lv_obj_add_event_cb(network_icon, on_network_event, LV_EVENT_PRESSED, NULL);
 	lv_obj_add_event_cb(network_icon, on_network_event, LV_EVENT_RELEASED, NULL);
 	lv_obj_add_event_cb(network_icon, on_network_event, LV_EVENT_PRESS_LOST, NULL);
+
+	/* Right of the network indicator; hidden until a charge level is reported */
+	battery_icon = create_label(screen, font_text, COLOR_TEXT, LV_SYMBOL_BATTERY_FULL);
+	lv_obj_align(battery_icon, LV_ALIGN_TOP_RIGHT, -sc(14),
+		     sc(18) - lv_font_get_line_height(font_text) / 2);
+	lv_obj_add_flag(battery_icon, LV_OBJ_FLAG_HIDDEN);
 
 	library_button = create_icon_button(screen, LV_SYMBOL_LIST, on_library_clicked);
 	lv_obj_set_pos(library_button, sc(4), -sc(4));
@@ -1285,6 +1323,13 @@ void ui_set_volume(uint16_t volume)
 void ui_set_network(bool connected)
 {
 	const struct ui_msg msg = {.type = UI_MSG_NETWORK, .connected = connected};
+
+	post(&msg);
+}
+
+void ui_set_battery(int percent)
+{
+	const struct ui_msg msg = {.type = UI_MSG_BATTERY, .battery_percent = percent};
 
 	post(&msg);
 }

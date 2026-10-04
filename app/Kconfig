@@ -93,4 +93,23 @@ config ZSPOT_UI
 	  controls for play/pause, skipping, seeking and the volume. See
 	  prj.conf for the LVGL configuration it needs.
 
+if ZSPOT_UI
+
+config ZSPOT_BATTERY
+	bool "Battery indicator"
+	default y
+	depends on $(dt_alias_enabled,fuel-gauge0)
+	select FUEL_GAUGE
+	help
+	  Shows the charge level reported by the fuel gauge behind the
+	  devicetree alias fuel-gauge0 next to the network indicator. Only
+	  available when the board has that alias and its node is enabled.
+
+config ZSPOT_BATTERY_POLL_SECONDS
+	int "Seconds between two readings of the fuel gauge"
+	default 30
+	range 1 3600
+
+endif # ZSPOT_UI
+
 source "Kconfig.zephyr"

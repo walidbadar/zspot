@@ -92,6 +92,9 @@ the display.
 Lyrics come from [LRCLIB](https://lrclib.net) and need no account. Lists
 show the first 30 entries, and the fonts cover Latin text only.
 
+A battery symbol appears next to the Wi-Fi symbol when the board has a fuel
+gauge behind the devicetree alias `fuel-gauge0`.
+
 ### Search and Your Library
 
 These use the Spotify Web API and need a one-time setup:

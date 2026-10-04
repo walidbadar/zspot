@@ -37,6 +37,7 @@
 #endif
 #include "pcm_tap.h"
 #include "ui.h"
+#include "battery.h"
 #if defined(CONFIG_ZSPOT_UI)
 #include "library.h"
 #include "lyrics.h"
@@ -314,6 +315,7 @@ int main(void)
 		lyrics_init();
 	}
 #endif
+	battery_init();
 	ui_show_message("Connecting", "Waiting for the network");
 
 	if (network_connect() != 0) {
