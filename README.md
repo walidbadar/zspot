@@ -4,9 +4,9 @@
   <img src="doc/images/zspot-banner.svg" alt="zspot: Zephyr RTOS and Spotify Connect" width="720">
 </p>
 
-Spotify Connect player for [Zephyr RTOS](https://zephyrproject.org): a
-touchscreen player application and the Spotify Connect receiver library it is
-built on, packaged as a Zephyr module.
+A Spotify Connect player for devices running
+[Zephyr RTOS](https://zephyrproject.org), with the Spotify protocol packaged
+as a Zephyr module.
 
 <p align="center">
   <img src="doc/images/zspot-ui.png" alt="The player on native_sim: Now Playing, lyrics, a playlist from Your Library and the Wi-Fi password entry" width="840">
