@@ -1,7 +1,7 @@
 # zspot
 
 <p align="center">
-  <img src="doc/images/zspot-banner.svg" alt="zspot: Zephyr RTOS and Spotify Connect" width="720">
+  <img src="doc/images/zspot-banner.svg" alt="zspot: Spotify Connect player for Zephyr RTOS" width="720">
 </p>
 
 A Spotify Connect player for devices running
@@ -208,7 +208,6 @@ west twister -T zspot/app -T zspot/tests --integration
 
 GPL-3.0, like cspot. Tremor is BSD-licensed (see `third_party/tremor/COPYING`).
 
-Zephyr and the Zephyr logo are trademarks of The Linux Foundation; the logo
-comes from the Zephyr documentation assets (Apache-2.0). Spotify and the
-Spotify icon are trademarks of Spotify AB and identify the Spotify Connect
-protocol only; this project is not affiliated with or endorsed by Spotify.
+Zephyr is a trademark of The Linux Foundation. Spotify is a trademark of
+Spotify AB and identifies the Spotify Connect protocol only; this project is
+not affiliated with or endorsed by Spotify or the Zephyr Project.
