@@ -44,6 +44,7 @@ class MercurySession : public zspot::Task, public cspot::Session {
   typedef std::function<void(bool, const std::vector<uint8_t>&)>
       AudioKeyCallback;
   typedef std::function<void()> ConnectionEstabilishedCallback;
+  typedef std::function<void(bool)> ConnectionStateCallback;
 
   enum class RequestType : uint8_t {
     SUB = 0xb3,
@@ -105,6 +106,17 @@ class MercurySession : public zspot::Task, public cspot::Session {
 
   void setConnectedHandler(ConnectionEstabilishedCallback callback);
 
+  // Called on the receive thread with false when the connection is lost and
+  // with true once it is back
+  void setConnectionStateHandler(ConnectionStateCallback callback);
+
+  // False while the connection is being re-established
+  bool isConnected();
+
+  // The network went away (the connection is dropped without waiting for the
+  // ping timeout) or came back (the next reconnection attempt starts now)
+  void notifyNetworkState(bool up);
+
   bool triggerTimeout() override;
 
  private:
@@ -115,6 +127,7 @@ class MercurySession : public zspot::Task, public cspot::Session {
   std::shared_ptr<cspot::TimeProvider> timeProvider;
   Header tempMercuryHeader = {};
   ConnectionEstabilishedCallback connectionReadyCallback = nullptr;
+  ConnectionStateCallback connectionStateCallback = nullptr;
 
   zspot::Queue<cspot::Packet> packetQueue;
 
@@ -147,6 +160,8 @@ class MercurySession : public zspot::Task, public cspot::Session {
   std::atomic<bool> isReconnecting = false;
   // A send failed: the receive thread drops the connection at its next timeout
   std::atomic<bool> reconnectRequested = false;
+  // The network is back: do not sit out the delay between two attempts
+  std::atomic<bool> retryNow = false;
   std::atomic<bool> executeEstabilishedCallback = false;
 
   void failAllPending();

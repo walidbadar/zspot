@@ -227,6 +227,14 @@ static void on_event(const struct zspot_event *event, void *user_data)
 	case ZSPOT_EVENT_DEPLETED:
 		LOG_INF("Queue finished");
 		break;
+	case ZSPOT_EVENT_CONNECTION_LOST:
+		LOG_WRN("Connection to Spotify lost, reconnecting");
+		ui_set_network(false);
+		break;
+	case ZSPOT_EVENT_CONNECTION_RESTORED:
+		LOG_INF("Connection to Spotify restored");
+		ui_set_network(true);
+		break;
 	}
 }
 

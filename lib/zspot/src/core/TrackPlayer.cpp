@@ -15,6 +15,8 @@
 
 #include "port/sync.h"
 #include "port/log.h"
+#include "core/Context.h"
+#include "core/MercurySession.h"
 #include "core/Packet.h"            // for cspot
 #include "core/TrackQueue.h"        // for CDNTrackStream, CDNTrackStream::TrackInfo
 #include "port/sync.h"
@@ -114,6 +116,7 @@ void TrackPlayer::seekMs(size_t ms) {
 // A request to the audio CDN that fails is repeated before the track is given up
 static const int STREAM_ATTEMPTS = 3;
 static const int STREAM_RETRY_DELAY_MS = 1000;
+static const int TRACK_LOAD_TIMEOUT_MS = 5000;
 
 void TrackPlayer::runTask() {
   std::scoped_lock lock(runningMutex);
@@ -166,7 +169,19 @@ void TrackPlayer::runTask() {
     inFuture = trackOffset > 0;
 
     if (track->state != QueuedTrack::State::READY) {
-      track->loadedSemaphore->twait(5000);
+      // The time without a connection does not count: the track loads on
+      // once the connection is back
+      int waitedMs = 0;
+      while (track->state != QueuedTrack::State::READY &&
+             track->state != QueuedTrack::State::FAILED && !pendingReset &&
+             isRunning && waitedMs < TRACK_LOAD_TIMEOUT_MS) {
+        track->loadedSemaphore->twait(250);
+        waitedMs = ctx->session->isConnected() ? waitedMs + 250 : 0;
+      }
+
+      if (pendingReset) {
+        continue;
+      }
 
       if (track->state != QueuedTrack::State::READY) {
         CSPOT_LOG(error, "Track failed to load, skipping it");

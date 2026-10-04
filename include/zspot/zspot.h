@@ -60,6 +60,14 @@ enum zspot_event_type {
 	ZSPOT_EVENT_TRACK_BEGIN,
 	/** The controlling app replaced or edited the play queue. */
 	ZSPOT_EVENT_QUEUE_CHANGED,
+	/**
+	 * The connection to Spotify was lost. The library reconnects on its
+	 * own; until then zspot_is_connected() is false and the audio that is
+	 * already buffered keeps playing.
+	 */
+	ZSPOT_EVENT_CONNECTION_LOST,
+	/** The connection to Spotify is back. */
+	ZSPOT_EVENT_CONNECTION_RESTORED,
 };
 
 struct zspot_track_info {

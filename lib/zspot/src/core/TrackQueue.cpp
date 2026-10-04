@@ -264,6 +264,10 @@ void QueuedTrack::stepLoadAudioFile(
               std::vector<uint8_t>(audioKey.begin() + 4, audioKey.end());
 
           state = State::CDN_REQUIRED;
+        } else if (audioKey.empty()) {
+          // No answer: the connection was lost, asked for again once it is
+          // back
+          state = State::KEY_REQUIRED;
         } else {
           CSPOT_LOG(error, "Failed to get audio key");
           state = State::FAILED;
@@ -332,6 +336,14 @@ void QueuedTrack::stepLoadMetadata(
   auto responseHandler = [this, pbTrack, pbEpisode, &trackListMutex,
                           updateSemaphore](MercurySession::Response& res) {
     std::scoped_lock lock(trackListMutex);
+
+    if (res.fail) {
+      // The connection was lost, asked for again once it is back
+      pendingMercuryRequest = 0;
+      state = State::QUEUED;
+      updateSemaphore->give();
+      return;
+    }
 
     if (res.parts.size() == 0) {
       // Invalid metadata, cannot proceed
@@ -482,6 +494,11 @@ std::shared_ptr<QueuedTrack> TrackQueue::consumeTrack(
 }
 
 void TrackQueue::processTrack(std::shared_ptr<QueuedTrack> track) {
+  // The tracks keep their state and load on once the connection is back
+  if (!ctx->session->isConnected()) {
+    return;
+  }
+
   switch (track->state) {
     case QueuedTrack::State::QUEUED:
       track->stepLoadMetadata(&pbTrack, &pbEpisode, tracksMutex,

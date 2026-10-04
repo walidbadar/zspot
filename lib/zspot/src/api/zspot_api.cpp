@@ -11,6 +11,8 @@
 #include <zspot/zspot.h>
 
 #include <zephyr/kernel.h>
+#include <zephyr/net/net_event.h>
+#include <zephyr/net/net_mgmt.h>
 #if CONFIG_ZSPOT_EXTERNAL_TLS_HEAP_SIZE > 0
 #include <mbedtls/memory_buffer_alloc.h>
 #endif
@@ -66,6 +68,10 @@ struct state {
 	std::atomic<bool> running = false;
 	std::atomic<bool> connected = false;
 	std::atomic<bool> have_credentials = false;
+
+	/* Set by the network events, passed on by the session thread */
+	std::atomic<bool> network_down = false;
+	std::atomic<bool> network_up = false;
 
 	/* Track boundary detection in on_pcm() */
 	std::atomic<bool> track_restarted = false;
@@ -159,6 +165,37 @@ void on_spirc_event(std::unique_ptr<cspot::SpircHandler::Event> ev)
 	emit(out);
 }
 
+void on_connection_state(bool connected)
+{
+	struct zspot_event event = {};
+
+	g.connected = connected;
+	event.type = connected ? ZSPOT_EVENT_CONNECTION_RESTORED : ZSPOT_EVENT_CONNECTION_LOST;
+	emit(event);
+}
+
+#if defined(CONFIG_NET_MGMT_EVENT)
+/*
+ * A link that goes down takes the connection with it, which the session would
+ * only notice at the ping timeout. An interface or an address that appears
+ * ends the wait between two reconnection attempts.
+ */
+struct net_mgmt_event_callback iface_cb;
+struct net_mgmt_event_callback ipv4_cb;
+
+void on_net_event(struct net_mgmt_event_callback *cb, uint64_t event, struct net_if *iface)
+{
+	ARG_UNUSED(cb);
+	ARG_UNUSED(iface);
+
+	if (event == NET_EVENT_IF_DOWN) {
+		g.network_down = true;
+	} else {
+		g.network_up = true;
+	}
+}
+#endif
+
 size_t on_pcm(uint8_t *data, size_t len, std::string_view track_id)
 {
 	/*
@@ -201,6 +238,13 @@ protected:
 		}
 
 		while (g.running) {
+			if (g.network_down.exchange(false)) {
+				g.ctx->session->notifyNetworkState(false);
+			}
+			if (g.network_up.exchange(false)) {
+				g.ctx->session->notifyNetworkState(true);
+			}
+
 			try {
 				g.ctx->session->handlePacket();
 			} catch (const std::exception &e) {
@@ -230,6 +274,9 @@ private:
 			/* Keep the reusable credentials for login5 and for persisting. */
 			g.ctx->config.authData = token;
 
+			g.network_down = false;
+			g.network_up = false;
+			g.ctx->session->setConnectionStateHandler(on_connection_state);
 			g.ctx->session->startTask();
 
 			g.handler = std::make_shared<cspot::SpircHandler>(g.ctx);
@@ -288,6 +335,13 @@ int zspot_init(const struct zspot_config *config)
 		LOG_ERR("Initialisation failed: %s", e.what());
 		return -EIO;
 	}
+
+#if defined(CONFIG_NET_MGMT_EVENT)
+	net_mgmt_init_event_callback(&iface_cb, on_net_event, NET_EVENT_IF_DOWN | NET_EVENT_IF_UP);
+	net_mgmt_add_event_callback(&iface_cb);
+	net_mgmt_init_event_callback(&ipv4_cb, on_net_event, NET_EVENT_IPV4_ADDR_ADD);
+	net_mgmt_add_event_callback(&ipv4_cb);
+#endif
 
 	g.initialised = true;
 	LOG_INF("zspot initialised, device id %s", g.blob->getDeviceId().c_str());

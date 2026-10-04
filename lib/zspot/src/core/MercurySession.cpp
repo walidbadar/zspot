@@ -77,6 +77,10 @@ void MercurySession::reconnect() {
     std::scoped_lock lock(this->requestMutex);
     isReconnecting = true;
     reconnectRequested = false;
+    retryNow = false;
+  }
+  if (connectionStateCallback != nullptr) {
+    connectionStateCallback(false);
   }
   failAllPending();
 
@@ -106,6 +110,9 @@ void MercurySession::reconnect() {
       }
 
       this->executeEstabilishedCallback = true;
+      if (connectionStateCallback != nullptr) {
+        connectionStateCallback(true);
+      }
       return;
     } catch (const std::exception& e) {
       CSPOT_LOG(error, "Cannot reconnect (%s), will retry in %d ms", e.what(),
@@ -113,11 +120,46 @@ void MercurySession::reconnect() {
     }
 
     // Sleep in slices so that disconnect() does not wait for the full delay
-    for (int slept = 0; slept < delayMs && isRunning; slept += 100) {
+    bool networkBack = false;
+    for (int slept = 0; slept < delayMs && isRunning && !networkBack;
+         slept += 100) {
       k_msleep(100);
+      networkBack = retryNow.exchange(false);
     }
-    delayMs = delayMs * 2 < RECONNECT_MAX_DELAY_MS ? delayMs * 2
-                                                   : RECONNECT_MAX_DELAY_MS;
+
+    if (networkBack) {
+      delayMs = RECONNECT_MIN_DELAY_MS;
+    } else {
+      delayMs = delayMs * 2 < RECONNECT_MAX_DELAY_MS ? delayMs * 2
+                                                     : RECONNECT_MAX_DELAY_MS;
+    }
+  }
+}
+
+void MercurySession::setConnectionStateHandler(
+    ConnectionStateCallback callback) {
+  this->connectionStateCallback = callback;
+}
+
+bool MercurySession::isConnected() {
+  return isRunning && !isReconnecting && !reconnectRequested;
+}
+
+void MercurySession::notifyNetworkState(bool up) {
+  if (!isRunning) {
+    return;
+  }
+
+  if (up) {
+    retryNow = true;
+    return;
+  }
+
+  // Not while reconnecting: the flag would abort the handshake of the next
+  // attempt
+  std::scoped_lock lock(this->requestMutex);
+  if (!isReconnecting) {
+    reconnectRequested = true;
   }
 }
 
