@@ -57,6 +57,17 @@ zephyr_library_sources_ifdef(CONFIG_ZSPOT_I2S_SINK src/audio/i2s_sink.c)
 # C API facade
 zephyr_library_sources(src/api/zspot_api.cpp)
 
+# Zephyr builds native targets with -fno-reorder-functions. With that option
+# GCC 16 gives the cold half of a function exception tables that the unwinder
+# cannot match, and an exception thrown there aborts instead of being caught.
+if(CONFIG_ARCH_POSIX)
+  include(CheckCXXCompilerFlag)
+  check_cxx_compiler_flag(-fno-reorder-blocks-and-partition ZSPOT_HAS_NO_PARTITION)
+  if(ZSPOT_HAS_NO_PARTITION)
+    zephyr_library_compile_options(-fno-reorder-blocks-and-partition)
+  endif()
+endif()
+
 # Tremor (integer Ogg Vorbis decoder, BSD licence)
 file(GLOB ZSPOT_TREMOR_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tremor/*.c)
 zephyr_library_sources(${ZSPOT_TREMOR_SOURCES})
