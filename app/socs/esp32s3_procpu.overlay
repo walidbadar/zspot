@@ -6,7 +6,7 @@
 
 /*
  * VIEWE UEDX32480035E-WB-A (ESP32-S3): external I2S DAC on free GPIOs.
- * BCK = GPIO5, WS (LRCK) = GPIO6, DATA = GPIO7. The remaining GPIOs are used
+ * DATA = GPIO5, BCK = GPIO6, WS (LRCK) = GPIO7. The remaining GPIOs are used
  * by the display, touch, SD card, USB, RGB LED and buzzer.
  */
 
@@ -19,9 +19,10 @@
 &pinctrl {
 	i2s0_zspot: i2s0_zspot {
 		group1 {
-			pinmux = <I2S0_O_BCK_GPIO5>,
-				 <I2S0_O_WS_GPIO6>,
-				 <I2S0_O_SD_GPIO7>;
+			pinmux = <I2S0_O_SD_GPIO5>,	/* DIN */
+				 <I2S0_O_BCK_GPIO6>,
+				 <I2S0_O_WS_GPIO7>;	/* LRC */
+
 			output-low;
 		};
 	};

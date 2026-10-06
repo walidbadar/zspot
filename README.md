@@ -69,7 +69,7 @@ project's west manifest or pass `-DZEPHYR_EXTRA_MODULES=/path/to/zspot`.
 
 The supported board is the VIEWE UEDX32480035E-WB-A (ESP32-S3, 8 MB PSRAM,
 480x320 touch display). It has no DAC on board; connect an I2S DAC to
-BCK = GPIO5, WS = GPIO6 and DATA = GPIO7.
+DATA = GPIO5, BCK = GPIO6 and WS = GPIO7.
 
 ```sh
 west build -p -b uedx32480035e_wb_a/esp32s3/procpu zspot/app
