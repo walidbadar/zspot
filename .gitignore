@@ -5,3 +5,4 @@ build/
 *.pyc
 __pycache__/
 twister-out*/
+doc/_build/

@@ -25,6 +25,8 @@ as a Zephyr module.
 
 A Spotify Premium account is required.
 
+Full documentation: <https://walidbadar.github.io/zspot/>
+
 ## Requirements
 
 - Zephyr 4.5 and a Zephyr SDK with a full libstdc++ (C++20).
