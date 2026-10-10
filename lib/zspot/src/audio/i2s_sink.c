@@ -6,12 +6,19 @@
 
 /*
  * cspot-zephyr: I2S PCM sink using the Zephyr I2S driver API.
+ *
+ * The PCM always goes through the I2S driver. A codec that needs setting up
+ * over a control bus can be passed in addition; it is then configured through
+ * the audio codec API and muted while the playback is paused.
  */
 #include <zspot/zspot_i2s_sink.h>
 
 #include <errno.h>
 #include <string.h>
 
+#if defined(CONFIG_AUDIO_CODEC)
+#include <zephyr/audio/codec.h>
+#endif
 #include <zephyr/drivers/i2s.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -47,6 +54,7 @@ K_MEM_SLAB_DEFINE_STATIC(zspot_i2s_slab, BLOCK_SIZE, BLOCK_COUNT, 4);
 
 static struct {
 	const struct device *dev;
+	const struct device *codec;
 	struct k_mutex lock;
 	void *block;
 	size_t fill;
@@ -77,8 +85,54 @@ K_THREAD_DEFINE(zspot_i2s_feeder, FEEDER_STACK_SIZE, feeder_thread, NULL, NULL, 
 		FEEDER_PRIORITY, 0, K_TICKS_FOREVER);
 #endif /* FIFO_SIZE > 0 */
 
-int zspot_i2s_sink_init(const struct device *i2s_dev, uint32_t sample_rate,
-			uint8_t channels, uint8_t bits_per_sample)
+#if defined(CONFIG_AUDIO_CODEC)
+/* The I2S controller drives the clocks: the codec is the target on both. */
+static int codec_init(const struct device *codec, const struct i2s_config *i2s_cfg)
+{
+	struct audio_codec_cfg cfg = {
+		.dai_type = AUDIO_DAI_TYPE_I2S,
+		.dai_cfg.i2s = *i2s_cfg,
+		.dai_route = AUDIO_ROUTE_PLAYBACK,
+	};
+	int ret;
+
+	cfg.dai_cfg.i2s.options = I2S_OPT_FRAME_CLK_TARGET | I2S_OPT_BIT_CLK_TARGET;
+
+	ret = audio_codec_configure(codec, &cfg);
+	if (ret < 0) {
+		LOG_ERR("Codec configuration failed (%d)", ret);
+		return ret;
+	}
+	audio_codec_start_output(codec);
+	return 0;
+}
+
+static void codec_set_mute(bool mute)
+{
+	audio_property_value_t val = {.mute = mute};
+	int ret;
+
+	if (sink.codec == NULL) {
+		return;
+	}
+	ret = audio_codec_set_property(sink.codec, AUDIO_PROPERTY_OUTPUT_MUTE, AUDIO_CHANNEL_ALL,
+				       val);
+	if (ret == 0) {
+		ret = audio_codec_apply_properties(sink.codec);
+	}
+	if (ret < 0) {
+		LOG_DBG("Codec mute not applied (%d)", ret);
+	}
+}
+#else
+static void codec_set_mute(bool mute)
+{
+	ARG_UNUSED(mute);
+}
+#endif /* CONFIG_AUDIO_CODEC */
+
+int zspot_i2s_sink_init(const struct device *i2s_dev, const struct device *codec_dev,
+			uint32_t sample_rate, uint8_t channels, uint8_t bits_per_sample)
 {
 	struct i2s_config cfg = {
 		.word_size = bits_per_sample,
@@ -95,6 +149,9 @@ int zspot_i2s_sink_init(const struct device *i2s_dev, uint32_t sample_rate,
 	if (i2s_dev == NULL || !device_is_ready(i2s_dev)) {
 		return -ENODEV;
 	}
+	if (codec_dev != NULL && (!IS_ENABLED(CONFIG_AUDIO_CODEC) || !device_is_ready(codec_dev))) {
+		return -ENODEV;
+	}
 
 	k_mutex_init(&sink.lock);
 	sink.dev = i2s_dev;
@@ -107,14 +164,25 @@ int zspot_i2s_sink_init(const struct device *i2s_dev, uint32_t sample_rate,
 		return ret;
 	}
 
+#if defined(CONFIG_AUDIO_CODEC)
+	if (codec_dev != NULL) {
+		ret = codec_init(codec_dev, &cfg);
+		if (ret < 0) {
+			return ret;
+		}
+		sink.codec = codec_dev;
+	}
+#endif
+
 #if FIFO_SIZE > 0
 	ring_buf_init(&fifo, sizeof(fifo_memory), fifo_memory);
 	k_thread_name_set(zspot_i2s_feeder, "zspot_i2s");
 	k_thread_start(zspot_i2s_feeder);
 #endif
 
-	LOG_INF("I2S sink ready: %u Hz, %u channels, %u bits, %u ms buffered ahead", sample_rate,
-		channels, bits_per_sample, (unsigned int)CONFIG_ZSPOT_I2S_BUFFER_MS);
+	LOG_INF("I2S sink ready: %u Hz, %u channels, %u bits, %u ms buffered ahead%s", sample_rate,
+		channels, bits_per_sample, (unsigned int)CONFIG_ZSPOT_I2S_BUFFER_MS,
+		codec_dev != NULL ? ", with codec" : "");
 	return 0;
 }
 
@@ -269,6 +337,7 @@ void zspot_i2s_sink_set_paused(bool paused)
 {
 	atomic_set(&sink_paused, paused);
 	k_sem_give(&fifo_data);
+	codec_set_mute(paused);
 }
 
 size_t zspot_i2s_sink_buffered(void)
@@ -316,7 +385,7 @@ size_t zspot_i2s_sink_write(const uint8_t *pcm, size_t len, void *user_data)
 
 void zspot_i2s_sink_set_paused(bool paused)
 {
-	ARG_UNUSED(paused);
+	codec_set_mute(paused);
 }
 
 size_t zspot_i2s_sink_buffered(void)

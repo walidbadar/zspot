@@ -21,9 +21,16 @@ extern "C" {
 
 struct device;
 
-/** Configures the I2S controller for TX. */
-int zspot_i2s_sink_init(const struct device *i2s_dev, uint32_t sample_rate,
-			uint8_t channels, uint8_t bits_per_sample);
+/**
+ * Configures the I2S controller for TX.
+ *
+ * @param codec_dev Optional audio codec (CONFIG_AUDIO_CODEC) behind the I2S
+ *                  output, or NULL for a DAC that needs no set-up. It is
+ *                  configured as the clock target with the same format and
+ *                  muted while paused; the PCM still goes through @p i2s_dev.
+ */
+int zspot_i2s_sink_init(const struct device *i2s_dev, const struct device *codec_dev,
+			uint32_t sample_rate, uint8_t channels, uint8_t bits_per_sample);
 
 /**
  * Queues PCM for playback. Has the zspot_pcm_cb_t signature so it can be
@@ -31,7 +38,10 @@ int zspot_i2s_sink_init(const struct device *i2s_dev, uint32_t sample_rate,
  */
 size_t zspot_i2s_sink_write(const uint8_t *pcm, size_t len, void *user_data);
 
-/** Software volume, 0..65535 (65535 = unity gain). */
+/**
+ * Software volume, 0..65535 (65535 = unity gain). Also with a codec: the
+ * codec volume units differ from one driver to the next.
+ */
 void zspot_i2s_sink_set_volume(uint16_t volume);
 
 /** Drops queued audio, e.g. on seek or track change. */

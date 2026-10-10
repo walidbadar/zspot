@@ -94,3 +94,8 @@ The player needs IPv4 networking, an I2S device behind the devicetree alias
 ``zspot-i2s``, a display with touch for the UI, and enough RAM; see
 :doc:`getting_started`. The ``native_sim`` target shows the minimum set of
 overlays and options for a new board.
+
+A codec that has to be set up over I2C or SPI (one with a Zephyr audio codec
+driver) goes behind the optional alias ``zspot-codec``, with
+``CONFIG_AUDIO_CODEC=y``. The sink configures it for the I2S format, with the
+SoC driving the clocks, and mutes it while paused. Volume stays in software.

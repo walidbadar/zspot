@@ -36,7 +36,8 @@ Minimal example
        .audio_format = ZSPOT_FORMAT_OGG_VORBIS_160,
    };
    zspot_init(&cfg);
-   zspot_i2s_sink_init(DEVICE_DT_GET(DT_ALIAS(zspot_i2s)), 44100, 2, 16);
+   zspot_i2s_sink_init(DEVICE_DT_GET(DT_ALIAS(zspot_i2s)),
+                       DEVICE_DT_GET_OR_NULL(DT_ALIAS(zspot_codec)), 44100, 2, 16);
 
    zspot_zeroconf_start();          /* advertise the device                         */
    zspot_zeroconf_wait(-1);         /* until the Spotify app hands over credentials */

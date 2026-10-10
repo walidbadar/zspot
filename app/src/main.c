@@ -146,7 +146,8 @@ static void sink_set_volume(uint16_t volume)
 static int sink_init(void)
 {
 #if defined(CONFIG_ZSPOT_I2S_SINK)
-	return zspot_i2s_sink_init(DEVICE_DT_GET(DT_ALIAS(zspot_i2s)), 44100, 2, 16);
+	return zspot_i2s_sink_init(DEVICE_DT_GET(DT_ALIAS(zspot_i2s)),
+				   DEVICE_DT_GET_OR_NULL(DT_ALIAS(zspot_codec)), 44100, 2, 16);
 #elif defined(ZSPOT_SAMPLE_HAVE_PCM_FILE)
 	return pcm_file_sink_init(CONFIG_ZSPOT_PCM_COMMAND, CONFIG_ZSPOT_PCM_FILE);
 #else
