@@ -365,6 +365,9 @@ static lv_obj_t *play_button;
 static lv_obj_t *play_icon;
 static lv_obj_t *next_button;
 static lv_obj_t *volume_slider;
+static lv_obj_t *volume_icon;
+/* The volume before the speaker was tapped to mute, restored by the next tap */
+static uint16_t volume_unmuted = UINT16_MAX;
 
 static lv_obj_t *list_screen;
 static lv_obj_t *list_heading;
@@ -459,6 +462,13 @@ static void set_controls_enabled(bool enabled)
 	ARRAY_FOR_EACH(controls, i) {
 		lv_obj_set_state(controls[i], LV_STATE_DISABLED, !enabled);
 	}
+}
+
+static void update_volume_icon(void)
+{
+	lv_label_set_text(volume_icon, lv_slider_get_value(volume_slider) == 0
+					       ? LV_SYMBOL_MUTE
+					       : LV_SYMBOL_VOLUME_MAX);
 }
 
 static void apply_paused(void)
@@ -799,6 +809,7 @@ static void apply(const struct ui_msg *msg)
 	case UI_MSG_VOLUME:
 		if (!lv_slider_is_dragged(volume_slider)) {
 			lv_slider_set_value(volume_slider, msg->volume, LV_ANIM_OFF);
+			update_volume_icon();
 		}
 		break;
 	}
@@ -915,6 +926,25 @@ static void on_volume_event(lv_event_t *e)
 {
 	ops->set_volume(lv_slider_get_value(volume_slider),
 			lv_event_get_code(e) == LV_EVENT_RELEASED);
+	update_volume_icon();
+}
+
+/* Mutes by setting the volume to zero, so that the Spotify app shows it too. */
+static void on_volume_icon_clicked(lv_event_t *e)
+{
+	uint16_t volume = lv_slider_get_value(volume_slider);
+
+	ARG_UNUSED(e);
+
+	if (volume > 0) {
+		volume_unmuted = volume;
+		volume = 0;
+	} else {
+		volume = volume_unmuted;
+	}
+	lv_slider_set_value(volume_slider, volume, LV_ANIM_OFF);
+	ops->set_volume(volume, true);
+	update_volume_icon();
 }
 
 static void on_play_clicked(lv_event_t *e)
@@ -1212,7 +1242,6 @@ static void create_screen(void)
 	lv_obj_t *search_hint;
 	lv_obj_t *cover_box;
 	lv_obj_t *placeholder;
-	lv_obj_t *volume_icon;
 	lv_obj_t *lyrics_button;
 
 	main_screen = screen;
@@ -1348,6 +1377,10 @@ static void create_screen(void)
 	volume_icon = create_label(screen, font_text, COLOR_SUBTLE,
 				   LV_SYMBOL_VOLUME_MAX);
 	lv_obj_set_pos(volume_icon, lay.info_x + sc(32), lay.info_y + VOLUME_DY - sc(7));
+	lv_obj_add_flag(volume_icon, LV_OBJ_FLAG_CLICKABLE);
+	lv_obj_set_ext_click_area(volume_icon, sc(12));
+	lv_obj_set_style_text_color(volume_icon, COLOR_TEXT, LV_STATE_PRESSED);
+	lv_obj_add_event_cb(volume_icon, on_volume_icon_clicked, LV_EVENT_CLICKED, NULL);
 	volume_slider = create_slider(screen, lay.info_y + VOLUME_DY, lay.info_x + sc(62),
 				      lay.info_w - sc(62),
 				      on_volume_event);
