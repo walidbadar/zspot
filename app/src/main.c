@@ -151,14 +151,11 @@ static int sink_init(void)
 	const char *path = CONFIG_I2S_NATIVE_SIM_TX_FILE_PATH;
 	int ret;
 
+	/* The I2S driver writes the audio to a host file: the player's input. */
 	if (CONFIG_ZSPOT_PCM_COMMAND[0] == '\0') {
 		LOG_INF("Writing the audio to %s (--%s_tx=<path> overrides)", path,
 			DEVICE_DT_NAME(DT_ALIAS(zspot_i2s)));
-		return;
-	}
-
-	ret = pcm_command_start(CONFIG_ZSPOT_PCM_COMMAND, path);
-	if (ret == 0) {
+	} else if ((ret = pcm_command_start(CONFIG_ZSPOT_PCM_COMMAND, path)) == 0) {
 		LOG_INF("Playing the audio with \"%s\"", CONFIG_ZSPOT_PCM_COMMAND);
 	} else if (ret == -EINVAL) {
 		LOG_WRN("\"%s\" is not started: the audio goes to %s", CONFIG_ZSPOT_PCM_COMMAND,

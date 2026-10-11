@@ -3,6 +3,8 @@
 
 mainmenu "zspot player"
 
+menu "zspot player"
+
 config ZSPOT_PCM_COMMAND
 	string "Host command that plays the audio (native_sim)"
 	depends on I2S_NATIVE_SIM
@@ -121,5 +123,7 @@ config ZSPOT_SCREEN_TIMEOUT_SECONDS
 	  does nothing else. Playback is not affected. 0 keeps the screen on.
 
 endif # ZSPOT_UI
+
+endmenu # zspot player
 
 source "Kconfig.zephyr"
