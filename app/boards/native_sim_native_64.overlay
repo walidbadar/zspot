@@ -4,11 +4,15 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-/* Same resolution as the panel of the VIEWE UEDX32480035E-WB-A. */
-/* Battery of the host, shown on the screen when the host has one of this name. */
+/*
+ * The audio goes out through the file-backed I2S driver of the board; see
+ * CONFIG_ZSPOT_PCM_COMMAND for where. The battery of the host is shown on the
+ * screen when the host has one of this name.
+ */
 / {
 	aliases {
 		fuel-gauge0 = &fuel_gauge0;
+		zspot-i2s = &i2s_tx0;
 	};
 
 	fuel_gauge0: fuel_gauge {

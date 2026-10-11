@@ -32,8 +32,9 @@
 #endif
 #if defined(CONFIG_ZSPOT_I2S_SINK)
 #include <zspot/zspot_i2s_sink.h>
-#elif defined(ZSPOT_SAMPLE_HAVE_PCM_FILE)
-#include "pcm_file_sink.h"
+#endif
+#if defined(CONFIG_I2S_NATIVE_SIM)
+#include "pcm_command_bottom.h"
 #endif
 #include "pcm_tap.h"
 #include "ui.h"
@@ -143,13 +144,44 @@ static void sink_set_volume(uint16_t volume)
 #endif
 }
 
+#if defined(CONFIG_I2S_NATIVE_SIM)
+/*
+ * The native_sim I2S driver writes the audio to a host file. With
+ * CONFIG_ZSPOT_PCM_COMMAND that file is the standard input of a player on the
+ * host, started here.
+ */
+static void host_player_start(void)
+{
+	const char *path = CONFIG_I2S_NATIVE_SIM_TX_FILE_PATH;
+	int ret;
+
+	if (CONFIG_ZSPOT_PCM_COMMAND[0] == '\0') {
+		LOG_INF("Writing the audio to %s (--%s_tx=<path> overrides)", path,
+			DEVICE_DT_NAME(DT_ALIAS(zspot_i2s)));
+		return;
+	}
+
+	ret = pcm_command_start(CONFIG_ZSPOT_PCM_COMMAND, path);
+	if (ret == 0) {
+		LOG_INF("Playing the audio with \"%s\"", CONFIG_ZSPOT_PCM_COMMAND);
+	} else if (ret == -EINVAL) {
+		LOG_WRN("\"%s\" is not started: the audio goes to %s", CONFIG_ZSPOT_PCM_COMMAND,
+			path);
+	} else {
+		LOG_WRN("Cannot start \"%s\" (%d): running without sound",
+			CONFIG_ZSPOT_PCM_COMMAND, ret);
+	}
+}
+#endif /* CONFIG_I2S_NATIVE_SIM */
+
 static int sink_init(void)
 {
 #if defined(CONFIG_ZSPOT_I2S_SINK)
+#if defined(CONFIG_I2S_NATIVE_SIM)
+	host_player_start();
+#endif
 	return zspot_i2s_sink_init(DEVICE_DT_GET(DT_ALIAS(zspot_i2s)),
 				   DEVICE_DT_GET_OR_NULL(DT_ALIAS(zspot_codec)), 44100, 2, 16);
-#elif defined(ZSPOT_SAMPLE_HAVE_PCM_FILE)
-	return pcm_file_sink_init(CONFIG_ZSPOT_PCM_COMMAND, CONFIG_ZSPOT_PCM_FILE);
 #else
 	return 0;
 #endif
@@ -159,8 +191,6 @@ static size_t sink_write(const uint8_t *pcm, size_t len, void *user_data)
 {
 #if defined(CONFIG_ZSPOT_I2S_SINK)
 	return zspot_i2s_sink_write(pcm, len, user_data);
-#elif defined(ZSPOT_SAMPLE_HAVE_PCM_FILE)
-	return pcm_file_sink_write(pcm, len, user_data);
 #else
 	ARG_UNUSED(pcm);
 	ARG_UNUSED(user_data);

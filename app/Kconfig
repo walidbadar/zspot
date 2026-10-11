@@ -11,21 +11,21 @@ config ZSPOT_CREDENTIALS_JSON
 	  set, the sample skips the zeroconf hand-over.
 
 config ZSPOT_PCM_COMMAND
-	string "Host command that plays the decoded PCM (native_sim)"
-	default ""
+	string "Host command that plays the audio (native_sim)"
+	depends on I2S_NATIVE_SIM
+	default "aplay -q -f S16_LE -r 44100 -c 2"
 	help
-	  When set (and the I2S sink is disabled) this shell command is started
-	  on the host and receives the decoded audio on its standard input as
-	  raw 16-bit little-endian stereo PCM at 44.1 kHz, for example
-	  "aplay -q -f S16_LE -r 44100 -c 2".
+	  On native_sim the audio goes through the file-backed I2S driver.
+	  When this is set, the simulator starts the shell command at boot and
+	  the driver writes into its standard input: raw 16-bit little-endian
+	  stereo PCM at 44.1 kHz. Clear it to write the audio to the file
+	  I2S_NATIVE_SIM_TX_FILE_PATH instead, or to the one given on the
+	  command line with --<i2s device>_tx=<path>.
 
-config ZSPOT_PCM_FILE
-	string "Host file for decoded PCM (native_sim)"
-	default ""
-	help
-	  When set (and neither the I2S sink nor ZSPOT_PCM_COMMAND is
-	  used) the decoded audio is written to this host file as raw 16-bit
-	  little-endian stereo PCM at 44.1 kHz.
+# The I2S driver opens a path: with a player, the pipe to its standard input
+# is installed at this descriptor (src/pcm_command_bottom.c).
+config I2S_NATIVE_SIM_TX_FILE_PATH
+	default "/dev/fd/200" if ZSPOT_PCM_COMMAND != ""
 
 config ZSPOT_PCM_TAP
 	bool "PCM tap: copy of the audio over TCP"

@@ -23,13 +23,12 @@ target_sources_ifdef(CONFIG_ZSPOT_PCM_TAP app PRIVATE src/pcm_tap.c)
 target_sources_ifdef(CONFIG_ZSPOT_BATTERY app PRIVATE src/battery.c)
 target_sources_ifdef(CONFIG_ZSPOT_UI app PRIVATE
   src/ui.c src/cover.c src/library.c src/webapi.c src/lyrics.c src/json_scan.c)
-if(NOT "${CONFIG_ZSPOT_PCM_COMMAND}${CONFIG_ZSPOT_PCM_FILE}" STREQUAL "")
-  target_sources(app PRIVATE src/pcm_file_sink.c)
-  # Host side, built against the host libc in the runner context
-  target_sources(native_simulator INTERFACE src/pcm_file_sink_bottom.c)
-  target_compile_definitions(app PRIVATE ZSPOT_SAMPLE_HAVE_PCM_FILE=1)
+if(CONFIG_I2S_NATIVE_SIM)
+  # Starts the host player the I2S driver writes into; built against the host
+  # libc in the runner context.
+  target_sources(native_simulator INTERFACE src/pcm_command_bottom.c)
 
-  # The audio is piped into a player on the host: tell when it is missing.
+  # Tell when the player is missing, rather than running without sound.
   if(NOT "${CONFIG_ZSPOT_PCM_COMMAND}" STREQUAL "")
     string(REGEX MATCH "^[^ ]+" pcm_player "${CONFIG_ZSPOT_PCM_COMMAND}")
     find_program(PCM_PLAYER_${pcm_player} ${pcm_player})

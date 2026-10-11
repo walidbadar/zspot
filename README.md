@@ -115,9 +115,13 @@ do not share the build directory.
 
 ### native_sim
 
-The display is an SDL window with the mouse as the touch screen, and the
-audio plays on the host through `aplay`. It needs the SDL2 development
-package and alsa-utils.
+The display is an SDL window with the mouse as the touch screen. The audio
+goes through Zephyr's file-backed native_sim I2S driver into `aplay`, which
+the simulator starts itself (`CONFIG_ZSPOT_PCM_COMMAND`). It needs the SDL2
+development package and alsa-utils. To write the audio to a file instead,
+build with `-DCONFIG_ZSPOT_PCM_COMMAND=""`: the driver then writes
+`i2s_out.pcm` in the working directory, or the file given with
+`--i2s_tx_tx=<path>`.
 
 Create the TAP interface once per boot and give it internet access:
 
