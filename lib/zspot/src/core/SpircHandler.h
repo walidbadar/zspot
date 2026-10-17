@@ -37,7 +37,8 @@ class SpircHandler {
     DEPLETED,
     FLUSH,
     PLAYBACK_START,
-    QUEUE
+    QUEUE,
+    REPEAT
   };
 
   typedef std::variant<TrackInfo, int, bool> EventData;
@@ -64,6 +65,9 @@ class SpircHandler {
 
   // Plays an entry of the current queue
   bool playIndex(int index);
+  // Announced with a REPEAT event; @p report sends the state to the app
+  void setRepeat(TrackQueue::RepeatMode mode, bool report = true);
+  TrackQueue::RepeatMode getRepeat() { return trackQueue->getRepeat(); }
 
   void notifyAudioReachedPlayback();
   void notifyAudioEnded();
@@ -90,6 +94,8 @@ class SpircHandler {
 
   bool skipSong(TrackQueue::SkipDirection dir);
   void handleFrame(std::vector<uint8_t>& data);
+  // Follows the repeat flag of the frame the app sent
+  void applyRemoteRepeat(bool report);
   void notify();
 };
 }  // namespace cspot

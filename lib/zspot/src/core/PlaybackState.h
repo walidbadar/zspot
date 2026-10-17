@@ -86,6 +86,9 @@ class PlaybackState {
      */
   void setVolume(uint32_t volume);
 
+  // The repeat flag the controlling app shows
+  void setRepeat(bool repeat);
+
   /**
    * @brief Updates local track queue from remote data.
      */

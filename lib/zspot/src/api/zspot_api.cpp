@@ -156,6 +156,10 @@ void on_spirc_event(std::unique_ptr<cspot::SpircHandler::Event> ev)
 		out.position_ms = static_cast<uint32_t>(std::get<int>(ev->data));
 		g.track_restarted = true;
 		break;
+	case EventType::REPEAT:
+		out.type = ZSPOT_EVENT_REPEAT;
+		out.repeat = static_cast<enum zspot_repeat>(std::get<int>(ev->data));
+		break;
 	case EventType::QUEUE:
 		out.type = ZSPOT_EVENT_QUEUE_CHANGED;
 		break;
@@ -556,6 +560,24 @@ void zspot_seek(uint32_t position_ms)
 	if (g.handler) {
 		g.handler->seekMs(position_ms);
 	}
+}
+
+/* The values of enum zspot_repeat follow TrackQueue::RepeatMode */
+static_assert(static_cast<int>(cspot::TrackQueue::RepeatMode::OFF) == ZSPOT_REPEAT_OFF);
+static_assert(static_cast<int>(cspot::TrackQueue::RepeatMode::CONTEXT) == ZSPOT_REPEAT_ALL);
+static_assert(static_cast<int>(cspot::TrackQueue::RepeatMode::TRACK) == ZSPOT_REPEAT_TRACK);
+
+void zspot_set_repeat(enum zspot_repeat mode)
+{
+	if (g.handler) {
+		g.handler->setRepeat(static_cast<cspot::TrackQueue::RepeatMode>(mode));
+	}
+}
+
+enum zspot_repeat zspot_get_repeat(void)
+{
+	return g.handler ? static_cast<enum zspot_repeat>(g.handler->getRepeat())
+			 : ZSPOT_REPEAT_OFF;
 }
 
 void zspot_notify_audio_reached_playback(void)

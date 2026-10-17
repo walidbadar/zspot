@@ -162,6 +162,10 @@ void PlaybackState::updatePositionMs(uint32_t position) {
       ctx->timeProvider->getSyncedTimestamp();
 }
 
+void PlaybackState::setRepeat(bool repeat) {
+  innerFrame.state.repeat = repeat;
+}
+
 void PlaybackState::setVolume(uint32_t volume) {
   innerFrame.device_state.volume = volume;
   ctx->config.volume = volume;

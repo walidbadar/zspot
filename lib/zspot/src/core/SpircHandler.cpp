@@ -201,6 +201,7 @@ void SpircHandler::handleFrame(std::vector<uint8_t>& data) {
       playbackState->setPlaybackState(PlaybackState::State::Playing);
 
       playbackState->syncWithRemote();
+      applyRemoteRepeat(false);
 
       // Update track list in case we have a new one
       trackQueue->updateTracks(playbackState->remoteFrame.state.position_ms,
@@ -242,7 +243,7 @@ void SpircHandler::handleFrame(std::vector<uint8_t>& data) {
     }
     case MessageType_kMessageTypeRepeat: {
       CSPOT_LOG(debug, "Got repeat frame");
-      this->notify();
+      applyRemoteRepeat(true);
       break;
     }
     default:
@@ -280,7 +281,37 @@ bool SpircHandler::playIndex(int index) {
 }
 
 bool SpircHandler::nextSong() {
+  // As in the Spotify app, skipping ends repeating the one track
+  if (trackQueue->getRepeat() == TrackQueue::RepeatMode::TRACK) {
+    setRepeat(TrackQueue::RepeatMode::CONTEXT);
+  }
   return skipSong(TrackQueue::SkipDirection::NEXT);
+}
+
+void SpircHandler::setRepeat(TrackQueue::RepeatMode mode, bool report) {
+  trackQueue->setRepeat(mode);
+  playbackState->setRepeat(mode != TrackQueue::RepeatMode::OFF);
+
+  if (report) {
+    notify();
+  }
+  sendEvent(EventType::REPEAT, static_cast<int>(mode));
+}
+
+void SpircHandler::applyRemoteRepeat(bool report) {
+  TrackQueue::RepeatMode mode = trackQueue->getRepeat();
+
+  if (!playbackState->remoteFrame.state.has_repeat) {
+    return;
+  }
+
+  // The app only knows on and off: on keeps repeating the one track
+  if (!playbackState->remoteFrame.state.repeat) {
+    mode = TrackQueue::RepeatMode::OFF;
+  } else if (mode == TrackQueue::RepeatMode::OFF) {
+    mode = TrackQueue::RepeatMode::CONTEXT;
+  }
+  setRepeat(mode, report);
 }
 
 bool SpircHandler::previousSong() {

@@ -68,6 +68,15 @@ enum zspot_event_type {
 	ZSPOT_EVENT_CONNECTION_LOST,
 	/** The connection to Spotify is back. */
 	ZSPOT_EVENT_CONNECTION_RESTORED,
+	/** The repeat mode changed, from the app or zspot_set_repeat(): event.repeat */
+	ZSPOT_EVENT_REPEAT,
+};
+
+/** What plays after the end of the current track. */
+enum zspot_repeat {
+	ZSPOT_REPEAT_OFF,   /**< the next track; playback stops after the last one */
+	ZSPOT_REPEAT_ALL,   /**< the next track; the queue starts over after the last one */
+	ZSPOT_REPEAT_TRACK, /**< the current track again */
 };
 
 struct zspot_track_info {
@@ -88,6 +97,7 @@ struct zspot_event {
 		uint16_t volume;
 		uint32_t position_ms;
 		struct zspot_track_info track;
+		enum zspot_repeat repeat;
 	};
 };
 
@@ -171,6 +181,16 @@ void zspot_set_volume(uint16_t volume);
 
 /** Seeks within the current track; answered with ZSPOT_EVENT_SEEK. */
 void zspot_seek(uint32_t position_ms);
+
+/**
+ * Sets the repeat mode; answered with ZSPOT_EVENT_REPEAT. The Spotify app
+ * only knows repeat on and off: it shows both ZSPOT_REPEAT_ALL and
+ * ZSPOT_REPEAT_TRACK as on. Skipping to the next track turns
+ * ZSPOT_REPEAT_TRACK into ZSPOT_REPEAT_ALL, as in the Spotify app.
+ */
+void zspot_set_repeat(enum zspot_repeat mode);
+
+enum zspot_repeat zspot_get_repeat(void);
 
 /** Call when the first PCM of a new track reached the output. */
 void zspot_notify_audio_reached_playback(void);

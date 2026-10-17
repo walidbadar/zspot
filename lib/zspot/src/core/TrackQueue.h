@@ -60,6 +60,11 @@ class QueuedTrack {
   std::string identifier;
   bool loading = false;
 
+  // Position in the play queue this entry plays
+  int index = -1;
+  // Tells two plays of the same track apart, e.g. with repeat one
+  const uint32_t playNumber;
+
   // Will return nullptr if the track is not ready
   std::shared_ptr<cspot::CDNAudioFile> getAudioFile();
 
@@ -95,6 +100,7 @@ class TrackQueue : public zspot::Task {
   ~TrackQueue();
 
   enum class SkipDirection { NEXT, PREV };
+  enum class RepeatMode { OFF, CONTEXT, TRACK };
 
   std::shared_ptr<zspot::Semaphore> playableSemaphore;
   std::atomic<bool> notifyPending = false;
@@ -118,6 +124,11 @@ class TrackQueue : public zspot::Task {
   bool requestTrackInfo(int index, TrackInfoCallback callback);
   // Makes a queue entry the current track
   bool jumpTo(int index);
+
+  // Changes what follows the current track; the tracks the player already
+  // decodes stay as they are
+  void setRepeat(RepeatMode mode);
+  RepeatMode getRepeat();
   std::shared_ptr<QueuedTrack> consumeTrack(
       std::shared_ptr<QueuedTrack> prevSong, int& offset);
 
@@ -140,10 +151,24 @@ class TrackQueue : public zspot::Task {
   std::string accessKey;
 
   int16_t currentTracksIndex = -1;
+  RepeatMode repeatMode = RepeatMode::OFF;
 
   bool isRunning = false;
 
   void processTrack(std::shared_ptr<QueuedTrack> track);
-  bool queueNextTrack(int offset = 0, uint32_t positionMs = 0);
+
+  // Queue positions before and after @p index in the repeat mode, -1 at the
+  // ends of the queue. Called with tracksMutex held, as the ones below.
+  int followingIndex(int index);
+  int precedingIndex(int index);
+  bool queueTrackAt(int index, bool front, uint32_t positionMs = 0);
+  // Puts the current track at the head again, from @p positionMs
+  bool requeueCurrent(uint32_t positionMs = 0);
+  // Preloads the track that follows the last preloaded one
+  bool queueFollowing();
+  // Drops preloaded tracks that no longer follow in the repeat mode and
+  // preloads what follows instead. @p keepPlaying keeps the ones the player
+  // decodes, for when it is not about to restart.
+  void refreshPreloaded(bool keepPlaying);
 };
 }  // namespace cspot

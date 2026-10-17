@@ -192,6 +192,11 @@ void TrackPlayer::runTask() {
 
     CSPOT_LOG(info, "Got track ID=%s", track->identifier.c_str());
 
+    // The PCM is tagged per play, so that the start of a repeated track
+    // counts as a new track
+    const std::string pcmId =
+        track->identifier + "#" + std::to_string(track->playNumber);
+
     currentSongPlaying = true;
 
     {
@@ -281,7 +286,7 @@ void TrackPlayer::runTask() {
                   break;
 
                 written = dataCallback(pcmBuffer.data() + (ret - toWrite),
-                                       toWrite, track->identifier);
+                                       toWrite, pcmId);
               }
               if (written == 0) {
                 k_msleep(50);
