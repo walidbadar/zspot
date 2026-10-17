@@ -8,6 +8,7 @@
 / {
 	aliases {
 		zspot-backlight = &{/lcd_backlight_en};
+		zspot-i2s = &i2s0;
 	};
 };
 
@@ -38,4 +39,27 @@
 	screen-height = <480>;
 	inverted-x;
 	swapped-x-y;
+};
+
+&pinctrl {
+	i2s0_zspot: i2s0_zspot {
+		group1 {
+			pinmux = <I2S0_O_SD_GPIO5>,	/* DIN */
+				 <I2S0_O_BCK_GPIO6>,
+				 <I2S0_O_WS_GPIO7>;	/* LRC */
+
+			output-low;
+		};
+	};
+};
+
+&i2s0 {
+	status = "okay";
+	pinctrl-0 = <&i2s0_zspot>;
+	pinctrl-names = "default";
+};
+
+/* Not needed by the player; frees the SDMMC pins and driver memory. */
+&sdhc0 {
+	status = "disabled";
 };
