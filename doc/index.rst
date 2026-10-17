@@ -27,8 +27,8 @@ Features
 ********
 
 - Shows up as a device in the Spotify app and plays through an I2S DAC.
-- Now Playing screen with cover art, progress, seeking, transport and volume
-  controls.
+- Now Playing screen with cover art, progress, seeking, transport, repeat
+  and volume controls.
 - Search, Your Library (Liked Songs and playlists) and synced lyrics on the
   device.
 - Wi-Fi setup on the screen, including forgetting stored networks.

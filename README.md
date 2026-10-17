@@ -14,8 +14,8 @@ as a Zephyr module.
 <p align="center"><em>Now Playing, lyrics, a playlist from Your Library and the Wi-Fi password entry, on native_sim with demo data.</em></p>
 
 - Shows up as a device in the Spotify app and plays through an I2S DAC.
-- Now Playing screen with cover art, progress, seeking, transport and volume
-  controls.
+- Now Playing screen with cover art, progress, seeking, transport, repeat
+  and volume controls.
 - Search, Your Library (Liked Songs and playlists) and synced lyrics on the
   device.
 - Wi-Fi setup on the screen.

@@ -93,6 +93,9 @@ Session and playback
    * - ``zspot_set_pause()``, ``zspot_next()``, ``zspot_previous()``,
        ``zspot_seek()``, ``zspot_set_volume()``
      - Local playback control, reported to the Spotify app
+   * - ``zspot_set_repeat()``, ``zspot_get_repeat()``
+     - Repeat off, the queue or the track; the Spotify app only knows on and
+       off and shows both repeat modes as on
    * - ``zspot_notify_audio_reached_playback()``,
        ``zspot_notify_audio_ended()``, ``zspot_update_position_ms()``
      - Keep Spotify's view of the playback in step with the output
@@ -136,6 +139,9 @@ Events
    * - ``ZSPOT_EVENT_CONNECTION_LOST``, ``ZSPOT_EVENT_CONNECTION_RESTORED``
      - The connection to Spotify dropped or is back; the library reconnects
        on its own
+   * - ``ZSPOT_EVENT_REPEAT``
+     - The repeat mode changed, from the app or ``zspot_set_repeat()``
+       (``repeat``)
 
 PCM callback
 ************

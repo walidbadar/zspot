@@ -39,6 +39,11 @@ Using it
      - Your Library: Liked Songs and playlists
    * - Microphone button
      - Switch between cover and lyrics
+   * - Repeat button
+     - Cycle through off, repeat the queue and repeat the track (shown with
+       a "1"). The Spotify app shows either repeat as on, and its repeat
+       toggle turns the button on and off. Skipping ahead ends repeating the
+       track, as in the app.
 
 Wi-Fi credentials are stored on the device. Once it is connected, select it
 in the Spotify app; the layout adapts to the resolution and orientation of
