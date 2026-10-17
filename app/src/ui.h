@@ -77,6 +77,16 @@ struct ui_lyrics {
 	struct ui_lyrics_line lines[];
 };
 
+/** The listings of the list view; only the one that is open accepts content. */
+enum ui_list {
+	UI_LIST_LIBRARY, /**< "Your Library", opened with the list button */
+	UI_LIST_WIFI,    /**< Networks found, opened from the network indicator */
+	UI_LIST_SEARCH,  /**< Hits of a search entered in the search bar */
+};
+
+/** Most rows the library view shows */
+#define UI_LIST_MAX 30
+
 #if defined(CONFIG_ZSPOT_UI)
 
 /**
@@ -119,16 +129,6 @@ bool ui_show_lyrics(struct ui_lyrics *lyrics);
 
 /** Shows a notice instead of the lyrics of the track @p title, e.g. that there are none. */
 void ui_set_lyrics_status(const char *title, const char *status);
-
-/** The listings of the list view; only the one that is open accepts content. */
-enum ui_list {
-	UI_LIST_LIBRARY, /**< "Your Library", opened with the list button */
-	UI_LIST_WIFI,    /**< Networks found, opened from the network indicator */
-	UI_LIST_SEARCH,  /**< Hits of a search entered in the search bar */
-};
-
-/** Most rows the library view shows */
-#define UI_LIST_MAX 30
 
 /**
  * Starts a new listing in the list view.
@@ -175,6 +175,16 @@ static inline void ui_set_network(bool connected)
 }
 
 static inline void ui_set_battery(int percent)
+{
+}
+
+static inline void ui_list_reset(enum ui_list list, uint32_t generation, const char *heading,
+				 bool top_level, const char *status)
+{
+}
+
+static inline void ui_list_add(enum ui_list list, uint32_t generation, const char *title,
+			       const char *subtitle, uint32_t duration_ms)
 {
 }
 
