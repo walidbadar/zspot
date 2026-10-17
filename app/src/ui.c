@@ -434,7 +434,7 @@ static void set_backdrop(lv_color_t color)
 
 static void drop_cover(void)
 {
-	lv_obj_add_flag(cover_image, LV_OBJ_FLAG_HIDDEN);
+	lv_obj_set_hidden(cover_image, true);
 	set_backdrop(COLOR_BG);
 	cover_url[0] = '\0';
 	cover_request(NULL);
@@ -447,7 +447,7 @@ static void on_cover_ready(lv_draw_buf_t *image, lv_color_t accent)
 
 	cover_buf = image;
 	lv_image_set_src(cover_image, cover_buf);
-	lv_obj_remove_flag(cover_image, LV_OBJ_FLAG_HIDDEN);
+	lv_obj_set_hidden(cover_image, false);
 	set_backdrop(lv_color_mix(accent, COLOR_BG, LV_OPA_60));
 
 	if (old != NULL) {
@@ -576,7 +576,7 @@ static void list_add(const char *title, const char *subtitle, uint32_t duration_
 
 	row = create_box(list_rows, lay.w, ROW_H);
 	lv_obj_set_pos(row, 0, index * ROW_H);
-	lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+	lv_obj_set_clickable(row, true);
 	lv_obj_set_style_bg_color(row, COLOR_SURFACE, LV_STATE_PRESSED);
 	lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
 	lv_obj_add_event_cb(row, on_list_row_clicked, LV_EVENT_CLICKED, (void *)(intptr_t)index);
@@ -690,7 +690,7 @@ static void on_lyrics_clicked(lv_event_t *e)
 	ARG_UNUSED(e);
 
 	lyrics_open = !lyrics_open;
-	lv_obj_set_flag(lyrics_panel, LV_OBJ_FLAG_HIDDEN, !lyrics_open);
+	lv_obj_set_hidden(lyrics_panel, !lyrics_open);
 	lv_obj_set_style_image_recolor(lyrics_icon, lyrics_open ? COLOR_ACCENT : COLOR_SUBTLE, 0);
 	if (!lyrics_open) {
 		return;
@@ -767,14 +767,14 @@ static void apply(const struct ui_msg *msg)
 		break;
 	case UI_MSG_BATTERY:
 		if (msg->battery_percent < 0) {
-			lv_obj_add_flag(battery_icon, LV_OBJ_FLAG_HIDDEN);
+			lv_obj_set_hidden(battery_icon, true);
 			break;
 		}
 		lv_label_set_text(battery_icon, battery_symbol(msg->battery_percent));
 		lv_obj_set_style_text_color(battery_icon,
 					    msg->battery_percent <= BATTERY_LOW_PERCENT
 						    ? COLOR_ERROR : COLOR_TEXT, 0);
-		lv_obj_remove_flag(battery_icon, LV_OBJ_FLAG_HIDDEN);
+		lv_obj_set_hidden(battery_icon, false);
 		break;
 	case UI_MSG_LYRICS:
 		/* Lyrics of a track that is no longer on screen are stale. */
@@ -838,7 +838,7 @@ static void screen_sleep(void)
 	const struct device *display = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
 
 	screen_off = true;
-	lv_obj_remove_flag(wake_overlay, LV_OBJ_FLAG_HIDDEN);
+	lv_obj_set_hidden(wake_overlay, false);
 	/* Nothing is drawn or sent to the panel while it is off */
 	lv_display_enable_invalidation(NULL, false);
 	set_backlight(false);
@@ -866,7 +866,7 @@ static void on_wake_event(lv_event_t *e)
 		}
 	} else {
 		/* The touch that woke the screen ends here, below nothing saw it */
-		lv_obj_add_flag(wake_overlay, LV_OBJ_FLAG_HIDDEN);
+		lv_obj_set_hidden(wake_overlay, true);
 	}
 }
 
@@ -875,7 +875,7 @@ static void create_wake_overlay(void)
 	wake_overlay = lv_obj_create(lv_layer_top());
 	lv_obj_remove_style_all(wake_overlay);
 	lv_obj_set_size(wake_overlay, LV_PCT(100), LV_PCT(100));
-	lv_obj_add_flag(wake_overlay, LV_OBJ_FLAG_HIDDEN);
+	lv_obj_set_hidden(wake_overlay, true);
 	lv_obj_add_event_cb(wake_overlay, on_wake_event, LV_EVENT_PRESSED, NULL);
 	lv_obj_add_event_cb(wake_overlay, on_wake_event, LV_EVENT_RELEASED, NULL);
 	lv_obj_add_event_cb(wake_overlay, on_wake_event, LV_EVENT_PRESS_LOST, NULL);
@@ -1050,7 +1050,7 @@ static lv_obj_t *create_box(lv_obj_t *parent, int32_t w, int32_t h)
 
 	lv_obj_remove_style_all(box);
 	lv_obj_set_size(box, w, h);
-	lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+	lv_obj_set_scrollable(box, false);
 	return box;
 }
 
@@ -1104,7 +1104,7 @@ static lv_obj_t *create_button(lv_obj_t *parent, int32_t x, int32_t size, const 
 	lv_obj_t *label;
 
 	lv_obj_set_pos(button, x - size / 2, lay.info_y + CONTROLS_DY - size / 2);
-	lv_obj_add_flag(button, LV_OBJ_FLAG_CLICKABLE);
+	lv_obj_set_clickable(button, true);
 	lv_obj_set_style_radius(button, LV_RADIUS_CIRCLE, 0);
 	lv_obj_set_style_text_color(button, COLOR_TEXT, 0);
 	lv_obj_set_style_text_color(button, COLOR_SUBTLE, LV_STATE_PRESSED);
@@ -1127,7 +1127,7 @@ static lv_obj_t *create_icon_button(lv_obj_t *parent, const char *symbol, lv_eve
 	lv_obj_t *button = create_box(parent, sc(44), sc(44));
 	lv_obj_t *label;
 
-	lv_obj_add_flag(button, LV_OBJ_FLAG_CLICKABLE);
+	lv_obj_set_clickable(button, true);
 	lv_obj_set_style_text_color(button, COLOR_TEXT, 0);
 	lv_obj_set_style_text_color(button, COLOR_SUBTLE, LV_STATE_PRESSED);
 	if (clicked_cb != NULL) {
@@ -1146,7 +1146,7 @@ static void create_list_screen(void)
 	lv_obj_t *back_button;
 
 	list_screen = lv_obj_create(NULL);
-	lv_obj_remove_flag(list_screen, LV_OBJ_FLAG_SCROLLABLE);
+	lv_obj_set_scrollable(list_screen, false);
 	lv_obj_set_style_bg_color(list_screen, COLOR_BG, 0);
 	lv_obj_set_style_bg_opa(list_screen, LV_OPA_COVER, 0);
 
@@ -1163,7 +1163,7 @@ static void create_list_screen(void)
 
 	list_rows = create_box(list_screen, lay.w, lay.h - BAR_H);
 	lv_obj_set_pos(list_rows, 0, BAR_H);
-	lv_obj_add_flag(list_rows, LV_OBJ_FLAG_SCROLLABLE);
+	lv_obj_set_scrollable(list_rows, true);
 	lv_obj_set_scroll_dir(list_rows, LV_DIR_VER);
 
 	list_status = create_label(list_screen, font_text, COLOR_SUBTLE, "");
@@ -1180,7 +1180,7 @@ static void create_entry_screen(void)
 	lv_obj_t *keyboard;
 
 	entry_screen = lv_obj_create(NULL);
-	lv_obj_remove_flag(entry_screen, LV_OBJ_FLAG_SCROLLABLE);
+	lv_obj_set_scrollable(entry_screen, false);
 	lv_obj_set_style_bg_color(entry_screen, COLOR_BG, 0);
 	lv_obj_set_style_bg_opa(entry_screen, LV_OPA_COVER, 0);
 
@@ -1209,7 +1209,7 @@ static void create_entry_screen(void)
 
 	button = create_box(entry_screen, sc(120), sc(40));
 	lv_obj_align(button, LV_ALIGN_TOP_MID, 0, BAR_H + sc(104));
-	lv_obj_add_flag(button, LV_OBJ_FLAG_CLICKABLE);
+	lv_obj_set_clickable(button, true);
 	lv_obj_set_style_radius(button, LV_RADIUS_CIRCLE, 0);
 	lv_obj_set_style_bg_color(button, COLOR_ACCENT, 0);
 	lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
@@ -1217,7 +1217,7 @@ static void create_entry_screen(void)
 	lv_obj_add_event_cb(button, on_entry_confirm, LV_EVENT_CLICKED, NULL);
 	entry_action = create_label(button, font_text, COLOR_BG, "");
 	lv_obj_center(entry_action);
-	lv_obj_set_flag(button, LV_OBJ_FLAG_HIDDEN, !lay.entry_button);
+	lv_obj_set_hidden(button, !lay.entry_button);
 
 	/* The keyboard's confirm key acts like the button, its close key goes back. */
 	keyboard = lv_keyboard_create(entry_screen);
@@ -1247,7 +1247,7 @@ static void create_screen(void)
 	main_screen = screen;
 
 	/* The top fades from the cover's colour into the background. */
-	lv_obj_remove_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
+	lv_obj_set_scrollable(screen, false);
 	lv_obj_set_style_bg_color(screen, COLOR_BG, 0);
 	lv_obj_set_style_bg_grad_color(screen, COLOR_BG, 0);
 	lv_obj_set_style_bg_grad_dir(screen, LV_GRAD_DIR_VER, 0);
@@ -1259,7 +1259,7 @@ static void create_screen(void)
 	/* and of the battery indicator, when there is one */
 	search_bar = create_box(screen, search_w, SEARCH_BAR_H);
 	lv_obj_align(search_bar, LV_ALIGN_TOP_MID, -battery_w / 2, sc(18) - SEARCH_BAR_H / 2);
-	lv_obj_add_flag(search_bar, LV_OBJ_FLAG_CLICKABLE);
+	lv_obj_set_clickable(search_bar, true);
 	lv_obj_set_style_radius(search_bar, LV_RADIUS_CIRCLE, 0);
 	lv_obj_set_style_bg_color(search_bar, COLOR_SURFACE, 0);
 	lv_obj_set_style_bg_color(search_bar, COLOR_TRACK, LV_STATE_PRESSED);
@@ -1295,7 +1295,7 @@ static void create_screen(void)
 	battery_icon = create_label(screen, font_text, COLOR_TEXT, LV_SYMBOL_BATTERY_FULL);
 	lv_obj_align(battery_icon, LV_ALIGN_TOP_RIGHT, -sc(14),
 		     sc(18) - lv_font_get_line_height(font_text) / 2);
-	lv_obj_add_flag(battery_icon, LV_OBJ_FLAG_HIDDEN);
+	lv_obj_set_hidden(battery_icon, true);
 
 	library_button = create_icon_button(screen, LV_SYMBOL_LIST, on_library_clicked);
 	lv_obj_set_pos(library_button, sc(4), -sc(4));
@@ -1313,7 +1313,7 @@ static void create_screen(void)
 	cover_image = lv_image_create(cover_box);
 	lv_obj_set_size(cover_image, lay.cover_size, lay.cover_size);
 	lv_image_set_inner_align(cover_image, LV_IMAGE_ALIGN_STRETCH);
-	lv_obj_add_flag(cover_image, LV_OBJ_FLAG_HIDDEN);
+	lv_obj_set_hidden(cover_image, true);
 
 	/* One wrapped label per line, stacked; scrolled as the track plays */
 	lyrics_panel = create_box(cover_box, lay.cover_size, lay.cover_size);
@@ -1322,7 +1322,8 @@ static void create_screen(void)
 	lv_obj_set_style_pad_all(lyrics_panel, LYRICS_PAD, 0);
 	lv_obj_set_style_pad_row(lyrics_panel, sc(12), 0);
 	lv_obj_set_flex_flow(lyrics_panel, LV_FLEX_FLOW_COLUMN);
-	lv_obj_add_flag(lyrics_panel, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_HIDDEN);
+	lv_obj_set_scrollable(lyrics_panel, true);
+	lv_obj_set_hidden(lyrics_panel, true);
 	lv_obj_set_scroll_dir(lyrics_panel, LV_DIR_VER);
 	lv_obj_set_scrollbar_mode(lyrics_panel, LV_SCROLLBAR_MODE_OFF);
 
@@ -1363,7 +1364,7 @@ static void create_screen(void)
 	/* Bottom row: lyrics button, speaker symbol, volume slider */
 	lyrics_button = create_box(screen, sc(36), sc(36));
 	lv_obj_set_pos(lyrics_button, lay.info_x - sc(8), lay.info_y + VOLUME_DY + sc(2) - sc(18));
-	lv_obj_add_flag(lyrics_button, LV_OBJ_FLAG_CLICKABLE);
+	lv_obj_set_clickable(lyrics_button, true);
 	lv_obj_add_event_cb(lyrics_button, on_lyrics_clicked, LV_EVENT_CLICKED, NULL);
 
 	/* An alpha-only image takes its colour from the recolour style. */
@@ -1377,7 +1378,7 @@ static void create_screen(void)
 	volume_icon = create_label(screen, font_text, COLOR_SUBTLE,
 				   LV_SYMBOL_VOLUME_MAX);
 	lv_obj_set_pos(volume_icon, lay.info_x + sc(32), lay.info_y + VOLUME_DY - sc(7));
-	lv_obj_add_flag(volume_icon, LV_OBJ_FLAG_CLICKABLE);
+	lv_obj_set_clickable(volume_icon, true);
 	lv_obj_set_ext_click_area(volume_icon, sc(12));
 	lv_obj_set_style_text_color(volume_icon, COLOR_TEXT, LV_STATE_PRESSED);
 	lv_obj_add_event_cb(volume_icon, on_volume_icon_clicked, LV_EVENT_CLICKED, NULL);
