@@ -14,19 +14,11 @@ manifest:
       url-base: https://github.com/zephyrproject-rtos
 
   projects:
-    # Projects listed here override the definitions imported from zephyr.
-    # The Espressif HAL is kept at the revision this project was verified
-    # with (newer than Zephyr's pin at the time).
-    - name: hal_espressif
-      remote: zephyrproject-rtos
-      revision: 0bd7ba4cdeb218fad291ae06f728c335a97e588d
-      path: modules/hal/espressif
-      west-commands: west/west-commands.yml
-
     - name: zephyr
       remote: zephyrproject-rtos
-      # Zephyr 4.5 development snapshot this project was verified against
-      revision: 59b63417ef1b69a8ea91d2f759416c1612203b66
+      # main after v4.5.0-rc2 (v4.5.0-rc2-76-ga915b2f1267), with the
+      # ESP32 I2S fix that rc2 lacks
+      revision: a915b2f12675b48b16d56653ea145dcd8f20cbbf
       import:
         # Only the modules the library and the player application need
         name-allowlist:
