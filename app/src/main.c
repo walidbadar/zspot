@@ -69,7 +69,8 @@ static void position_set(uint32_t position_ms)
 	atomic_clear(&position_bytes);
 }
 
-static uint32_t position_get(void)
+/* Polled by the Now Playing screen */
+static __maybe_unused uint32_t position_get(void)
 {
 	int64_t bytes = atomic_get(&position_bytes);
 
@@ -243,6 +244,12 @@ static void on_event(const struct zspot_event *event, void *user_data)
 	case ZSPOT_EVENT_DEPLETED:
 		LOG_INF("Queue finished");
 		break;
+	case ZSPOT_EVENT_REPEAT:
+		LOG_INF("Repeat %s", event->repeat == ZSPOT_REPEAT_TRACK ? "track"
+				     : event->repeat == ZSPOT_REPEAT_ALL ? "all"
+									  : "off");
+		ui_set_repeat((enum ui_repeat)event->repeat);
+		break;
 	case ZSPOT_EVENT_CONNECTION_LOST:
 		LOG_WRN("Connection to Spotify lost, reconnecting");
 		ui_set_network(false);
@@ -283,6 +290,16 @@ static void ui_previous(void)
 	}
 }
 
+/* The button shows the modes of the library under its own names */
+BUILD_ASSERT((int)UI_REPEAT_OFF == (int)ZSPOT_REPEAT_OFF &&
+	     (int)UI_REPEAT_ALL == (int)ZSPOT_REPEAT_ALL &&
+	     (int)UI_REPEAT_TRACK == (int)ZSPOT_REPEAT_TRACK);
+
+static void ui_repeat(enum ui_repeat mode)
+{
+	zspot_set_repeat((enum zspot_repeat)mode);
+}
+
 static void ui_volume(uint16_t volume, bool commit)
 {
 	sink_set_volume(volume);
@@ -314,6 +331,7 @@ static const struct ui_ops ui_ops = {
 	.set_paused = zspot_set_pause,
 	.next = ui_next,
 	.previous = ui_previous,
+	.set_repeat = ui_repeat,
 	.seek = zspot_seek,
 	.set_volume = ui_volume,
 	.position_ms = position_get,

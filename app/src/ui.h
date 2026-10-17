@@ -20,10 +20,19 @@
 #define UI_TEXT_MAX 96
 
 /** Player hooks, invoked on the LVGL thread in response to touch input. */
+/** Modes of the repeat button, in the order a tap cycles through them */
+enum ui_repeat {
+	UI_REPEAT_OFF,
+	UI_REPEAT_ALL,   /**< the play queue */
+	UI_REPEAT_TRACK, /**< the current track */
+};
+
 struct ui_ops {
 	void (*set_paused)(bool paused);
 	void (*next)(void);
 	void (*previous)(void);
+	/** The repeat button was tapped; answer with ui_set_repeat(). */
+	void (*set_repeat)(enum ui_repeat mode);
 	void (*seek)(uint32_t position_ms);
 	/** @p commit is false while the slider is still being dragged. */
 	void (*set_volume)(uint16_t volume, bool commit);
@@ -108,6 +117,9 @@ void ui_set_paused(bool paused);
 /** @param volume 0..65535 */
 void ui_set_volume(uint16_t volume);
 
+/** Shows the repeat mode on the repeat button. */
+void ui_set_repeat(enum ui_repeat mode);
+
 /**
  * Updates the network indicator in the top right corner. Holding it for one
  * second opens the Wi-Fi settings.
@@ -167,6 +179,10 @@ static inline void ui_set_paused(bool paused)
 }
 
 static inline void ui_set_volume(uint16_t volume)
+{
+}
+
+static inline void ui_set_repeat(enum ui_repeat mode)
 {
 }
 

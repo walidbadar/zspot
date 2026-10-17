@@ -58,6 +58,11 @@ LOG_MODULE_DECLARE(zspot_player, LOG_LEVEL_INF);
 #define PROGRESS_DY  sc(62)
 #define TIME_DY      sc(74)
 #define CONTROLS_DY  sc(116) /* centre line of the transport buttons */
+#define REPEAT_W     sc(36)  /* repeat button at the end of that line */
+/* Closest spacing of the transport buttons: the play button (60) and its
+ * neighbours (48) just apart
+ */
+#define CONTROLS_STEP_MIN (sc(30) + sc(24) + sc(4))
 #define VOLUME_DY    sc(162)
 
 #define LYRICS_PAD   sc(16) /* around the lines of the lyrics panel */
@@ -183,6 +188,7 @@ enum ui_msg_type {
 	UI_MSG_TRACK,
 	UI_MSG_PAUSED,
 	UI_MSG_VOLUME,
+	UI_MSG_REPEAT,
 	UI_MSG_NETWORK,
 	UI_MSG_BATTERY,
 	UI_MSG_LYRICS,
@@ -227,6 +233,7 @@ struct ui_msg {
 		bool connected;
 		int battery_percent;
 		uint16_t volume;
+		enum ui_repeat repeat;
 	};
 };
 
@@ -364,6 +371,13 @@ static lv_obj_t *prev_button;
 static lv_obj_t *play_button;
 static lv_obj_t *play_icon;
 static lv_obj_t *next_button;
+/* Repeat toggle at the end of the transport row: green when on, with a dot
+ * below, and a "1" when it repeats the one track, as in the Spotify app */
+static lv_obj_t *repeat_button;
+static lv_obj_t *repeat_icon;
+static lv_obj_t *repeat_badge;
+static lv_obj_t *repeat_dot;
+static enum ui_repeat repeat_mode = UI_REPEAT_OFF;
 static lv_obj_t *volume_slider;
 static lv_obj_t *volume_icon;
 /* The volume before the speaker was tapped to mute, restored by the next tap */
@@ -457,11 +471,21 @@ static void on_cover_ready(lv_draw_buf_t *image, lv_color_t accent)
 
 static void set_controls_enabled(bool enabled)
 {
-	lv_obj_t *const controls[] = {progress_slider, prev_button, play_button, next_button};
+	lv_obj_t *const controls[] = {progress_slider, prev_button, play_button, next_button,
+				      repeat_button};
 
 	ARRAY_FOR_EACH(controls, i) {
 		lv_obj_set_state(controls[i], LV_STATE_DISABLED, !enabled);
 	}
+}
+
+static void apply_repeat(void)
+{
+	const bool on = repeat_mode != UI_REPEAT_OFF;
+
+	lv_obj_set_style_text_color(repeat_icon, on ? COLOR_ACCENT : COLOR_SUBTLE, 0);
+	lv_obj_set_hidden(repeat_dot, !on);
+	lv_obj_set_hidden(repeat_badge, repeat_mode != UI_REPEAT_TRACK);
 }
 
 static void update_volume_icon(void)
@@ -806,6 +830,10 @@ static void apply(const struct ui_msg *msg)
 		paused = msg->paused;
 		apply_paused();
 		break;
+	case UI_MSG_REPEAT:
+		repeat_mode = msg->repeat;
+		apply_repeat();
+		break;
 	case UI_MSG_VOLUME:
 		if (!lv_slider_is_dragged(volume_slider)) {
 			lv_slider_set_value(volume_slider, msg->volume, LV_ANIM_OFF);
@@ -965,6 +993,15 @@ static void on_next_clicked(lv_event_t *e)
 	ops->next();
 }
 
+/* Off, the queue, the one track, off again; shown once the player confirms */
+static void on_repeat_clicked(lv_event_t *e)
+{
+	ARG_UNUSED(e);
+	ops->set_repeat(repeat_mode == UI_REPEAT_OFF   ? UI_REPEAT_ALL
+			: repeat_mode == UI_REPEAT_ALL ? UI_REPEAT_TRACK
+						       : UI_REPEAT_OFF);
+}
+
 /* Shows the list view empty; its content arrives through ui_list_reset(). */
 static void open_list(enum ui_list list, const char *heading)
 {
@@ -1121,6 +1158,38 @@ static lv_obj_t *create_button(lv_obj_t *parent, int32_t x, int32_t size, const 
 	return button;
 }
 
+/* Repeat toggle at the right end of the transport row */
+static void create_repeat_button(lv_obj_t *parent)
+{
+	repeat_button = create_box(parent, REPEAT_W, sc(48));
+	lv_obj_set_pos(repeat_button, lay.info_x + lay.info_w - REPEAT_W,
+		       lay.info_y + CONTROLS_DY - sc(24));
+	lv_obj_set_clickable(repeat_button, true);
+	lv_obj_set_ext_click_area(repeat_button, sc(4));
+	lv_obj_set_style_opa(repeat_button, LV_OPA_40, LV_STATE_DISABLED);
+	lv_obj_add_event_cb(repeat_button, on_repeat_clicked, LV_EVENT_CLICKED, NULL);
+
+	repeat_icon = create_label(repeat_button, font_title, COLOR_SUBTLE, LV_SYMBOL_LOOP);
+	lv_obj_center(repeat_icon);
+
+	/* "1" on a disc of the background colour, at the top right of the arrows */
+	repeat_badge = create_label(repeat_button, font_text, COLOR_ACCENT, "1");
+	lv_obj_set_style_bg_color(repeat_badge, COLOR_BG, 0);
+	lv_obj_set_style_bg_opa(repeat_badge, LV_OPA_COVER, 0);
+	lv_obj_set_style_radius(repeat_badge, LV_RADIUS_CIRCLE, 0);
+	lv_obj_set_style_pad_hor(repeat_badge, sc(2), 0);
+	lv_obj_align(repeat_badge, LV_ALIGN_CENTER, sc(12), -sc(11));
+
+	repeat_dot = create_box(repeat_button, sc(4), sc(4));
+	lv_obj_set_clickable(repeat_dot, false);
+	lv_obj_set_style_radius(repeat_dot, LV_RADIUS_CIRCLE, 0);
+	lv_obj_set_style_bg_color(repeat_dot, COLOR_ACCENT, 0);
+	lv_obj_set_style_bg_opa(repeat_dot, LV_OPA_COVER, 0);
+	lv_obj_align(repeat_dot, LV_ALIGN_CENTER, 0, sc(16));
+
+	apply_repeat();
+}
+
 /* Borderless icon with a comfortable touch area, e.g. in a top bar. */
 static lv_obj_t *create_icon_button(lv_obj_t *parent, const char *symbol, lv_event_cb_t clicked_cb)
 {
@@ -1235,6 +1304,7 @@ static void create_screen(void)
 	lv_obj_t *library_button;
 	int32_t controls_x;
 	int32_t controls_step;
+	int32_t controls_room;
 	const int32_t battery_w = IS_ENABLED(CONFIG_ZSPOT_BATTERY) ? sc(28) : 0;
 	const int32_t search_w = lay.w - 2 * sc(52) - battery_w;
 	lv_obj_t *search_bar;
@@ -1346,9 +1416,19 @@ static void create_screen(void)
 	lv_obj_align(duration_label, LV_ALIGN_TOP_RIGHT, -(lay.w - lay.info_x - lay.info_w),
 		     lay.info_y + TIME_DY);
 
-	/* Transport buttons around the middle of the column, closer on a narrow one */
-	controls_x = lay.info_x + lay.info_w / 2;
-	controls_step = MIN(sc(80), lay.info_w / 2 - sc(24));
+	/* Transport buttons around the middle of the column, closer on a narrow
+	 * one and clear of the repeat button at its end. Where even the closest
+	 * spacing does not fit, they move into the room left of that button.
+	 */
+	controls_room = lay.info_w - REPEAT_W - sc(4);
+	controls_step = lay.info_w / 2 - sc(24) - REPEAT_W - sc(4);
+	if (controls_step >= CONTROLS_STEP_MIN) {
+		controls_x = lay.info_x + lay.info_w / 2;
+	} else {
+		controls_x = lay.info_x + controls_room / 2;
+		controls_step = MAX(controls_room / 2 - sc(24), CONTROLS_STEP_MIN);
+	}
+	controls_step = MIN(controls_step, sc(80));
 	prev_button = create_button(screen, controls_x - controls_step, sc(48), LV_SYMBOL_PREV,
 				    on_prev_clicked, NULL);
 	play_button = create_button(screen, controls_x, sc(60), LV_SYMBOL_PLAY, on_play_clicked,
@@ -1360,6 +1440,8 @@ static void create_screen(void)
 	lv_obj_set_style_bg_opa(play_button, LV_OPA_COVER, 0);
 	lv_obj_set_style_text_color(play_button, COLOR_BG, 0);
 	lv_obj_set_style_text_color(play_button, COLOR_BG, LV_STATE_PRESSED);
+
+	create_repeat_button(screen);
 
 	/* Bottom row: lyrics button, speaker symbol, volume slider */
 	lyrics_button = create_box(screen, sc(36), sc(36));
@@ -1467,6 +1549,13 @@ void ui_set_paused(bool is_paused)
 void ui_set_volume(uint16_t volume)
 {
 	const struct ui_msg msg = {.type = UI_MSG_VOLUME, .volume = volume};
+
+	post(&msg);
+}
+
+void ui_set_repeat(enum ui_repeat mode)
+{
+	const struct ui_msg msg = {.type = UI_MSG_REPEAT, .repeat = mode};
 
 	post(&msg);
 }
