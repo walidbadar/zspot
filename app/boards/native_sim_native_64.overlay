@@ -6,21 +6,16 @@
 
 /*
  * The audio goes out through the file-backed I2S driver of the board; see
- * CONFIG_ZSPOT_PCM_COMMAND for where. The battery of the host is shown on the
- * screen when the host has a power supply in this directory; another one is
- * picked with --fuel-gauge-path=<directory>.
+ * CONFIG_ZSPOT_PCM_COMMAND for where.
  */
 / {
 	aliases {
-		fuel-gauge0 = &fuel_gauge0;
 		zspot-i2s = &i2s_tx0;
 	};
+};
 
-	fuel_gauge0: fuel_gauge {
-		compatible = "zephyr,native-linux-fuel-gauge";
-		path = "/sys/class/power_supply/BAT0";
-		status = "okay";
-	};
+&fuel_gauge0 {
+	status = "okay";
 };
 
 &sdl_dc {
