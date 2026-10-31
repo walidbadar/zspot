@@ -61,8 +61,6 @@ Repository layout
        C API, I2S sink, Tremor Vorbis decoder
    * - ``include/zspot/``
      - Public headers of the library
-   * - ``drivers/``, ``dts/``
-     - Out-of-tree drivers and bindings, e.g. the ``native_sim`` fuel gauge
    * - ``scripts/``
      - Web API authorisation, zeroconf hand-over emulator, ``native_sim``
        LAN bridge
