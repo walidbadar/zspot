@@ -16,9 +16,8 @@ manifest:
   projects:
     - name: zephyr
       remote: zephyrproject-rtos
-      # main after v4.5.0-rc2 (v4.5.0-rc2-76-ga915b2f1267), with the
-      # ESP32 I2S fix that rc2 lacks
-      revision: a915b2f12675b48b16d56653ea145dcd8f20cbbf
+      # main after v4.5.0 (v4.5.0-962-g0534e997eac)
+      revision: 0534e997eacb94bae1df6c9a7dd4a9a6cbf1cecf
       import:
         # Only the modules the library and the player application need
         name-allowlist:
