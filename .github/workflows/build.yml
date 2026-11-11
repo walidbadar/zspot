@@ -31,6 +31,13 @@ jobs:
           command -v protoc || printf '#!/bin/sh\nexec python3 -m grpc_tools.protoc "$@"\n' > /usr/local/bin/protoc
           chmod +x /usr/local/bin/protoc
 
+      - name: Install the ALSA development package
+        # native_sim plays the audio through the ALSA backend of the I2S driver
+        run: |
+          pkg-config --exists alsa || {
+            apt-get update && apt-get install -y --no-install-recommends libasound2-dev
+          }
+
       - name: Build the player application
         working-directory: zspot
         run: west twister -T app -v --inline-logs --integration

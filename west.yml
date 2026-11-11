@@ -16,8 +16,9 @@ manifest:
   projects:
     - name: zephyr
       remote: zephyrproject-rtos
-      # main after v4.5.0 (v4.5.0-962-g0534e997eac)
-      revision: 0534e997eacb94bae1df6c9a7dd4a9a6cbf1cecf
+      # main after v4.5.0 (v4.5.0-2533-g073e47854ed), with the ALSA backend
+      # of the native_sim I2S driver
+      revision: 073e47854ede6baf45acf49aa5439cafd2a7bbf9
       import:
         # Only the modules the library and the player application need
         name-allowlist:

@@ -85,12 +85,12 @@ native_sim
 **********
 
 The display is an SDL window with the mouse as the touch screen. The audio
-goes through Zephyr's file-backed native_sim I2S driver into ``aplay``, which
-the simulator starts itself (``CONFIG_ZSPOT_PCM_COMMAND``). It needs the SDL2
-development package and alsa-utils. To write the audio to a file instead,
-build with ``-DCONFIG_ZSPOT_PCM_COMMAND=""``: the driver then writes
-``i2s_out.pcm`` in the working directory, or the file given with
-``--i2s_tx_tx=<path>``.
+goes through Zephyr's native_sim I2S driver to the host's default ALSA device
+(``CONFIG_I2S_NATIVE_SIM_ALSA``). It needs the SDL2 and ALSA development
+packages (``SDL2-devel`` and ``alsa-lib-devel`` on Fedora, ``libsdl2-dev`` and
+``libasound2-dev`` on Debian and Ubuntu). Another ALSA device or a file is
+picked with ``--i2s_tx_tx=<path>``, e.g. ``--i2s_tx_tx=alsa:hw:0,0`` or
+``--i2s_tx_tx=out.pcm`` for raw 16-bit little-endian stereo PCM at 44.1 kHz.
 
 Create the TAP interface once per boot and give it internet access:
 
@@ -144,8 +144,6 @@ Application options
      - Interval between two fuel gauge readings
    * - ``ZSPOT_PCM_TAP`` / ``ZSPOT_PCM_TAP_PORT``
      - Copy of the audio over TCP
-   * - ``ZSPOT_PCM_COMMAND``
-     - Host command that plays the audio on ``native_sim``
    * - ``ZSPOT_WEB_CLIENT_ID``, ``ZSPOT_WEB_CLIENT_SECRET``,
        ``ZSPOT_WEB_REFRESH_TOKEN``
      - Web API access for search and Your Library

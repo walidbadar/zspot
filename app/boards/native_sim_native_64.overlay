@@ -5,8 +5,8 @@
  */
 
 /*
- * The audio goes out through the file-backed I2S driver of the board; see
- * CONFIG_ZSPOT_PCM_COMMAND for where.
+ * The audio goes out through the I2S driver of the board, to the host's
+ * ALSA device (see native_sim_native_64.conf).
  */
 / {
 	aliases {

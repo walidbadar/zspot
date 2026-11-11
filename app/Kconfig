@@ -5,23 +5,6 @@ mainmenu "zspot player"
 
 menu "zspot player"
 
-config ZSPOT_PCM_COMMAND
-	string "Host command that plays the audio (native_sim)"
-	depends on I2S_NATIVE_SIM
-	default "aplay -q -f S16_LE -r 44100 -c 2"
-	help
-	  On native_sim the audio goes through the file-backed I2S driver.
-	  When this is set, the simulator starts the shell command at boot and
-	  the driver writes into its standard input: raw 16-bit little-endian
-	  stereo PCM at 44.1 kHz. Clear it to write the audio to the file
-	  I2S_NATIVE_SIM_TX_FILE_PATH instead, or to the one given on the
-	  command line with --<i2s device>_tx=<path>.
-
-# The I2S driver opens a path: with a player, the pipe to its standard input
-# is installed at this descriptor (src/pcm_command_bottom.c).
-config I2S_NATIVE_SIM_TX_FILE_PATH
-	default "/dev/fd/200" if ZSPOT_PCM_COMMAND != ""
-
 config ZSPOT_PCM_TAP
 	bool "PCM tap: copy of the audio over TCP"
 	select RING_BUFFER_LARGE

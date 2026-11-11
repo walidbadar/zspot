@@ -33,9 +33,6 @@
 #if defined(CONFIG_ZSPOT_I2S_SINK)
 #include <zspot/zspot_i2s_sink.h>
 #endif
-#if defined(CONFIG_I2S_NATIVE_SIM)
-#include "pcm_command_bottom.h"
-#endif
 #include "pcm_tap.h"
 #include "ui.h"
 #include "battery.h"
@@ -149,22 +146,9 @@ static int sink_init(void)
 {
 #if defined(CONFIG_ZSPOT_I2S_SINK)
 #if defined(CONFIG_I2S_NATIVE_SIM)
-	const char *path = CONFIG_I2S_NATIVE_SIM_TX_FILE_PATH;
-	int ret;
-
-	/* The I2S driver writes the audio to a host file: the player's input. */
-	if (CONFIG_ZSPOT_PCM_COMMAND[0] == '\0') {
-		LOG_INF("Writing the audio to %s (--%s_tx=<path> overrides)", path,
-			DEVICE_DT_NAME(DT_ALIAS(zspot_i2s)));
-	} else if ((ret = pcm_command_start(CONFIG_ZSPOT_PCM_COMMAND, path)) == 0) {
-		LOG_INF("Playing the audio with \"%s\"", CONFIG_ZSPOT_PCM_COMMAND);
-	} else if (ret == -EINVAL) {
-		LOG_WRN("\"%s\" is not started: the audio goes to %s", CONFIG_ZSPOT_PCM_COMMAND,
-			path);
-	} else {
-		LOG_WRN("Cannot start \"%s\" (%d): running without sound",
-			CONFIG_ZSPOT_PCM_COMMAND, ret);
-	}
+	/* An ALSA device ("alsa:<name>") or a host file */
+	LOG_INF("Audio output: %s (--%s_tx=<path> overrides)", CONFIG_I2S_NATIVE_SIM_TX_PATH,
+		DEVICE_DT_NAME(DT_ALIAS(zspot_i2s)));
 #endif
 	return zspot_i2s_sink_init(DEVICE_DT_GET(DT_ALIAS(zspot_i2s)),
 				   DEVICE_DT_GET_OR_NULL(DT_ALIAS(zspot_codec)), 44100, 2, 16);

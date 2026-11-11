@@ -41,6 +41,9 @@ No sound
   (see :doc:`player`). If it sounds right, check the wiring and the DAC
   (see :doc:`hardware`).
 - An I2S amplifier with its shutdown pin pulled low stays silent.
+- On ``native_sim`` the log names the audio output at startup. When the ALSA
+  device cannot be opened, the simulator prints a warning with the reason;
+  pick another device with ``--i2s_tx_tx=alsa:<name>``.
 
 Playing a podcast fails from Your Library or search
 ***************************************************
