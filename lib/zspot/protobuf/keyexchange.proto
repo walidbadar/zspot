@@ -3,6 +3,8 @@
 
 message LoginCryptoDiffieHellmanChallenge {
     required bytes gs = 0xa; 
+    optional int32 server_signature_key = 0x14;
+    optional bytes gs_signature = 0x1e;
 }
 
 message LoginCryptoChallengeUnion {

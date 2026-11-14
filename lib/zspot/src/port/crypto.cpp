@@ -8,6 +8,7 @@
 
 #include <psa/crypto.h>
 #include <zephyr/sys/base64.h>
+#include <zephyr/sys/util.h>
 
 #include <algorithm>
 #include <cstring>
@@ -71,6 +72,24 @@ psa_key_id_t import_key(psa_key_type_t type, psa_algorithm_t alg, psa_key_usage_
 		throw std::runtime_error("PSA key import failed");
 	}
 	return id;
+}
+
+/* An integer of DER: its tag and length, a zero where the top bit is set, the bytes */
+void der_integer(std::vector<uint8_t> &out, const uint8_t *bytes, size_t len)
+{
+	const bool pad = len > 0 && (bytes[0] & 0x80) != 0;
+	const size_t total = len + (pad ? 1 : 0);
+
+	out.push_back(0x02);
+	if (total >= 0x80) {
+		out.push_back(0x82);
+		out.push_back(static_cast<uint8_t>(total >> 8));
+	}
+	out.push_back(static_cast<uint8_t>(total));
+	if (pad) {
+		out.push_back(0x00);
+	}
+	out.insert(out.end(), bytes, bytes + len);
 }
 
 class HmacSha1Key
@@ -285,6 +304,54 @@ void Crypto::aesECBdecrypt(const std::vector<uint8_t> &key, std::vector<uint8_t>
 }
 
 /* PBKDF2 ------------------------------------------------------------------ */
+
+bool Crypto::rsaSha1Verify(const std::vector<uint8_t> &modulus,
+			   const std::vector<uint8_t> &message,
+			   const std::vector<uint8_t> &signature)
+{
+#if defined(PSA_WANT_ALG_RSA_PKCS1V15_SIGN) && defined(PSA_WANT_KEY_TYPE_RSA_PUBLIC_KEY)
+	static const uint8_t exponent[] = {0x01, 0x00, 0x01};
+	const psa_algorithm_t alg = PSA_ALG_RSA_PKCS1V15_SIGN(PSA_ALG_SHA_1);
+	std::vector<uint8_t> integers;
+	std::vector<uint8_t> key;
+
+	/* PSA takes the key as RSAPublicKey: SEQUENCE { modulus, publicExponent } */
+	der_integer(integers, modulus.data(), modulus.size());
+	der_integer(integers, exponent, sizeof(exponent));
+	key.push_back(0x30);
+	key.push_back(0x82);
+	key.push_back(static_cast<uint8_t>(integers.size() >> 8));
+	key.push_back(static_cast<uint8_t>(integers.size()));
+	key.insert(key.end(), integers.begin(), integers.end());
+
+	ensure_psa();
+
+	psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+	psa_key_id_t id = PSA_KEY_ID_NULL;
+
+	psa_set_key_type(&attributes, PSA_KEY_TYPE_RSA_PUBLIC_KEY);
+	psa_set_key_algorithm(&attributes, alg);
+	psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_VERIFY_MESSAGE);
+
+	psa_status_t status = psa_import_key(&attributes, key.data(), key.size(), &id);
+
+	psa_reset_key_attributes(&attributes);
+	if (status != PSA_SUCCESS) {
+		LOG_ERR("Cannot use the RSA key: %d", static_cast<int>(status));
+		return false;
+	}
+
+	status = psa_verify_message(id, alg, message.data(), message.size(), signature.data(),
+				    signature.size());
+	psa_destroy_key(id);
+	return status == PSA_SUCCESS;
+#else
+	ARG_UNUSED(modulus);
+	ARG_UNUSED(message);
+	ARG_UNUSED(signature);
+	return false;
+#endif
+}
 
 std::vector<uint8_t> Crypto::pbkdf2HmacSha1(const std::vector<uint8_t> &password,
 					    const std::vector<uint8_t> &salt, int iterations,

@@ -64,6 +64,14 @@ public:
 	void dhInit();
 	std::vector<uint8_t> dhCalculateShared(const std::vector<uint8_t> &remote_key);
 
+	/**
+	 * Checks an RSA signature (PKCS #1 v1.5 over SHA-1) of @p message
+	 * with the public key of the modulus @p modulus and the exponent
+	 * 65537. False as well when the build has no RSA.
+	 */
+	bool rsaSha1Verify(const std::vector<uint8_t> &modulus, const std::vector<uint8_t> &message,
+			   const std::vector<uint8_t> &signature);
+
 	/* PBKDF2-HMAC-SHA1 */
 	std::vector<uint8_t> pbkdf2HmacSha1(const std::vector<uint8_t> &password,
 					    const std::vector<uint8_t> &salt, int iterations,

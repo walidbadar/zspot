@@ -175,6 +175,8 @@ Configuration
      - Large buffers and thread stacks in external memory (PSRAM)
    * - ``ZSPOT_EXTERNAL_TLS_HEAP_SIZE``
      - Mbed TLS heap placed in external memory
+   * - ``ZSPOT_AP_VERIFY``
+     - Check the signature of the access point before signing in
    * - ``ZSPOT_TLS_SEC_TAG``, ``ZSPOT_TLS_SEC_TAG_COUNT``
      - Tags of the CA certificates that the servers are verified against
        (-1: no verification)

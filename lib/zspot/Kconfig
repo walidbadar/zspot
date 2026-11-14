@@ -124,6 +124,18 @@ config ZSPOT_EXTERNAL_TLS_HEAP_SIZE
 	  When non-zero the Mbed TLS buffer allocator is re-initialised on this
 	  external buffer, so CONFIG_MBEDTLS_HEAP_SIZE can stay small.
 
+config ZSPOT_AP_VERIFY
+	bool "Check that the access point is Spotify's"
+	default y
+	select PSA_WANT_ALG_RSA_PKCS1V15_SIGN
+	select PSA_WANT_KEY_TYPE_RSA_PUBLIC_KEY
+	help
+	  The session with an access point is encrypted with keys from a
+	  Diffie-Hellman exchange, which anybody in the path can take part in.
+	  The access point signs its half of the exchange with a key of
+	  Spotify; with this option the session is given up when that
+	  signature is missing or wrong, before the credentials are sent.
+
 config ZSPOT_TLS_SEC_TAG
 	int "First TLS credential security tag for server verification"
 	default -1

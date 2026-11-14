@@ -81,7 +81,9 @@ nothing is verified.
   the audio is encrypted with a key that arrives over the session, so
   nothing can be read or replaced on the way.
 - The session with the access point is not TLS. It is encrypted with keys
-  from a Diffie-Hellman exchange.
+  from a Diffie-Hellman exchange, and the access point signs its half of
+  the exchange with a key of Spotify. The library gives the session up when
+  that signature is missing or wrong (``CONFIG_ZSPOT_AP_VERIFY``).
 - The validity period of a certificate is not checked, as the device has no
   clock that is set.
 
