@@ -40,9 +40,11 @@
 #include "certs.h"
 #include "credentials.h"
 #include "resume.h"
+#include "websetup.h"
 #if defined(CONFIG_ZSPOT_UI)
 #include "library.h"
 #include "lyrics.h"
+#include "webapi.h"
 #endif
 
 /* Decoded PCM: 44.1 kHz, 16 bit, stereo */
@@ -430,6 +432,13 @@ static void wifi_forget(const char *ssid)
 }
 #endif
 
+/* Somebody is at the device: the Web API setup takes new credentials for a while. */
+static void ui_wifi_scan(void)
+{
+	websetup_allow();
+	wifi_scan();
+}
+
 static const struct ui_ops ui_ops = {
 	.set_paused = ui_pause,
 	.next = ui_next,
@@ -441,7 +450,7 @@ static const struct ui_ops ui_ops = {
 	.library_open = library_open,
 	.library_back = library_back,
 	.library_select = library_select,
-	.wifi_scan = wifi_scan,
+	.wifi_scan = ui_wifi_scan,
 	.wifi_connect = wifi_join,
 	.wifi_forget = wifi_forget,
 	.lyrics_request = lyrics_request,
@@ -530,6 +539,7 @@ int main(void)
 
 #if defined(CONFIG_ZSPOT_UI)
 	if (ui_init(&ui_ops) == 0) {
+		webapi_init();
 		library_init();
 		lyrics_init();
 	}
@@ -545,6 +555,7 @@ int main(void)
 	}
 
 	pcm_tap_init();
+	(void)websetup_init();
 
 	ret = certs_register();
 	if (ret != 0) {

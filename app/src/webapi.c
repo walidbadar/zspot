@@ -14,6 +14,9 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/base64.h>
 
+#include <lvgl.h>
+#include <lvgl_zephyr.h>
+
 #include <zspot/zspot.h>
 
 #include "json_scan.h"
@@ -22,84 +25,151 @@ LOG_MODULE_DECLARE(zspot_player, LOG_LEVEL_INF);
 
 #define TOKEN_URL "https://accounts.spotify.com/api/token"
 
-#define CLIENT_ID     CONFIG_ZSPOT_WEB_CLIENT_ID
-#define CLIENT_SECRET CONFIG_ZSPOT_WEB_CLIENT_SECRET
-#define REFRESH_TOKEN CONFIG_ZSPOT_WEB_REFRESH_TOKEN
+/* The answer to a token request is a few hundred bytes */
+#define RESPONSE_MAX 1024
+
+/* Guards the keys and what was obtained with them */
+static K_MUTEX_DEFINE(lock);
+/* The credentials in use: the stored ones, or else those of the build */
+static struct web_keys keys;
+static bool configured;
 
 /* "Authorization: Bearer " plus the token; Spotify's are below 400 characters */
 static char bearer[600];
 static int64_t expires_at_ms;
 
-/* Exchanges the refresh token for an access token. */
-static int renew_token(void)
+void webapi_init(void)
 {
-	static const char prefix[] = "Authorization: Basic ";
-	char credentials[sizeof(CLIENT_ID) + sizeof(CLIENT_SECRET)];
-	char basic[sizeof(prefix) + 4 * sizeof(credentials) / 3 + 4];
-	char body[sizeof(REFRESH_TOKEN) + 48];
-	char response[1024];
-	const char *const headers[] = {basic, NULL};
-	size_t len = 0;
-	int status;
-
-	snprintf(credentials, sizeof(credentials), "%s:%s", CLIENT_ID, CLIENT_SECRET);
-	strcpy(basic, prefix);
-	if (base64_encode(&basic[strlen(prefix)], sizeof(basic) - strlen(prefix), &len,
-			  credentials, strlen(credentials)) != 0) {
-		return -ENOMEM;
+	k_mutex_lock(&lock, K_FOREVER);
+	if (web_keys_load(&keys) == 0) {
+		LOG_INF("Web API: using the stored credentials");
+		configured = true;
+	} else {
+		configured = web_keys_set(&keys, CONFIG_ZSPOT_WEB_CLIENT_ID,
+					  CONFIG_ZSPOT_WEB_CLIENT_SECRET,
+					  CONFIG_ZSPOT_WEB_REFRESH_TOKEN);
 	}
-
-	/* Spotify's refresh tokens are URL safe, so no escaping is needed. */
-	snprintf(body, sizeof(body), "grant_type=refresh_token&refresh_token=%s", REFRESH_TOKEN);
-
-	status = zspot_http_request("POST", TOKEN_URL, headers,
-				    "application/x-www-form-urlencoded", body, (uint8_t *)response,
-				    sizeof(response) - 1, &len);
-	if (status < 0) {
-		return status;
-	}
-	response[len] = '\0';
-	if (status != 200) {
-		LOG_WRN("Token request: HTTP %d %s", status, response);
-		return -EACCES;
-	}
-
-	strcpy(bearer, "Authorization: Bearer ");
-	if (!json_string(json_member(response, "access_token"), &bearer[strlen(bearer)],
-			 sizeof(bearer) - strlen(bearer))) {
-		bearer[0] = '\0';
-		return -EACCES;
-	}
-
-	/* Renew a minute early. */
-	expires_at_ms = k_uptime_get() +
-			(int64_t)json_uint(json_member(response, "expires_in"), 3600) * 1000 -
-			60 * MSEC_PER_SEC;
-	LOG_INF("Web API access token renewed");
-	return 0;
+	k_mutex_unlock(&lock);
 }
 
 bool webapi_configured(void)
 {
-	return strlen(CLIENT_ID) > 0 && strlen(CLIENT_SECRET) > 0 && strlen(REFRESH_TOKEN) > 0;
+	return configured;
+}
+
+int webapi_set_keys(const struct web_keys *new_keys)
+{
+	int ret;
+
+	k_mutex_lock(&lock, K_FOREVER);
+	ret = web_keys_store(new_keys);
+	if (ret == 0) {
+		keys = *new_keys;
+		configured = true;
+		/* The token in hand belongs to the keys before */
+		bearer[0] = '\0';
+	}
+	k_mutex_unlock(&lock);
+	return ret;
+}
+
+/*
+ * Exchanges the refresh token for an access token; the caller holds the lock.
+ * The texts of the request and the answer are too large for the stack next to
+ * a TLS handshake: they come from the LVGL pool.
+ */
+static int renew_token(void)
+{
+	static const char prefix[] = "Authorization: Basic ";
+	/* "<id>:<secret>", its base64 form behind the prefix, the form, the answer */
+	const size_t pair_size = sizeof(keys.client_id) + sizeof(keys.client_secret);
+	const size_t basic_size = sizeof(prefix) + 4 * pair_size / 3 + 4;
+	const size_t body_size = sizeof(keys.refresh_token) + 48;
+	char *scratch;
+	char *pair;
+	char *basic;
+	char *body;
+	char *response;
+	size_t len = 0;
+	int status;
+
+	lvgl_lock();
+	scratch = lv_malloc(pair_size + basic_size + body_size + RESPONSE_MAX);
+	lvgl_unlock();
+	if (scratch == NULL) {
+		return -ENOMEM;
+	}
+	pair = scratch;
+	basic = pair + pair_size;
+	body = basic + basic_size;
+	response = body + body_size;
+
+	snprintf(pair, pair_size, "%s:%s", keys.client_id, keys.client_secret);
+	/* The keys only hold characters that need no escaping here. */
+	snprintf(body, body_size, "grant_type=refresh_token&refresh_token=%s", keys.refresh_token);
+
+	strcpy(basic, prefix);
+	if (base64_encode(&basic[strlen(prefix)], basic_size - strlen(prefix), &len, pair,
+			  strlen(pair)) != 0) {
+		status = -ENOMEM;
+	} else {
+		const char *const headers[] = {basic, NULL};
+
+		status = zspot_http_request("POST", TOKEN_URL, headers,
+					    "application/x-www-form-urlencoded", body,
+					    (uint8_t *)response, RESPONSE_MAX - 1, &len);
+	}
+
+	if (status == 200) {
+		response[len] = '\0';
+		strcpy(bearer, "Authorization: Bearer ");
+		if (json_string(json_member(response, "access_token"), &bearer[strlen(bearer)],
+				sizeof(bearer) - strlen(bearer))) {
+			/* Renew a minute early. */
+			expires_at_ms = k_uptime_get() +
+					(int64_t)json_uint(json_member(response, "expires_in"), 3600) *
+						1000 -
+					60 * MSEC_PER_SEC;
+			status = 0;
+		} else {
+			bearer[0] = '\0';
+			status = -EACCES;
+		}
+	} else if (status >= 0) {
+		response[len] = '\0';
+		LOG_WRN("Token request: HTTP %d %s", status, response);
+		status = -EACCES;
+	}
+
+	lvgl_lock();
+	lv_free(scratch);
+	lvgl_unlock();
+
+	if (status == 0) {
+		LOG_INF("Web API access token renewed");
+	}
+	return status;
 }
 
 int webapi_request(const char *method, const char *url, const char *body, uint8_t *buf,
 		   size_t size, size_t *len)
 {
 	const char *const headers[] = {bearer, NULL};
-	int status;
+	int status = -ENOENT;
 
 	if (!webapi_configured()) {
 		return -ENOENT;
 	}
+
+	/* Held over the request: new keys take the token away with them */
+	k_mutex_lock(&lock, K_FOREVER);
 
 	/* A token that Spotify revoked early is renewed once. */
 	for (int attempt = 0; attempt < 2; attempt++) {
 		if (bearer[0] == '\0' || k_uptime_get() >= expires_at_ms) {
 			status = renew_token();
 			if (status != 0) {
-				return status;
+				break;
 			}
 		}
 
@@ -111,5 +181,7 @@ int webapi_request(const char *method, const char *url, const char *body, uint8_
 		}
 		bearer[0] = '\0';
 	}
+
+	k_mutex_unlock(&lock);
 	return status;
 }

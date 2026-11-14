@@ -99,8 +99,9 @@ config ZSPOT_WEB_CLIENT_ID
 	  one-time authorisation by the user with scripts/spotify_authorize.py.
 	  The three values default to the environment variables
 	  ZSPOT_WEB_CLIENT_ID, ZSPOT_WEB_CLIENT_SECRET and
-	  ZSPOT_WEB_REFRESH_TOKEN. Without them the library view only says that
-	  it is not set up.
+	  ZSPOT_WEB_REFRESH_TOKEN, and may be left empty when the script sends
+	  them to the device instead (ZSPOT_WEB_SETUP). Without either the
+	  library view only says that it is not set up.
 
 config ZSPOT_WEB_CLIENT_SECRET
 	string "Client secret of the Spotify developer application"
@@ -135,6 +136,26 @@ config ZSPOT_BATTERY_POLL_SECONDS
 	int "Seconds between two readings of the fuel gauge"
 	default 30
 	range 1 3600
+
+config ZSPOT_WEB_SETUP
+	bool "Take the Web API credentials over the network"
+	default y
+	depends on SETTINGS
+	help
+	  Serves an HTTP endpoint that scripts/spotify_authorize.py sends the
+	  client ID, the client secret and the refresh token to, and keeps
+	  them in the settings, so that they need not be part of the firmware
+	  and can be those of whoever uses the device. Stored credentials come
+	  before those given to the build.
+
+	  Credentials are taken while the device has none, or for five minutes
+	  after the Wi-Fi settings were opened on its screen. They cross the
+	  local network unencrypted and are stored unencrypted.
+
+config ZSPOT_WEB_SETUP_PORT
+	int "TCP port of the Web API setup"
+	default 8081
+	depends on ZSPOT_WEB_SETUP
 
 config ZSPOT_LAST_TRACK
 	bool "Show the last song after a restart"
