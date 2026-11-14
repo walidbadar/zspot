@@ -36,6 +36,7 @@
 #include "pcm_tap.h"
 #include "ui.h"
 #include "battery.h"
+#include "credentials.h"
 #if defined(CONFIG_ZSPOT_UI)
 #include "library.h"
 #include "lyrics.h"
@@ -334,6 +335,8 @@ static const struct ui_ops ui_ops = {
 int main(void)
 {
 	static char credentials[1024];
+	bool credentials_stored = false;
+	bool zeroconf_started = false;
 	const struct zspot_config config = {
 		.device_name = CONFIG_ZSPOT_DEVICE_NAME,
 		.audio_format = ZSPOT_FORMAT_OGG_VORBIS_160,
@@ -368,23 +371,31 @@ int main(void)
 		return 0;
 	}
 
+	/* Credentials of the build are a development aid and come first. */
 	if (strlen(CONFIG_ZSPOT_CREDENTIALS_JSON) > 0 &&
 	    zspot_credentials_load_json(CONFIG_ZSPOT_CREDENTIALS_JSON) == 0) {
-		LOG_INF("Using stored credentials");
+		LOG_INF("Using the credentials of the build");
 	} else if (strlen(CONFIG_ZSPOT_USERNAME) > 0 &&
 		   zspot_credentials_set_user_pass(CONFIG_ZSPOT_USERNAME,
 						   CONFIG_ZSPOT_PASSWORD) == 0) {
 		LOG_INF("Using username/password credentials");
-	} else {
-		ret = zspot_zeroconf_start();
-		if (ret != 0) {
-			LOG_ERR("Zeroconf start failed (%d)", ret);
-			return 0;
-		}
+	} else if (credentials_load() == 0) {
+		LOG_INF("Using stored credentials");
+		credentials_stored = true;
 	}
 
 	while (true) {
 		if (!zspot_credentials_available()) {
+			/* Not needed while there are credentials to sign in with */
+			if (!zeroconf_started) {
+				ret = zspot_zeroconf_start();
+				if (ret != 0) {
+					LOG_ERR("Zeroconf start failed (%d)", ret);
+					return 0;
+				}
+				zeroconf_started = true;
+			}
+
 			LOG_INF("Open Spotify and select \"%s\" in the device list",
 				zspot_device_name());
 			ui_show_message(zspot_device_name(),
@@ -402,12 +413,18 @@ int main(void)
 		if (ret == -EACCES) {
 			/* Rejected credentials: go back to waiting for a hand-over. */
 			zspot_credentials_clear();
+			if (credentials_stored) {
+				(void)credentials_forget();
+				credentials_stored = false;
+			}
 		} else {
 			k_sleep(K_SECONDS(5));
 		}
 	}
 
-	if (zspot_credentials_save_json(credentials, sizeof(credentials)) > 0) {
+	if (IS_ENABLED(CONFIG_ZSPOT_STORE_CREDENTIALS)) {
+		(void)credentials_store();
+	} else if (zspot_credentials_save_json(credentials, sizeof(credentials)) > 0) {
 		LOG_INF("Reusable credentials (store these): %s", credentials);
 	}
 

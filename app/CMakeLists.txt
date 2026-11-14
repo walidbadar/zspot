@@ -13,6 +13,7 @@ project(zspot_player)
 
 target_sources(app PRIVATE src/main.c)
 target_sources_ifdef(CONFIG_WIFI_CREDENTIALS_CONNECT_STORED app PRIVATE src/wifi.c)
+target_sources_ifdef(CONFIG_ZSPOT_STORE_CREDENTIALS app PRIVATE src/credentials.c)
 target_sources_ifdef(CONFIG_ZSPOT_PCM_TAP app PRIVATE src/pcm_tap.c)
 target_sources_ifdef(CONFIG_ZSPOT_BATTERY app PRIVATE src/battery.c)
 target_sources_ifdef(CONFIG_ZSPOT_UI app PRIVATE
