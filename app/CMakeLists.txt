@@ -14,7 +14,14 @@ project(zspot_player)
 # Mbed TLS is built with zspot_mbedtls_config.h (CONFIG_MBEDTLS_USER_CONFIG_FILE)
 zephyr_include_directories(mbedtls)
 
-target_sources(app PRIVATE src/main.c)
+target_sources(app PRIVATE src/main.c src/certs.c)
+
+# The root certificates that the servers are verified against
+foreach(root digicert_global_root_g2 starfield_root_g2 digicert_global_root_g3
+             globalsign_root_r3 gts_root_r4)
+  generate_inc_file_for_target(app certs/${root}.der
+    ${ZEPHYR_BINARY_DIR}/include/generated/certs/${root}.der.inc)
+endforeach()
 target_sources_ifdef(CONFIG_WIFI_CREDENTIALS_CONNECT_STORED app PRIVATE src/wifi.c)
 target_sources_ifdef(CONFIG_ZSPOT_CREDENTIALS_STORED app PRIVATE src/credentials.c)
 target_sources_ifdef(CONFIG_ZSPOT_LAST_TRACK app PRIVATE src/last_track.c src/resume.c)

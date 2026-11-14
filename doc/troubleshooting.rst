@@ -87,6 +87,19 @@ cold parts, and a ``throw`` aborts the program. The library builds itself with
 ``-fno-reorder-blocks-and-partition`` on native targets to avoid it; projects
 that copy the library's sources need the same option.
 
+The player stays on "Signing in to Spotify"
+*******************************************
+
+The player verifies Spotify's servers against the root certificates in
+``app/certs``. When a server has moved to another certificate authority, the
+connection to it fails: with the log on (see below) as ``Connect to <host>:443
+failed (errno 103)``. ``app/certs/README.rst`` shows how to find the root that
+the server uses now and where to add it. Building with
+``-DCONFIG_ZSPOT_TLS_SEC_TAG=-1`` turns the verification off.
+
+The same error for the host of the covers or the lyrics only costs the cover
+or the lyrics.
+
 Seeing what the player does
 ***************************
 

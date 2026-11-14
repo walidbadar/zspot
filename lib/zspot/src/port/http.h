@@ -80,6 +80,16 @@ public:
 
 	void open(const HttpUrl &url);
 	void close();
+
+	/**
+	 * Whether the certificate of a TLS server has to be one that the
+	 * registered authorities vouch for (CONFIG_ZSPOT_TLS_SEC_TAG). On by
+	 * default; takes effect with the next connection.
+	 */
+	void setVerify(bool verify)
+	{
+		verify_ = verify;
+	}
 	bool isOpen() const
 	{
 		return sock_ >= 0;
@@ -117,6 +127,7 @@ private:
 	int sock_ = -1;
 	HttpUrl url_;
 	bool used_ = false;
+	bool verify_ = true;
 };
 
 } /* namespace zspot */

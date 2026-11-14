@@ -125,11 +125,39 @@ config ZSPOT_EXTERNAL_TLS_HEAP_SIZE
 	  external buffer, so CONFIG_MBEDTLS_HEAP_SIZE can stay small.
 
 config ZSPOT_TLS_SEC_TAG
-	int "TLS credential security tag for server verification"
+	int "First TLS credential security tag for server verification"
 	default -1
 	help
-	  Security tag (see tls_credential_add()) holding the CA certificate used
-	  to verify Spotify's servers. -1 disables peer verification.
+	  Security tag (see tls_credential_add()) of a CA certificate that the
+	  servers are verified against; the application registers it before
+	  it connects. -1 disables peer verification.
+
+	  The servers do not share one authority: see ZSPOT_TLS_SEC_TAG_COUNT.
+
+config ZSPOT_TLS_SEC_TAG_COUNT
+	int "Number of consecutive security tags"
+	default 1
+	range 1 16
+	help
+	  The connections are offered the certificates under this many tags,
+	  starting with ZSPOT_TLS_SEC_TAG. Each of them takes about 2 KB of the
+	  Mbed TLS heap for as long as a connection is open. Zephyr has to
+	  allow as many per socket (CONFIG_NET_SOCKETS_TLS_MAX_CREDENTIALS)
+	  and in total (CONFIG_TLS_MAX_CREDENTIALS_NUMBER).
+
+config ZSPOT_TLS_VERIFY_CDN
+	bool "Verify the servers that the audio is fetched from"
+	depends on ZSPOT_TLS_SEC_TAG >= 0
+	help
+	  The audio comes from whichever CDN Spotify names for a track, and
+	  those do not all use the same certificate authority: with this
+	  option, a track on a CDN whose authority is not among the registered
+	  ones cannot be played.
+
+	  Without it the CDN is not verified. The audio is encrypted with a key
+	  that arrives over the session with Spotify, so that somebody in the
+	  path can stop a track or turn it into noise, which they can anyway,
+	  but not read or replace it.
 
 config ZSPOT_MDNS
 	bool "Advertise the device with mDNS/DNS-SD"

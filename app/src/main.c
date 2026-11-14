@@ -37,6 +37,7 @@
 #include "pcm_tap.h"
 #include "ui.h"
 #include "battery.h"
+#include "certs.h"
 #include "credentials.h"
 #include "resume.h"
 #if defined(CONFIG_ZSPOT_UI)
@@ -483,6 +484,12 @@ int main(void)
 	}
 
 	pcm_tap_init();
+
+	ret = certs_register();
+	if (ret != 0) {
+		show_failure("Cannot start the player", ret);
+		return 0;
+	}
 
 	ret = zspot_init(&config);
 	if (ret != 0) {

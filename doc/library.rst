@@ -175,8 +175,11 @@ Configuration
      - Large buffers and thread stacks in external memory (PSRAM)
    * - ``ZSPOT_EXTERNAL_TLS_HEAP_SIZE``
      - Mbed TLS heap placed in external memory
-   * - ``ZSPOT_TLS_SEC_TAG``
-     - CA credential tag for server verification (-1: no verification)
+   * - ``ZSPOT_TLS_SEC_TAG``, ``ZSPOT_TLS_SEC_TAG_COUNT``
+     - Tags of the CA certificates that the servers are verified against
+       (-1: no verification)
+   * - ``ZSPOT_TLS_VERIFY_CDN``
+     - Verify the servers of the audio CDN as well
    * - ``ZSPOT_HTTP_TIMEOUT_MS``, ``ZSPOT_HTTP_RECV_BUF_SIZE``
      - HTTP client settings
    * - ``ZSPOT_CDN_CHUNK_SIZE``

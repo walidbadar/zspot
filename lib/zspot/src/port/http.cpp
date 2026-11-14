@@ -10,6 +10,7 @@
 #include <zephyr/net/http/client.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/net/tls_credentials.h>
+#include <zephyr/sys/util.h>
 
 #include <mbedtls/ssl_ciphersuites.h>
 
@@ -135,14 +136,26 @@ void HttpConnection::open(const HttpUrl &url)
 			}
 
 			if (url.tls) {
-#if CONFIG_ZSPOT_TLS_SEC_TAG >= 0
-				static const sec_tag_t sec_tags[] = {CONFIG_ZSPOT_TLS_SEC_TAG};
-				int verify = TLS_PEER_VERIFY_REQUIRED;
-
-				zsock_setsockopt(sock, SOL_TLS, TLS_SEC_TAG_LIST, sec_tags,
-						 sizeof(sec_tags));
-#else
 				int verify = TLS_PEER_VERIFY_NONE;
+
+#if CONFIG_ZSPOT_TLS_SEC_TAG >= 0
+				if (verify_) {
+					sec_tag_t sec_tags[CONFIG_ZSPOT_TLS_SEC_TAG_COUNT];
+
+					for (size_t i = 0; i < ARRAY_SIZE(sec_tags); i++) {
+						sec_tags[i] = CONFIG_ZSPOT_TLS_SEC_TAG + i;
+					}
+					verify = TLS_PEER_VERIFY_REQUIRED;
+					/* Without the tags no server can be verified */
+					if (zsock_setsockopt(sock, SOL_TLS, TLS_SEC_TAG_LIST, sec_tags,
+							     sizeof(sec_tags)) != 0) {
+						LOG_ERR("Cannot use the CA certificates (errno %d): "
+							"are they registered, and are "
+							"CONFIG_NET_SOCKETS_TLS_MAX_CREDENTIALS "
+							"of them allowed?",
+							errno);
+					}
+				}
 #endif
 				/*
 				 * A server that was talked to before is asked to go on

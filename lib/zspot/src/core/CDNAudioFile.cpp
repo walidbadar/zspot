@@ -7,6 +7,8 @@
 
 #include "core/CDNAudioFile.h"
 
+#include <zephyr/sys/util.h>  // for IS_ENABLED
+
 #include <cstring>    // for memcpy
 #include <stdexcept>  // for runtime_error
 
@@ -22,6 +24,8 @@ CDNAudioFile::CDNAudioFile(const std::string& cdnUrl,
     : cdnUrl(cdnUrl), audioKey(audioKey) {
   this->crypto = std::make_unique<zspot::Crypto>();
   this->httpConnection = std::make_unique<zspot::HttpConnection>();
+  // The CDNs do not share a certificate authority, and the audio is encrypted
+  this->httpConnection->setVerify(IS_ENABLED(CONFIG_ZSPOT_TLS_VERIFY_CDN));
 }
 
 size_t CDNAudioFile::getPosition() {

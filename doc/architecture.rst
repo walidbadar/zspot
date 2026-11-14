@@ -67,6 +67,24 @@ Connection handling
   ``ZSPOT_EVENT_CONNECTION_RESTORED``; the player turns its network symbol red
   in between.
 
+Server verification
+*******************
+
+The player verifies the servers it talks to over TLS against five root
+certificates that it carries (``app/certs``): those of the access point
+look-up, the login, the Web API and its tokens, the covers and the lyrics.
+The library is told which with ``CONFIG_ZSPOT_TLS_SEC_TAG``; without it,
+nothing is verified.
+
+- The audio CDN is not verified unless ``CONFIG_ZSPOT_TLS_VERIFY_CDN`` is
+  set. Spotify names a CDN per track, and they do not share an authority;
+  the audio is encrypted with a key that arrives over the session, so
+  nothing can be read or replaced on the way.
+- The session with the access point is not TLS. It is encrypted with keys
+  from a Diffie-Hellman exchange.
+- The validity period of a certificate is not checked, as the device has no
+  clock that is set.
+
 TLS sessions
 ************
 
