@@ -25,6 +25,8 @@
 #include <zephyr/sys/atomic.h>
 #include <zephyr/sys/ring_buffer.h>
 
+#include "audio/gain.h"
+
 LOG_MODULE_DECLARE(zspot, CONFIG_ZSPOT_LOG_LEVEL);
 
 #define BLOCK_SIZE  CONFIG_ZSPOT_I2S_BLOCK_SIZE
@@ -45,6 +47,13 @@ LOG_MODULE_DECLARE(zspot, CONFIG_ZSPOT_LOG_LEVEL);
 /* Input that stopped growing for this long is played out as it is */
 #define STALL_MS     300
 
+/*
+ * The gain moves by this much per frame: from silence to full volume, or
+ * back, in about 20 ms. That goes for a change of the volume and for the
+ * start and the end of the output, which would click otherwise.
+ */
+#define GAIN_STEP (ZSPOT_GAIN_UNITY / (44100 * 20 / 1000))
+
 /* With immediate logging a warning is formatted on this stack */
 #define FEEDER_STACK_SIZE 4096
 /* Above the player thread: the feeder only copies, and must not wait for it */
@@ -60,9 +69,12 @@ static struct {
 	size_t fill;
 	bool started;
 	int queued;
-	uint16_t gain_q15;
+	uint8_t channels;
+	/* Set by the volume; the output follows it from where its gain is */
+	volatile uint16_t gain_target;
+	uint16_t gain;
 } sink = {
-	.gain_q15 = 32767,
+	.gain_target = ZSPOT_GAIN_UNITY,
 };
 
 #if FIFO_SIZE > 0
@@ -77,6 +89,8 @@ static uint8_t fifo_memory[FIFO_SIZE] FIFO_SECTION;
 static struct ring_buf fifo;
 static K_SEM_DEFINE(fifo_data, 0, 1);
 static atomic_t sink_paused;
+/* The output was paused and has not been brought down to silence yet */
+static atomic_t fade_out_due;
 /* The output stopped: collect PREBUFFER before it starts again */
 static bool prebuffering = true;
 
@@ -153,10 +167,17 @@ int zspot_i2s_sink_init(const struct device *i2s_dev, const struct device *codec
 		return -ENODEV;
 	}
 
+	if (channels == 0 || bits_per_sample != 16) {
+		/* The gain works on 16-bit samples */
+		return -ENOTSUP;
+	}
+
 	k_mutex_init(&sink.lock);
 	sink.dev = i2s_dev;
 	sink.started = false;
 	sink.queued = 0;
+	sink.channels = channels;
+	sink.gain = 0;
 
 	ret = i2s_configure(i2s_dev, I2S_DIR_TX, &cfg);
 	if (ret < 0) {
@@ -186,14 +207,12 @@ int zspot_i2s_sink_init(const struct device *i2s_dev, const struct device *codec
 	return 0;
 }
 
-static void apply_gain(int16_t *samples, size_t count)
+/* Applies the volume to sink.block, or brings the gain down to nothing over it. */
+static void apply_gain(bool fade_out)
 {
-	if (sink.gain_q15 >= 32767) {
-		return;
-	}
-	for (size_t i = 0; i < count; i++) {
-		samples[i] = (int16_t)(((int32_t)samples[i] * sink.gain_q15) >> 15);
-	}
+	sink.gain = zspot_gain_apply(sink.gain, fade_out ? 0 : sink.gain_target, GAIN_STEP,
+				     sink.block, sink.fill / (sink.channels * sizeof(int16_t)),
+				     sink.channels);
 }
 
 /*
@@ -216,21 +235,26 @@ static void report_underrun(void)
 	}
 }
 
-/* Hands sink.block over to the driver and starts the output when due. */
-static int submit_block(void)
+/*
+ * Hands sink.block over to the driver and starts the output when due. With
+ * @p fade_out the block ends in silence, for an output that stops after it.
+ */
+static int submit_block(bool fade_out)
 {
 	int ret;
 
-	apply_gain(sink.block, sink.fill / sizeof(int16_t));
+	apply_gain(fade_out);
 
 	ret = i2s_write(sink.dev, sink.block, sink.fill);
 	if (ret == -EIO) {
 		/*
 		 * TX underrun: the output ran dry and the controller is in the
 		 * ERROR state. Re-arm it and queue the block again, so that the
-		 * gap is not followed by lost audio as well.
+		 * gap is not followed by lost audio as well. The gain it got
+		 * came from where the output was; what follows fades in.
 		 */
 		report_underrun();
+		sink.gain = 0;
 		i2s_trigger(sink.dev, I2S_DIR_TX, I2S_TRIGGER_PREPARE);
 		sink.started = false;
 		sink.queued = 0;
@@ -273,6 +297,7 @@ static void feeder_thread(void *p1, void *p2, void *p3)
 	while (true) {
 		uint32_t level = ring_buf_size_get(&fifo);
 		int64_t now = k_uptime_get();
+		bool fade_out = false;
 		bool stalled;
 		void *block;
 
@@ -282,13 +307,23 @@ static void feeder_thread(void *p1, void *p2, void *p3)
 		}
 		stalled = now - last_growth_ms >= STALL_MS;
 
-		/*
-		 * Wait for more unless there is a whole block to send, or the
-		 * input stopped and what is left has to be played out.
-		 */
-		if (atomic_get(&sink_paused) || level == 0 ||
-		    (prebuffering && level < PREBUFFER && !stalled) ||
-		    (level < BLOCK_SIZE && !stalled)) {
+		if (atomic_get(&sink_paused)) {
+			/*
+			 * The driver plays what it was handed and stops. One more
+			 * block ends that in silence instead of at full level.
+			 */
+			fade_out = atomic_cas(&fade_out_due, 1, 0) && sink.started &&
+				   level >= BLOCK_SIZE;
+			if (!fade_out) {
+				k_sem_take(&fifo_data, K_MSEC(20));
+				continue;
+			}
+		} else if (level == 0 || (prebuffering && level < PREBUFFER && !stalled) ||
+			   (level < BLOCK_SIZE && !stalled)) {
+			/*
+			 * Wait for more unless there is a whole block to send, or
+			 * the input stopped and what is left has to be played out.
+			 */
 			k_sem_take(&fifo_data, K_MSEC(20));
 			continue;
 		}
@@ -307,7 +342,7 @@ static void feeder_thread(void *p1, void *p2, void *p3)
 			sink.block = NULL;
 		} else {
 			prebuffering = false;
-			(void)submit_block();
+			(void)submit_block(fade_out);
 		}
 		last_level = ring_buf_size_get(&fifo);
 		k_mutex_unlock(&sink.lock);
@@ -335,6 +370,7 @@ size_t zspot_i2s_sink_write(const uint8_t *pcm, size_t len, void *user_data)
 
 void zspot_i2s_sink_set_paused(bool paused)
 {
+	atomic_set(&fade_out_due, paused);
 	atomic_set(&sink_paused, paused);
 	k_sem_give(&fifo_data);
 	codec_set_mute(paused);
@@ -374,7 +410,7 @@ size_t zspot_i2s_sink_write(const uint8_t *pcm, size_t len, void *user_data)
 		sink.fill += chunk;
 		written += chunk;
 
-		if (sink.fill == BLOCK_SIZE && submit_block() < 0) {
+		if (sink.fill == BLOCK_SIZE && submit_block(false) < 0) {
 			break;
 		}
 	}
@@ -397,7 +433,7 @@ size_t zspot_i2s_sink_buffered(void)
 
 void zspot_i2s_sink_set_volume(uint16_t volume)
 {
-	sink.gain_q15 = volume >> 1;
+	sink.gain_target = zspot_gain_from_volume(volume);
 }
 
 void zspot_i2s_sink_flush(void)
@@ -421,5 +457,7 @@ void zspot_i2s_sink_flush(void)
 		sink.started = false;
 	}
 	sink.queued = 0;
+	/* What comes next fades in */
+	sink.gain = 0;
 	k_mutex_unlock(&sink.lock);
 }

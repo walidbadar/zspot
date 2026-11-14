@@ -39,8 +39,9 @@ int zspot_i2s_sink_init(const struct device *i2s_dev, const struct device *codec
 size_t zspot_i2s_sink_write(const uint8_t *pcm, size_t len, void *user_data);
 
 /**
- * Software volume, 0..65535 (65535 = unity gain). Also with a codec: the
- * codec volume units differ from one driver to the next.
+ * Software volume, 0..65535 (65535 = unity gain), applied as the cube of the
+ * volume so that the steps sound even, and reached within about 20 ms. Also
+ * with a codec: the codec volume units differ from one driver to the next.
  */
 void zspot_i2s_sink_set_volume(uint16_t volume);
 
@@ -50,7 +51,7 @@ void zspot_i2s_sink_flush(void);
 /**
  * Stops or resumes the output of the audio buffered ahead
  * (CONFIG_ZSPOT_I2S_BUFFER_MS); without it, playback would go on for that
- * long after the application stopped writing.
+ * long after the application stopped writing. The output fades out and in.
  */
 void zspot_i2s_sink_set_paused(bool paused);
 
