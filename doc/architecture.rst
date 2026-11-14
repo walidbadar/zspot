@@ -116,5 +116,8 @@ Discovery and hand-over
    same endpoint (``addUser``).
 #. The library logs in with them and keeps Spotify's reusable credentials,
    which the application can store to skip the hand-over on the next boot.
-   The player does so in the settings (``app/src/credentials.c``) and only
-   starts the discovery when it has no credentials or Spotify rejected them.
+   The player does so in the settings (``app/src/credentials.c``).
+#. The endpoint stays up. When the Spotify app of another account picks the
+   device, the player ends the session and starts one with the credentials
+   handed over. The library keeps those apart from the ones the running
+   session signed in with, which it also reconnects with.

@@ -37,9 +37,13 @@ The device cannot join Wi-Fi
 The device should play for another account
 ******************************************
 
-The device stays signed in to the account that picked it last. After a
-restart it signs in with the stored credentials and is not advertised on the
-network, so another account cannot pick it. To make it forget the account:
+Pick the device in the Spotify app of that account, on the same network as
+the device. It signs out of the account it was signed in to, signs in with
+the new one and keeps that across restarts. An account that already uses the
+device sees it in its list wherever it is; a new one only finds it on the
+local network.
+
+To make the device forget its account without giving it another:
 
 - ``west flash --erase`` removes the stored credentials, together with the
   stored Wi-Fi networks. The device then waits to be picked in the Spotify

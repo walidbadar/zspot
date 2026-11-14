@@ -53,7 +53,11 @@ The device remembers the account that picked it and signs in on its own after
 a restart, so it only has to be picked once
 (``CONFIG_ZSPOT_CREDENTIALS_STORED``). When Spotify no longer accepts the
 stored credentials, they are removed and the device waits to be picked again.
-See :doc:`troubleshooting` for handing the device to another account.
+
+Another account takes the device over by picking it in its Spotify app, on
+the same network: the device signs out, signs in with that account and
+remembers it instead. Should Spotify reject the new account, the device goes
+back to the one before.
 
 When the last track of the queue has been played, the device reports the end
 to Spotify and shows that track paused at its start.

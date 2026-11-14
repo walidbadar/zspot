@@ -324,29 +324,37 @@ static size_t on_pcm(const uint8_t *pcm, size_t len, void *user_data)
 	return accepted;
 }
 
+/* How often the main thread looks while the end of the queue is due, and otherwise */
+#define END_POLL_MS  50
+#define IDLE_POLL_MS 250
+
 /*
- * Waits for the end of the queue and reports it when the last audio has been
- * played. Runs on the main thread: the event comes from the player thread,
- * which must not be held up for that long.
+ * Reports the end of the queue once the last audio has been played. Called
+ * again and again from the main thread: the event comes from the player
+ * thread, which must not be held up for that long.
  */
-static void end_report(void)
+static void end_poll(void)
 {
-	while (true) {
-		k_sem_take(&end_sem, K_FOREVER);
+	static int64_t drained_ms;
 
-		/* A pause keeps the audio in the sink, and the end waiting. */
-		while (atomic_get(&end_pending) && sink_buffered() > 0) {
-			k_msleep(50);
-		}
-		if (!atomic_get(&end_pending)) {
-			continue;
-		}
-		k_msleep(SINK_TAIL_MS);
+	/* A pause keeps the audio in the sink, and the end waiting. */
+	if (!atomic_get(&end_pending) || sink_buffered() > 0) {
+		drained_ms = 0;
+		return;
+	}
 
-		if (atomic_cas(&end_pending, 1, 0)) {
-			LOG_INF("Playback ended");
-			zspot_notify_audio_ended();
-		}
+	/* The I2S driver still plays what it was handed last */
+	if (drained_ms == 0) {
+		drained_ms = k_uptime_get();
+	}
+	if (k_uptime_get() - drained_ms < SINK_TAIL_MS) {
+		return;
+	}
+
+	drained_ms = 0;
+	if (atomic_cas(&end_pending, 1, 0)) {
+		LOG_INF("Playback ended");
+		zspot_notify_audio_ended();
 	}
 }
 
@@ -455,11 +463,64 @@ static void show_failure(const char *what, int error)
 	ui_show_message(what, detail);
 }
 
+/* Where the credentials that are tried came from, to know what to do when Spotify rejects them */
+enum credentials_source {
+	CREDENTIALS_BUILD,
+	CREDENTIALS_STORED,
+	CREDENTIALS_HANDED_OVER,
+};
+
+/*
+ * Signs in with the credentials at hand, waiting for the Spotify app to hand
+ * some over when there are none. Returns with a session.
+ */
+static void sign_in(enum credentials_source source)
+{
+	while (true) {
+		int ret;
+
+		if (!zspot_credentials_available()) {
+			LOG_INF("Open Spotify and select \"%s\" in the device list",
+				zspot_device_name());
+			ui_show_message(zspot_device_name(), "Open Spotify and pick this device");
+			zspot_zeroconf_wait(-1);
+			source = CREDENTIALS_HANDED_OVER;
+		} else if (zspot_zeroconf_wait(0) == 0) {
+			/* Handed over while an earlier attempt was waited out */
+			source = CREDENTIALS_HANDED_OVER;
+		}
+
+		ui_show_message("Connecting", "Signing in to Spotify");
+		ret = zspot_connect(on_event, on_pcm, NULL);
+		if (ret == 0) {
+			return;
+		}
+
+		LOG_ERR("zspot_connect failed (%d)", ret);
+		if (ret != -EACCES) {
+			k_sleep(K_SECONDS(5));
+			continue;
+		}
+
+		/*
+		 * Rejected. Stored credentials are of no use any more; others
+		 * leave the stored ones to go back to, which are those of the
+		 * account before. Without any, wait for a hand-over.
+		 */
+		zspot_credentials_clear();
+		if (source == CREDENTIALS_STORED) {
+			(void)credentials_forget();
+		} else if (credentials_load() == 0) {
+			LOG_INF("Going back to the stored credentials");
+			source = CREDENTIALS_STORED;
+		}
+	}
+}
+
 int main(void)
 {
 	static char credentials[1024];
-	bool credentials_stored = false;
-	bool zeroconf_started = false;
+	enum credentials_source source = CREDENTIALS_BUILD;
 	const struct zspot_config config = {
 		.device_name = CONFIG_ZSPOT_DEVICE_NAME,
 		.audio_format = CONFIG_ZSPOT_AUDIO_FORMAT,
@@ -515,60 +576,50 @@ int main(void)
 		LOG_INF("Using username/password credentials");
 	} else if (credentials_load() == 0) {
 		LOG_INF("Using stored credentials");
-		credentials_stored = true;
+		source = CREDENTIALS_STORED;
+	}
+
+	/*
+	 * The Spotify app can hand credentials over at any time: the first
+	 * ones, or those of another account that takes the device over.
+	 */
+	ret = zspot_zeroconf_start();
+	if (ret != 0) {
+		LOG_ERR("Zeroconf start failed (%d)", ret);
+		show_failure("Cannot be found by Spotify", ret);
+		return 0;
 	}
 
 	while (true) {
-		if (!zspot_credentials_available()) {
-			/* Not needed while there are credentials to sign in with */
-			if (!zeroconf_started) {
-				ret = zspot_zeroconf_start();
-				if (ret != 0) {
-					LOG_ERR("Zeroconf start failed (%d)", ret);
-					show_failure("Cannot be found by Spotify", ret);
-					return 0;
-				}
-				zeroconf_started = true;
-			}
+		sign_in(source);
 
-			LOG_INF("Open Spotify and select \"%s\" in the device list",
-				zspot_device_name());
-			ui_show_message(zspot_device_name(),
-					"Open Spotify and pick this device");
-			zspot_zeroconf_wait(-1);
+		if (IS_ENABLED(CONFIG_ZSPOT_CREDENTIALS_STORED)) {
+			(void)credentials_store();
+		} else if (zspot_credentials_save_json(credentials, sizeof(credentials)) > 0) {
+			LOG_INF("Reusable credentials (store these): %s", credentials);
 		}
 
-		ui_show_message("Connecting", "Signing in to Spotify");
-		ret = zspot_connect(on_event, on_pcm, NULL);
-		if (ret == 0) {
-			break;
+		/* The last song, ready to go on with, or how to get one */
+		if (!resume_show(position_set)) {
+			ui_show_message("Ready", "Pick this device in Spotify to start playing");
 		}
 
-		LOG_ERR("zspot_connect failed (%d)", ret);
-		if (ret == -EACCES) {
-			/* Rejected credentials: go back to waiting for a hand-over. */
-			zspot_credentials_clear();
-			if (credentials_stored) {
-				(void)credentials_forget();
-				credentials_stored = false;
-			}
-		} else {
-			k_sleep(K_SECONDS(5));
+		/*
+		 * The protocol runs on the library threads. This one reports the
+		 * end of playback and waits for another account to pick the device.
+		 */
+		while (zspot_zeroconf_wait(0) != 0) {
+			k_sem_take(&end_sem,
+				   K_MSEC(atomic_get(&end_pending) ? END_POLL_MS : IDLE_POLL_MS));
+			end_poll();
 		}
+
+		LOG_INF("Another account picked the device");
+		end_cancel();
+		sink_flush();
+		zspot_disconnect();
+		source = CREDENTIALS_HANDED_OVER;
 	}
 
-	if (IS_ENABLED(CONFIG_ZSPOT_CREDENTIALS_STORED)) {
-		(void)credentials_store();
-	} else if (zspot_credentials_save_json(credentials, sizeof(credentials)) > 0) {
-		LOG_INF("Reusable credentials (store these): %s", credentials);
-	}
-
-	/* The last song, ready to go on with, or how to get one */
-	if (!resume_show(position_set)) {
-		ui_show_message("Ready", "Pick this device in Spotify to start playing");
-	}
-
-	/* The protocol runs on the library threads; this one reports the end of playback. */
-	end_report();
 	return 0;
 }

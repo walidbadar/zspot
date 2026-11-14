@@ -81,8 +81,9 @@ config ZSPOT_CREDENTIALS_STORED
 	  have to be picked in the Spotify app again. Credentials that Spotify
 	  rejects are removed, and the device waits for the hand-over again.
 
-	  The device then stays signed in to the account that picked it last.
-	  The credentials are stored unencrypted, like the Wi-Fi passwords.
+	  The device then stays signed in to the account that picked it last,
+	  until another one picks it in its Spotify app. The credentials are
+	  stored unencrypted, like the Wi-Fi passwords.
 	  Credentials given to the build (ZSPOT_CREDENTIALS_JSON, or
 	  ZSPOT_USERNAME and ZSPOT_PASSWORD) take precedence over stored ones.
 
