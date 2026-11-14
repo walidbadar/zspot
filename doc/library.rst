@@ -76,7 +76,9 @@ Zeroconf
    * - ``zspot_zeroconf_start()``
      - Advertises the device with mDNS/DNS-SD and serves ``/spotify_info``
    * - ``zspot_zeroconf_wait()``
-     - Blocks until the Spotify app delivered credentials
+     - Blocks until the Spotify app delivered credentials. That can also be
+       while a session runs, when another account picks the device:
+       ``zspot_disconnect()`` and ``zspot_connect()`` then sign in with it
    * - ``zspot_zeroconf_stop()``
      - Stops the endpoint
 

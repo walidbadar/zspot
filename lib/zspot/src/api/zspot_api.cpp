@@ -34,6 +34,7 @@
 #include "port/http.h"
 #include "port/log.h"
 #include "port/mem.h"
+#include "port/sync.h"
 #include "port/thread.h"
 
 #ifdef CONFIG_ZSPOT_MDNS
@@ -56,7 +57,20 @@ struct state {
 	AudioFormat audio_format = AudioFormat_OGG_VORBIS_160;
 	uint16_t initial_volume = 0;
 
+	/*
+	 * Credentials in three places, so that a hand-over that arrives at any
+	 * time does not reach into a session that is running:
+	 *  - blob: what the next zspot_connect() signs in with
+	 *  - zeroconf_blob: the key exchange of the hand-over, and what the
+	 *    Spotify app handed over last
+	 *  - session_blob: what the running session signed in with, and
+	 *    reconnects with
+	 * The first two are guarded by lock.
+	 */
+	zspot::Mutex lock;
 	std::shared_ptr<cspot::LoginBlob> blob;
+	std::shared_ptr<cspot::LoginBlob> zeroconf_blob;
+	std::shared_ptr<cspot::LoginBlob> session_blob;
 	std::shared_ptr<cspot::Context> ctx;
 	std::shared_ptr<cspot::SpircHandler> handler;
 	std::unique_ptr<SessionTask> task;
@@ -68,6 +82,8 @@ struct state {
 	std::atomic<bool> running = false;
 	std::atomic<bool> connected = false;
 	std::atomic<bool> have_credentials = false;
+	/* The Spotify app handed credentials over and zspot_zeroconf_wait() has not said so yet */
+	std::atomic<bool> handover = false;
 
 	/* Set by the network events, passed on by the session thread */
 	std::atomic<bool> network_down = false;
@@ -263,14 +279,14 @@ private:
 	int connect()
 	{
 		try {
-			g.ctx = cspot::Context::createFromBlob(g.blob);
+			g.ctx = cspot::Context::createFromBlob(g.session_blob);
 			g.ctx->config.audioFormat = g.audio_format;
 			g.ctx->config.volume = g.initial_volume;
 
-			LOG_INF("Connecting to Spotify as %s", g.blob->getUserName().c_str());
+			LOG_INF("Connecting to Spotify as %s", g.session_blob->getUserName().c_str());
 			g.ctx->session->connectWithRandomAp();
 
-			auto token = g.ctx->session->authenticate(g.blob);
+			auto token = g.ctx->session->authenticate(g.session_blob);
 
 			if (token.empty()) {
 				LOG_ERR("Spotify rejected the credentials");
@@ -291,6 +307,14 @@ private:
 
 			g.connected = true;
 			LOG_INF("Spotify session established");
+			{
+				/* Whom the device answers the Spotify app it plays for */
+				std::scoped_lock lock(g.lock);
+
+				if (g.zeroconf_blob) {
+					g.zeroconf_blob->username = g.session_blob->username;
+				}
+			}
 			return 0;
 		} catch (const std::exception &e) {
 			LOG_ERR("Connection failed: %s", e.what());
@@ -371,7 +395,11 @@ int zspot_credentials_set_user_pass(const char *username, const char *password)
 	if (!g.initialised || username == nullptr || password == nullptr) {
 		return -EINVAL;
 	}
-	g.blob->loadUserPass(username, password);
+	{
+		std::scoped_lock lock(g.lock);
+
+		g.blob->loadUserPass(username, password);
+	}
 	g.have_credentials = true;
 	return 0;
 }
@@ -381,6 +409,8 @@ int zspot_credentials_load_json(const char *json)
 	if (!g.initialised || json == nullptr) {
 		return -EINVAL;
 	}
+	std::scoped_lock lock(g.lock);
+
 	try {
 		g.blob->loadJson(json);
 	} catch (const std::exception &e) {
@@ -401,6 +431,8 @@ int zspot_credentials_save_json(char *buf, size_t size)
 	if (g.connected && g.ctx) {
 		json = g.ctx->getCredentialsJson();
 	} else if (g.have_credentials) {
+		std::scoped_lock lock(g.lock);
+
 		json = g.blob->toJson();
 	} else {
 		return -ENOENT;
@@ -419,7 +451,10 @@ bool zspot_credentials_available(void)
 
 void zspot_credentials_clear(void)
 {
+	std::scoped_lock lock(g.lock);
+
 	g.have_credentials = false;
+	g.handover = false;
 	if (g.blob) {
 		g.blob->authData.clear();
 		g.blob->username.clear();
@@ -435,12 +470,34 @@ int zspot_zeroconf_start(void)
 		return -EINVAL;
 	}
 #ifdef CONFIG_ZSPOT_ZEROCONF
-	int ret = zspot::zeroconf_start(g.blob, []() {
+	try {
+		std::scoped_lock lock(g.lock);
+
+		/* A blob of its own: its key pair answers the Spotify app at any time */
+		g.zeroconf_blob = std::make_shared<cspot::LoginBlob>(g.device_name);
+		if (g.session_blob) {
+			g.zeroconf_blob->username = g.session_blob->username;
+		}
+	} catch (const std::exception &e) {
+		LOG_ERR("Cannot prepare the hand-over: %s", e.what());
+		return -EIO;
+	}
+
+	int ret = zspot::zeroconf_start(g.zeroconf_blob, &g.lock, []() {
+		{
+			std::scoped_lock lock(g.lock);
+
+			g.blob->username = g.zeroconf_blob->username;
+			g.blob->authData = g.zeroconf_blob->authData;
+			g.blob->authType = g.zeroconf_blob->authType;
+		}
 		g.have_credentials = true;
+		g.handover = true;
 		k_sem_give(&g.credentials_sem);
 	});
 
 	if (ret < 0) {
+		g.zeroconf_blob.reset();
 		return ret;
 	}
 #ifdef CONFIG_ZSPOT_MDNS
@@ -459,10 +516,13 @@ int zspot_zeroconf_wait(int32_t timeout_ms)
 {
 	const k_timeout_t timeout = timeout_ms < 0 ? K_FOREVER : K_MSEC(timeout_ms);
 
-	if (g.have_credentials) {
-		return 0;
+	/* The semaphore may be left over from a hand-over that was reported already */
+	while (!g.handover.exchange(false)) {
+		if (k_sem_take(&g.credentials_sem, timeout) != 0) {
+			return -EAGAIN;
+		}
 	}
-	return k_sem_take(&g.credentials_sem, timeout) == 0 ? 0 : -EAGAIN;
+	return 0;
 }
 
 void zspot_zeroconf_stop(void)
@@ -472,6 +532,11 @@ void zspot_zeroconf_stop(void)
 #endif
 #ifdef CONFIG_ZSPOT_ZEROCONF
 	zspot::zeroconf_stop();
+	{
+		std::scoped_lock lock(g.lock);
+
+		g.zeroconf_blob.reset();
+	}
 #endif
 }
 
@@ -484,6 +549,20 @@ int zspot_connect(zspot_event_cb_t event_cb, zspot_pcm_cb_t pcm_cb, void *user_d
 	}
 	if (g.running) {
 		return -EALREADY;
+	}
+
+	try {
+		/* The session keeps what it signed in with, whatever is handed over later */
+		std::scoped_lock lock(g.lock);
+		auto snapshot = std::make_shared<cspot::LoginBlob>(g.device_name);
+
+		snapshot->username = g.blob->username;
+		snapshot->authData = g.blob->authData;
+		snapshot->authType = g.blob->authType;
+		g.session_blob = snapshot;
+	} catch (const std::exception &e) {
+		LOG_ERR("Cannot prepare the session: %s", e.what());
+		return -EIO;
 	}
 
 	g.event_cb = event_cb;
@@ -505,6 +584,7 @@ int zspot_connect(zspot_event_cb_t event_cb, zspot_pcm_cb_t pcm_cb, void *user_d
 		g.task.reset();
 		g.handler.reset();
 		g.ctx.reset();
+		g.session_blob.reset();
 	}
 	return g.connect_result;
 }
@@ -523,6 +603,7 @@ void zspot_disconnect(void)
 	g.task.reset(); /* joins the session thread */
 	g.handler.reset();
 	g.ctx.reset();
+	g.session_blob.reset();
 	LOG_INF("Disconnected from Spotify");
 }
 

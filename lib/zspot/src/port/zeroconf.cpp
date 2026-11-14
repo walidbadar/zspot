@@ -19,6 +19,7 @@
 #include "core/LoginBlob.h"
 #include "core/Utils.h"
 #include "port/log.h"
+#include "port/sync.h"
 #include "port/thread.h"
 
 ZSPOT_LOG_MODULE_DECLARE();
@@ -64,9 +65,10 @@ std::map<std::string, std::string> parse_form(const std::string &body)
 class ZeroconfServer : public Task
 {
 public:
-	ZeroconfServer(std::shared_ptr<cspot::LoginBlob> blob, std::function<void()> on_credentials)
+	ZeroconfServer(std::shared_ptr<cspot::LoginBlob> blob, Mutex *lock,
+		       std::function<void()> on_credentials)
 		: Task("zspot_zeroconf", CONFIG_ZSPOT_ZEROCONF_STACK_SIZE, 0),
-		  blob_(std::move(blob)), on_credentials_(std::move(on_credentials))
+		  blob_(std::move(blob)), lock_(lock), on_credentials_(std::move(on_credentials))
 	{
 	}
 
@@ -252,7 +254,12 @@ private:
 		}
 
 		if (method == "GET") {
-			respond(fd, 200, "OK", blob_->buildZeroconfInfo());
+			std::string info;
+			{
+				std::scoped_lock lock(*lock_);
+				info = blob_->buildZeroconfInfo();
+			}
+			respond(fd, 200, "OK", info);
 			return;
 		}
 		if (method != "POST") {
@@ -272,14 +279,16 @@ private:
 		}
 
 		try {
+			std::scoped_lock lock(*lock_);
+
 			blob_->loadZeroconfQuery(params);
+			LOG_INF("Received Spotify credentials for %s", blob_->getUserName().c_str());
 		} catch (const std::exception &e) {
 			LOG_ERR("Zeroconf credentials rejected: %s", e.what());
 			respond(fd, 200, "OK", JSON_INVALID_ARGUMENTS);
 			return;
 		}
 
-		LOG_INF("Received Spotify credentials for %s", blob_->getUserName().c_str());
 		respond(fd, 200, "OK", JSON_OK);
 
 		if (on_credentials_) {
@@ -288,6 +297,7 @@ private:
 	}
 
 	std::shared_ptr<cspot::LoginBlob> blob_;
+	Mutex *lock_;
 	std::function<void()> on_credentials_;
 	int listen_fd_ = -1;
 	volatile bool running_ = false;
@@ -297,13 +307,15 @@ std::unique_ptr<ZeroconfServer> server;
 
 } /* namespace */
 
-int zeroconf_start(std::shared_ptr<cspot::LoginBlob> blob, std::function<void()> on_credentials)
+int zeroconf_start(std::shared_ptr<cspot::LoginBlob> blob, Mutex *lock,
+		   std::function<void()> on_credentials)
 {
 	if (server) {
 		return -EALREADY;
 	}
 
-	server = std::make_unique<ZeroconfServer>(std::move(blob), std::move(on_credentials));
+	server = std::make_unique<ZeroconfServer>(std::move(blob), lock,
+						  std::move(on_credentials));
 
 	const int ret = server->start(CONFIG_ZSPOT_ZEROCONF_PORT);
 

@@ -164,8 +164,13 @@ void zspot_credentials_clear(void);
 int zspot_zeroconf_start(void);
 
 /**
- * Blocks until the Spotify app delivered credentials.
- * @param timeout_ms  milliseconds to wait, or a negative value to wait forever.
+ * Blocks until the Spotify app delivered credentials, and reports each
+ * delivery once. That can be at any time while the endpoint runs: when a
+ * session is up already, another account picked the device, and
+ * zspot_disconnect() followed by zspot_connect() signs in with it.
+ *
+ * @param timeout_ms  milliseconds to wait, 0 to ask without waiting, or a
+ *                    negative value to wait forever.
  * @return 0 on success, -EAGAIN on timeout.
  */
 int zspot_zeroconf_wait(int32_t timeout_ms);

@@ -19,10 +19,8 @@
 #include <functional>
 #include <memory>
 
-namespace zspot
-{
+#include "port/sync.h"
 
-} /* namespace zspot */
 namespace cspot
 {
 class LoginBlob;
@@ -34,9 +32,12 @@ namespace zspot
  * @brief Starts serving GET/POST /spotify_info on CONFIG_ZSPOT_ZEROCONF_PORT.
  *
  * @p on_credentials is invoked from the responder thread once the Spotify
- * app posted valid credentials into @p blob; it must not block.
+ * app posted valid credentials into @p blob; it must not block. The responder
+ * holds @p lock whenever it reads or writes @p blob, and not while it calls
+ * @p on_credentials.
  */
-int zeroconf_start(std::shared_ptr<cspot::LoginBlob> blob, std::function<void()> on_credentials);
+int zeroconf_start(std::shared_ptr<cspot::LoginBlob> blob, Mutex *lock,
+		   std::function<void()> on_credentials);
 
 void zeroconf_stop();
 
