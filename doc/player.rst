@@ -49,6 +49,30 @@ Wi-Fi credentials are stored on the device. Once it is connected, select it
 in the Spotify app; the layout adapts to the resolution and orientation of
 the display.
 
+The device remembers the account that picked it and signs in on its own after
+a restart, so it only has to be picked once
+(``CONFIG_ZSPOT_STORE_CREDENTIALS``). When Spotify no longer accepts the
+stored credentials, they are removed and the device waits to be picked again.
+See :doc:`troubleshooting` for handing the device to another account.
+
+When the last track of the queue has been played, the device reports the end
+to Spotify and shows that track paused at its start.
+
+After a restart the Now Playing screen shows the last song, paused where it
+was paused, instead of the notice to pick the device
+(``CONFIG_ZSPOT_LAST_TRACK``). Play starts it on this device and goes on with
+its playlist or album when it was played from one; the progress slider picks
+where it starts. This uses the Web API set up for
+:ref:`search and Your Library <search-and-your-library>`; without that the
+notice is shown as before.
+
+Writing to the flash interrupts the audio, so the song is stored while none
+goes out: when it is paused or moved, when it was just started, at the end
+of the queue and when another device takes over. A song that the queue moved
+on to without a break is stored at the next such moment. When the power is
+cut in the middle of a queue, the device therefore comes back with the song
+stored last, usually the one the queue was started with.
+
 The screen turns off after ``CONFIG_ZSPOT_SCREEN_TIMEOUT_SECONDS`` (60 by
 default, 0 to keep it on) without a touch, together with the backlight when
 the board has the devicetree alias ``zspot-backlight``. The next touch wakes
@@ -59,6 +83,8 @@ show the first 30 entries, and the fonts cover Latin text only.
 
 A battery symbol appears next to the Wi-Fi symbol when the board has a fuel
 gauge behind the devicetree alias ``fuel-gauge0``.
+
+.. _search-and-your-library:
 
 Search and Your Library
 ***********************
@@ -105,6 +131,11 @@ Then build and run:
    west build -p -b native_sim/native/64 zspot/app
    ./build/zephyr/zephyr.exe
 
+The simulator has no settings storage, so it does not remember the account
+and waits to be picked in the Spotify app at every start. To skip that, build
+once with ``-DCONFIG_LOG=y``, copy the reusable credentials that the log
+prints after signing in, and set ``CONFIG_ZSPOT_CREDENTIALS_JSON`` to them.
+
 The Spotify app finds devices through mDNS on its own network. To make the
 simulator visible there:
 
@@ -136,8 +167,15 @@ Application options
 
    * - Kconfig
      - Purpose
+   * - ``ZSPOT_STORE_CREDENTIALS``
+     - Keep the Spotify credentials across restarts (on by default where the
+       settings subsystem is enabled)
+   * - ``ZSPOT_LAST_TRACK``
+     - Show the last song after a restart and start it with Play (on by
+       default with ``ZSPOT_STORE_CREDENTIALS``)
    * - ``ZSPOT_CREDENTIALS_JSON``
-     - Stored credentials; skips the zeroconf hand-over
+     - Credentials given to the build; skips the zeroconf hand-over and
+       takes precedence over stored ones
    * - ``ZSPOT_SCREEN_TIMEOUT_SECONDS``
      - Idle time before the screen turns off (0: never)
    * - ``ZSPOT_BATTERY_POLL_SECONDS``

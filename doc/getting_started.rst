@@ -55,7 +55,8 @@ Repository layout
    * - Path
      - Contents
    * - ``app/``
-     - The player application: UI, Wi-Fi, library view, lyrics, battery
+     - The player application: UI, Wi-Fi, library view, lyrics, battery,
+       stored credentials and last song
    * - ``lib/zspot/``
      - The protocol library: Spotify protocol core, Zephyr port layer,
        C API, I2S sink, Tremor Vorbis decoder

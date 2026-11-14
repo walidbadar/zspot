@@ -34,6 +34,33 @@ The device cannot join Wi-Fi
   Forget one before adding a third.
 - Stored networks survive reflashing; ``west flash --erase`` removes them.
 
+The device should play for another account
+******************************************
+
+The device stays signed in to the account that picked it last. After a
+restart it signs in with the stored credentials and is not advertised on the
+network, so another account cannot pick it. To make it forget the account:
+
+- ``west flash --erase`` removes the stored credentials, together with the
+  stored Wi-Fi networks. The device then waits to be picked in the Spotify
+  app again.
+- Building with ``-DCONFIG_ZSPOT_STORE_CREDENTIALS=n`` makes the device wait
+  to be picked at every start, without storing anything.
+
+The song shown after a restart is not the last one
+**************************************************
+
+The device stores the song only while no audio goes out, because writing to
+the flash would interrupt it: when the song is paused or moved, when it was
+just started, at the end of the queue and when another device takes over.
+Songs that the queue moved on to by itself are not stored until then. Pause
+before switching the device off to come back to the same song and position.
+
+Play on the song shown after a restart answers "Cannot play the last song"
+when Spotify turned the request down, for example because the song is no
+longer available. Start something from the Spotify app, the search or Your
+Library instead.
+
 No sound
 ********
 

@@ -123,7 +123,8 @@ Events
    * - ``ZSPOT_EVENT_VOLUME``
      - Volume changed, 0 to 65535 (``volume``)
    * - ``ZSPOT_EVENT_TRACK_INFO``
-     - Metadata of the audible track (``track``, valid during the callback)
+     - Metadata of the audible track (``track``, valid during the callback),
+       with its Spotify URI for the Web API (``track.uri``)
    * - ``ZSPOT_EVENT_TRACK_BEGIN``
      - The PCM that follows belongs to a new track
    * - ``ZSPOT_EVENT_PLAYBACK_START``, ``ZSPOT_EVENT_SEEK``
@@ -131,9 +132,12 @@ Events
    * - ``ZSPOT_EVENT_NEXT``, ``ZSPOT_EVENT_PREV``, ``ZSPOT_EVENT_FLUSH``
      - Drop buffered audio
    * - ``ZSPOT_EVENT_DEPLETED``
-     - The queue finished
+     - The last track of the queue was decoded. Call
+       ``zspot_notify_audio_ended()`` once the output has played what it
+       was handed, so that Spotify shows the playback as ended.
    * - ``ZSPOT_EVENT_QUEUE_CHANGED``
-     - The controlling app replaced or edited the queue
+     - The controlling app replaced or edited the queue; ``context_uri`` is
+       the playlist or album it plays from, empty for a plain list of tracks
    * - ``ZSPOT_EVENT_DISCONNECT``
      - Another device took over playback
    * - ``ZSPOT_EVENT_CONNECTION_LOST``, ``ZSPOT_EVENT_CONNECTION_RESTORED``
