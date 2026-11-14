@@ -38,9 +38,26 @@ jobs:
             apt-get update && apt-get install -y --no-install-recommends libasound2-dev
           }
 
-      - name: Build the player application
+      - name: Fetch the binary blobs of the Espressif HAL
         working-directory: zspot
-        run: west twister -T app -v --inline-logs --integration
+        run: west blobs fetch hal_espressif
+
+      - name: Build the player application for native_sim
+        # The build as it is run and its variants (app/sample.yaml), with
+        # warnings as errors
+        working-directory: zspot
+        run: >
+          west twister -T app -v --inline-logs --integration
+          -p native_sim/native/64
+
+      - name: Build the player application for the ESP32-S3
+        # Warnings allowed: at -O3 the Espressif HAL and Zephyr have some,
+        # which are not this project's to fix
+        working-directory: zspot
+        run: >
+          west twister -T app -v --inline-logs --integration
+          -p uedx32480035e_wb_a/esp32s3/procpu --disable-warnings-as-errors
+          -O twister-out-esp32s3
 
       - name: Run the unit tests
         working-directory: zspot

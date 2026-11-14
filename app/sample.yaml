@@ -4,12 +4,39 @@
 sample:
   name: zspot player
   description: Spotify Connect player with a touchscreen UI (Now Playing, library, lyrics, Wi-Fi setup)
+common:
+  build_only: true
+  tags: zspot
+  platform_allow:
+    - native_sim/native/64
+  integration_platforms:
+    - native_sim/native/64
 tests:
+  # As it is flashed and run
   app.zspot.player:
-    build_only: true
-    tags: zspot
     platform_allow:
       - native_sim/native/64
       - uedx32480035e_wb_a/esp32s3/procpu
     integration_platforms:
       - native_sim/native/64
+      - uedx32480035e_wb_a/esp32s3/procpu
+  # What the board has and native_sim lacks: the settings, and with them the
+  # stored credentials, the last song and the Web API setup
+  app.zspot.player.settings:
+    extra_configs:
+      - CONFIG_FLASH=y
+      - CONFIG_FLASH_MAP=y
+      - CONFIG_NVS=y
+      - CONFIG_SETTINGS=y
+  app.zspot.player.no_ui:
+    extra_configs:
+      - CONFIG_ZSPOT_UI=n
+  app.zspot.player.debug:
+    extra_args: EXTRA_CONF_FILE=debug.conf
+  # Options that leave code out or swap it: the PCM tap, the sink without a
+  # buffer ahead of the output, servers that are not verified
+  app.zspot.player.options:
+    extra_configs:
+      - CONFIG_ZSPOT_PCM_TAP=y
+      - CONFIG_ZSPOT_I2S_BUFFER_MS=0
+      - CONFIG_ZSPOT_TLS_SEC_TAG=-1
