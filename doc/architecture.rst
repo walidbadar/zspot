@@ -67,6 +67,18 @@ Connection handling
   ``ZSPOT_EVENT_CONNECTION_RESTORED``; the player turns its network symbol red
   in between.
 
+TLS sessions
+************
+
+Every track means new connections to the same few servers: one to look the
+track up, one to the audio CDN, one for the cover. The HTTP client asks each
+server to resume the session of the connection before, which spares both
+sides the key exchange and the device the verification of a signature.
+Spotify's servers resume a session by its ticket, so the player builds Mbed
+TLS with session tickets for TLS 1.2 (``app/mbedtls/zspot_mbedtls_config.h``)
+and lets Zephyr keep six sessions
+(``CONFIG_NET_SOCKETS_TLS_MAX_CLIENT_SESSION_COUNT``).
+
 Memory
 ******
 

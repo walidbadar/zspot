@@ -82,6 +82,7 @@ void HttpConnection::open(const HttpUrl &url)
 {
 	struct zsock_addrinfo hints;
 	struct zsock_addrinfo *results = nullptr;
+	const int64_t started = k_uptime_get();
 	char port_str[8];
 	int sock = -1;
 	int ret;
@@ -143,6 +144,16 @@ void HttpConnection::open(const HttpUrl &url)
 #else
 				int verify = TLS_PEER_VERIFY_NONE;
 #endif
+				/*
+				 * A server that was talked to before is asked to go on
+				 * with that session, which spares both sides the key
+				 * exchange. Zephyr remembers
+				 * CONFIG_NET_SOCKETS_TLS_MAX_CLIENT_SESSION_COUNT of them.
+				 */
+				int session_cache = TLS_SESSION_CACHE_ENABLED;
+
+				zsock_setsockopt(sock, SOL_TLS, TLS_SESSION_CACHE, &session_cache,
+						 sizeof(session_cache));
 				zsock_setsockopt(sock, SOL_TLS, TLS_HOSTNAME, url.host.c_str(),
 						 url.host.size() + 1);
 				zsock_setsockopt(sock, SOL_TLS, TLS_PEER_VERIFY, &verify,
@@ -179,6 +190,9 @@ void HttpConnection::open(const HttpUrl &url)
 	if (sock < 0) {
 		throw std::runtime_error("Cannot connect to " + url.host);
 	}
+
+	LOG_DBG("Connected to %s in %d ms", url.host.c_str(),
+		static_cast<int>(k_uptime_get() - started));
 
 	sock_ = sock;
 	url_ = url;

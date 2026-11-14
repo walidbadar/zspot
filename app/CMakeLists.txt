@@ -11,6 +11,9 @@ endif()
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(zspot_player)
 
+# Mbed TLS is built with zspot_mbedtls_config.h (CONFIG_MBEDTLS_USER_CONFIG_FILE)
+zephyr_include_directories(mbedtls)
+
 target_sources(app PRIVATE src/main.c)
 target_sources_ifdef(CONFIG_WIFI_CREDENTIALS_CONNECT_STORED app PRIVATE src/wifi.c)
 target_sources_ifdef(CONFIG_ZSPOT_CREDENTIALS_STORED app PRIVATE src/credentials.c)
