@@ -22,6 +22,8 @@
 #define FRAMES 1024
 
 static int16_t stereo[2 * FRAMES];
+static int16_t copy[2 * FRAMES];
+static int16_t mono[4];
 
 static void fill(int16_t left, int16_t right)
 {
@@ -61,8 +63,6 @@ ZTEST(zspot_gain, test_volume_never_falls)
 /* At full volume the audio is not touched at all. */
 ZTEST(zspot_gain, test_unity_keeps_the_samples)
 {
-	static int16_t copy[2 * FRAMES];
-
 	for (size_t i = 0; i < ARRAY_SIZE(stereo); i++) {
 		stereo[i] = (int16_t)(i * 517 - 32768);
 	}
@@ -164,7 +164,9 @@ ZTEST(zspot_gain, test_towards_a_target)
 
 ZTEST(zspot_gain, test_mono)
 {
-	static int16_t mono[4] = {8000, 8000, 8000, 8000};
+	for (size_t i = 0; i < ARRAY_SIZE(mono); i++) {
+		mono[i] = 8000;
+	}
 
 	zassert_equal(gain_apply(GAIN_UNITY / 4, GAIN_UNITY / 4, STEP, mono, 4, 1),
 		      GAIN_UNITY / 4);

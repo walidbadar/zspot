@@ -17,6 +17,9 @@
 #include <type_traits>  // for enable_if<>::type
 #include <zephyr/net/net_ip.h>
 
+const char* const base62Alphabet =
+    "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
 unsigned long long getCurrentTimestamp() {
   return static_cast<unsigned long long>(k_uptime_get());
 }
@@ -44,9 +47,6 @@ std::vector<uint8_t> stringHexToBytes(const std::string& s) {
 
   return v;
 }
-
-const char* const base62Alphabet =
-    "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 std::string base62Encode(const std::vector<uint8_t>& data, size_t digits) {
   std::vector<uint8_t> number = data;

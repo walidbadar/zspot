@@ -28,6 +28,9 @@ namespace
 constexpr size_t SHA1_SIZE = 20;
 constexpr size_t AES_BLOCK = 16;
 
+/* The public exponent of the key that access points sign with: 65537 */
+constexpr uint8_t SERVER_KEY_EXPONENT[] = {0x01, 0x00, 0x01};
+
 /* 768-bit "First Oakley Group" prime (RFC 2409, section 6.1). */
 const unsigned char DH_PRIME[] = {
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc9, 0x0f, 0xda, 0xa2, 0x21, 0x68,
@@ -310,14 +313,13 @@ bool Crypto::rsaSha1Verify(const std::vector<uint8_t> &modulus,
 			   const std::vector<uint8_t> &signature)
 {
 #if defined(PSA_WANT_ALG_RSA_PKCS1V15_SIGN) && defined(PSA_WANT_KEY_TYPE_RSA_PUBLIC_KEY)
-	static const uint8_t exponent[] = {0x01, 0x00, 0x01};
 	const psa_algorithm_t alg = PSA_ALG_RSA_PKCS1V15_SIGN(PSA_ALG_SHA_1);
 	std::vector<uint8_t> integers;
 	std::vector<uint8_t> key;
 
 	/* PSA takes the key as RSAPublicKey: SEQUENCE { modulus, publicExponent } */
 	der_integer(integers, modulus.data(), modulus.size());
-	der_integer(integers, exponent, sizeof(exponent));
+	der_integer(integers, SERVER_KEY_EXPONENT, sizeof(SERVER_KEY_EXPONENT));
 	key.push_back(0x30);
 	key.push_back(0x82);
 	key.push_back(static_cast<uint8_t>(integers.size() >> 8));

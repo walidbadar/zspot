@@ -57,6 +57,10 @@
 #define SINK_TAIL_MS 0
 #endif
 
+/* How often the main thread looks while the end of the queue is due, and otherwise */
+#define END_POLL_MS  50
+#define IDLE_POLL_MS 250
+
 LOG_MODULE_REGISTER(zspot_player, LOG_LEVEL_INF);
 
 static K_SEM_DEFINE(ipv4_ready, 0, 1);
@@ -75,12 +79,6 @@ static bool position_preset;
 /* The track that begins was started anew: the sink is empty, no audio goes out */
 static bool output_idle;
 
-static void position_set(uint32_t position_ms)
-{
-	position_base_ms = position_ms;
-	atomic_clear(&position_bytes);
-}
-
 /*
  * End of playback: when the decoder is through with the last track of the
  * queue, the sink still plays what it buffered. The main thread tells Spotify
@@ -91,6 +89,17 @@ static K_SEM_DEFINE(end_sem, 0, 1);
 static atomic_t end_pending;
 /* PCM went to the sink since the last end; a track that cannot be loaded ends without */
 static atomic_t audio_played;
+/* When the sink had passed on the last of the audio; 0 while it holds some */
+static int64_t end_drained_ms;
+
+/* The credentials of the session, to print them when they are not stored */
+static char credentials_json[1024];
+
+static void position_set(uint32_t position_ms)
+{
+	position_base_ms = position_ms;
+	atomic_clear(&position_bytes);
+}
 
 /* Something else plays or the audio was dropped: there is no end to report. */
 static void end_cancel(void)
@@ -325,10 +334,6 @@ static size_t on_pcm(const uint8_t *pcm, size_t len, void *user_data)
 	return accepted;
 }
 
-/* How often the main thread looks while the end of the queue is due, and otherwise */
-#define END_POLL_MS  50
-#define IDLE_POLL_MS 250
-
 /*
  * Reports the end of the queue once the last audio has been played. Called
  * again and again from the main thread: the event comes from the player
@@ -336,23 +341,21 @@ static size_t on_pcm(const uint8_t *pcm, size_t len, void *user_data)
  */
 static void end_poll(void)
 {
-	static int64_t drained_ms;
-
 	/* A pause keeps the audio in the sink, and the end waiting. */
 	if (!atomic_get(&end_pending) || sink_buffered() > 0) {
-		drained_ms = 0;
+		end_drained_ms = 0;
 		return;
 	}
 
 	/* The I2S driver still plays what it was handed last */
-	if (drained_ms == 0) {
-		drained_ms = k_uptime_get();
+	if (end_drained_ms == 0) {
+		end_drained_ms = k_uptime_get();
 	}
-	if (k_uptime_get() - drained_ms < SINK_TAIL_MS) {
+	if (k_uptime_get() - end_drained_ms < SINK_TAIL_MS) {
 		return;
 	}
 
-	drained_ms = 0;
+	end_drained_ms = 0;
 	if (atomic_cas(&end_pending, 1, 0)) {
 		LOG_INF("Playback ended");
 		zspot_notify_audio_ended();
@@ -520,7 +523,6 @@ static void sign_in(enum credentials_source source)
 
 int main(void)
 {
-	static char credentials[1024];
 	enum credentials_source source = CREDENTIALS_BUILD;
 	const struct zspot_config config = {
 		.device_name = CONFIG_ZSPOT_DEVICE_NAME,
@@ -597,8 +599,9 @@ int main(void)
 
 		if (IS_ENABLED(CONFIG_ZSPOT_CREDENTIALS_STORED)) {
 			(void)credentials_store();
-		} else if (zspot_credentials_save_json(credentials, sizeof(credentials)) > 0) {
-			LOG_INF("Reusable credentials (store these): %s", credentials);
+		} else if (zspot_credentials_save_json(credentials_json,
+						       sizeof(credentials_json)) > 0) {
+			LOG_INF("Reusable credentials (store these): %s", credentials_json);
 		}
 
 		/* The last song, ready to go on with, or how to get one */

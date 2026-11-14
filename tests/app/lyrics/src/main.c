@@ -16,6 +16,15 @@
  */
 #include "lyrics.c"
 
+/* What split_lines() filled in, and the text it took apart */
+static struct {
+	struct ui_lyrics lyrics;
+	struct ui_lyrics_line lines[LINES_MAX];
+} parsed;
+static char text[2048];
+/* More lines than there is room for */
+static char many[2048];
+
 /* Nothing is fetched or shown in these tests */
 int zspot_http_request(const char *method, const char *url, const char *const *headers,
 		       const char *content_type, const char *body, uint8_t *buf, size_t size,
@@ -32,13 +41,6 @@ bool ui_show_lyrics(struct ui_lyrics *new_lyrics)
 void ui_set_lyrics_status(const char *title, const char *status)
 {
 }
-
-static struct {
-	struct ui_lyrics lyrics;
-	struct ui_lyrics_line lines[LINES_MAX];
-} parsed;
-
-static char text[2048];
 
 static struct ui_lyrics *split(const char *lrc, bool synced)
 {
@@ -94,7 +96,6 @@ ZTEST(zspot_lyrics, test_synced_skips_tags)
 
 ZTEST(zspot_lyrics, test_more_lines_than_room)
 {
-	static char many[2048];
 	struct ui_lyrics *l;
 	size_t len = 0;
 

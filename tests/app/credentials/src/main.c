@@ -22,6 +22,9 @@ LOG_MODULE_REGISTER(zspot_player, LOG_LEVEL_INF);
 
 static const char sample[] =
 	"{\"authData\":\"QUJDREVGR0g=\",\"authType\":1,\"username\":\"someone\"}";
+static const char other[] = "{\"authData\":\"WA==\",\"authType\":1,\"username\":\"x\"}";
+/* More than the store takes */
+static char large[1100];
 
 /* The library: what it holds, what it was handed and how it answers */
 static const char *session_json;
@@ -81,8 +84,6 @@ ZTEST(zspot_credentials, test_store_and_load)
 
 ZTEST(zspot_credentials, test_store_replaces)
 {
-	static const char other[] = "{\"authData\":\"WA==\",\"authType\":1,\"username\":\"x\"}";
-
 	session_json = sample;
 	zassert_ok(credentials_store());
 	/* Shorter than the first: nothing of that may be left behind it */
@@ -129,8 +130,6 @@ ZTEST(zspot_credentials, test_unusable_are_removed)
 
 ZTEST(zspot_credentials, test_oversized_are_removed)
 {
-	static char large[1100];
-
 	memset(large, 'x', sizeof(large));
 	zassert_ok(settings_save_one(KEY, large, sizeof(large)));
 
