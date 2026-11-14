@@ -40,6 +40,7 @@
 #include "certs.h"
 #include "credentials.h"
 #include "track.h"
+#include "webapi.h"
 #if defined(CONFIG_ZSPOT_UI)
 #include "library.h"
 #include "lyrics.h"
@@ -528,6 +529,7 @@ int main(void)
 	};
 	int ret;
 
+	(void)webapi_init();
 #if defined(CONFIG_ZSPOT_UI)
 	if (ui_init(&ui_ops) == 0) {
 		library_init();

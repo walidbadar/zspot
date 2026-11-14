@@ -9,7 +9,7 @@
  * through the Spotify Web API, the tracks of the one that is picked, or the
  * songs that match a search, and starts playback of a track on this device. The listings are shown with
  * ui_list_reset() / ui_list_add(); the functions below are the matching
- * struct ui_ops hooks and only queue work for the library thread.
+ * struct ui_ops hooks and only queue work for the thread of the Web API.
  */
 
 #ifndef ZSPOT_SAMPLE_LIBRARY_H_
@@ -18,7 +18,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/** Starts the library thread. Call after ui_init() succeeded. */
+/** Sets the library up. Call after ui_init() succeeded and webapi_init(). */
 int library_init(void);
 
 /** Loads and shows the top level: Liked Songs and the playlists. */
@@ -38,21 +38,5 @@ void library_search(const char *query);
 
 /** Plays the hit @p index of the last search, followed by the hits after it. */
 void library_search_select(int index);
-
-/** Reports from the library thread whether Spotify accepted the request. */
-typedef void (*library_play_cb_t)(bool accepted);
-
-/**
- * Plays a track on this device, from @p position_ms on.
- *
- * @param track_uri    "spotify:track:..." or "spotify:episode:..."
- * @param context_uri  the playlist or album to go on with after the track,
- *                     or empty; without one, or when the track is no longer
- *                     part of it, the track is played alone
- * @return 0 when the request is on its way and @p done will be called;
- *         -EBUSY while an earlier one is, or another negative errno
- */
-int library_play(const char *track_uri, const char *context_uri, uint32_t position_ms,
-		 library_play_cb_t done);
 
 #endif /* ZSPOT_SAMPLE_LIBRARY_H_ */

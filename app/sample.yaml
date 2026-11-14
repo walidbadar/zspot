@@ -31,6 +31,14 @@ tests:
   app.zspot.player.no_ui:
     extra_configs:
       - CONFIG_ZSPOT_UI=n
+  # The stored credentials, the last song and the Web API do not need the screen
+  app.zspot.player.no_ui.settings:
+    extra_configs:
+      - CONFIG_ZSPOT_UI=n
+      - CONFIG_FLASH=y
+      - CONFIG_FLASH_MAP=y
+      - CONFIG_NVS=y
+      - CONFIG_SETTINGS=y
   app.zspot.player.debug:
     extra_args: EXTRA_CONF_FILE=debug.conf
   # Options that leave code out or swap it: the PCM tap, the sink without a

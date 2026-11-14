@@ -162,6 +162,21 @@ audio on TCP port 5000:
 When the copy sounds right but the DAC does not, the fault is in the I2S
 configuration, the wiring or the DAC.
 
+Without the screen
+******************
+
+``CONFIG_ZSPOT_UI=n`` builds the player for a device without a display. Only
+what draws on the screen or feeds it goes with that option: the Now Playing
+screen, the covers, Your Library, the search, the lyrics, the battery
+indicator and the Wi-Fi settings. The rest is the same player: Spotify
+Connect, the stored credentials, the last song and the Web API.
+
+The last song is kept as with the screen. ``track_pause(false)`` starts it
+(``app/src/track.h``), which is what the Play button calls; a device with
+keys of its own calls it from their handler. ``webapi_play()`` starts any
+track on the device, and ``webapi_submit()`` runs other Web API requests
+(``app/src/webapi.h``).
+
 Application options
 *******************
 
@@ -175,8 +190,9 @@ Application options
      - Keep the Spotify credentials across restarts (on by default where the
        settings subsystem is enabled)
    * - ``ZSPOT_LAST_TRACK``
-     - Show the last song after a restart and start it with Play (on by
-       default with ``ZSPOT_CREDENTIALS_STORED``)
+     - Keep the last song across restarts, to show it and start it with
+       Play (on by default with ``ZSPOT_CREDENTIALS_STORED``, with or
+       without the screen)
    * - ``ZSPOT_CREDENTIALS_JSON``
      - Credentials given to the build; skips the zeroconf hand-over and
        takes precedence over stored ones

@@ -10,7 +10,7 @@ set(ZSPOT_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../..)
 
 # src/main.c includes app/src/track.c, to get at the store of the last song,
 # which is internal to it. The file is built as in a player with the UI, with
-# stand-ins in main.c for the UI, the library view and the Web API.
+# stand-ins in main.c for the UI and the Web API.
 target_sources(app PRIVATE src/main.c ../stubs/player_log.c)
 target_include_directories(app PRIVATE ${ZSPOT_ROOT}/app/src ${ZSPOT_ROOT}/include)
 target_compile_definitions(app PRIVATE CONFIG_ZSPOT_UI=1 CONFIG_ZSPOT_LAST_TRACK=1)

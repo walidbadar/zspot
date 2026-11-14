@@ -111,6 +111,11 @@ Utilities
 ``zspot_http_get()`` and ``zspot_http_request()`` give the application the
 library's HTTP(S) client, for cover art or the Spotify Web API.
 
+``zspot_mem_alloc()`` and ``zspot_mem_free()`` give it memory from where the
+library keeps its own large buffers: external RAM when the board has some
+(``CONFIG_ZSPOT_EXTERNAL_HEAP``), else the C heap. The player takes the stack
+of its Web API thread from there.
+
 Events
 ******
 

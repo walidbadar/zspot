@@ -16,7 +16,6 @@
 #include <zephyr/sys/atomic.h>
 #include <zephyr/sys/util.h>
 
-#include "library.h"
 #include "ui.h"
 #include "webapi.h"
 
@@ -365,7 +364,7 @@ static void start_failed(void)
 	}
 }
 
-/* From the library thread */
+/* From the thread of the Web API */
 static void on_play_request_done(bool accepted)
 {
 	if (!accepted) {
@@ -397,7 +396,7 @@ bool track_pause(bool pause)
 	position_ms = current.position_ms;
 	k_mutex_unlock(&lock);
 
-	ret = library_play(uri, context, position_ms, on_play_request_done);
+	ret = webapi_play(uri, context, position_ms, on_play_request_done);
 	if (ret == 0) {
 		ui_set_paused(false);
 	} else if (ret != -EBUSY) {

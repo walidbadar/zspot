@@ -11,6 +11,10 @@
  * song is started through the Web API, as a restarted device has no queue to
  * play.
  *
+ * Nothing here needs the screen: without one the ui_*() calls do nothing,
+ * and track_pause() and track_seek() are for whatever stands in for its
+ * buttons.
+ *
  * The song is stored when no audio goes out (it is paused, it just started,
  * the queue ended, another device took over), because writing to the flash
  * stops the system for longer than the output can go on by itself. A song

@@ -28,15 +28,13 @@ LOG_MODULE_DECLARE(zspot_player, LOG_LEVEL_INF);
 #define API "https://api.spotify.com/v1"
 
 /* Liked Songs come with complete album objects, about 4 KB per track */
-#define RESPONSE_MAX  (160 * 1024)
-#define BODY_MAX      2048
-#define STACK_SIZE    8192
-#define PRIORITY      10
-#define TOP_HEADING   "Your Library"
+#define RESPONSE_MAX (160 * 1024)
+#define BODY_MAX     2048
+#define TOP_HEADING  "Your Library"
 
 /* Hits asked for; Spotify caps the number per request */
-#define SEARCH_LIMIT  20
-#define QUERY_MAX     68
+#define SEARCH_LIMIT 20
+#define QUERY_MAX    68
 
 enum request_type {
 	REQUEST_OPEN,
@@ -44,7 +42,6 @@ enum request_type {
 	REQUEST_SELECT,
 	REQUEST_SEARCH,
 	REQUEST_SEARCH_SELECT,
-	REQUEST_PLAY,
 };
 
 struct request {
@@ -60,7 +57,7 @@ struct collection {
 	char id[40];
 };
 
-/* What the listings on screen refer to; owned by the library thread. */
+/* What the listings on screen refer to; owned by the thread of the Web API. */
 struct model {
 	struct collection collections[UI_LIST_MAX];
 	int collection_count;
@@ -75,17 +72,14 @@ struct model {
 	/* Hits of the last search */
 	char search_uris[UI_LIST_MAX][48];
 	int search_count;
-
-	/* The track of library_play(), from the request until it was sent */
-	char play_uri[48];
-	char play_context[64];
-	uint32_t play_position_ms;
-	library_play_cb_t play_done;
 };
+
+static void library_handler(struct k_work *work);
 
 K_MSGQ_DEFINE(library_requests, sizeof(struct request), 4, 4);
 
-static struct k_thread library_thread_data;
+/* The requests are served on the thread of the Web API */
+static K_WORK_DEFINE(library_work, library_handler);
 static struct model *model;
 static uint32_t generation;
 
@@ -275,22 +269,6 @@ static void open_collection(int index)
  * Sends a play request for this device; @p body is the JSON of what to play.
  * Returns whether Spotify accepted it.
  */
-static bool start_playback(const char *body)
-{
-	char url[120];
-	char error[72];
-	char *response;
-
-	snprintf(url, sizeof(url), API "/me/player/play?device_id=%s", zspot_device_id());
-	response = request("PUT", url, body, error, sizeof(error), NULL);
-	if (response == NULL) {
-		LOG_WRN("Cannot start playback: %s", error);
-		return false;
-	}
-	response_free(response);
-	return true;
-}
-
 /* Play request for a list of tracks, starting with the one at @p index. */
 static void uris_body(char *body, const char (*uris)[48], int count, int index)
 {
@@ -328,46 +306,11 @@ static void play_track(bool search_hit, int index)
 		/* Liked Songs: hand over the listed tracks themselves. */
 		uris_body(body, model->track_uris, model->track_count, index);
 	}
-	start_playback(body);
+	(void)webapi_start_playback(body);
 
 	lvgl_lock();
 	lv_free(body);
 	lvgl_unlock();
-}
-
-/* Starts the track of library_play(), within its playlist or album if it has one. */
-static void play_given(void)
-{
-	const char *context = model->play_context;
-	bool accepted = false;
-	char *body;
-
-	lvgl_lock();
-	body = lv_malloc(BODY_MAX);
-	lvgl_unlock();
-
-	/* The Web API takes an offset into these contexts only */
-	if (body != NULL && (strncmp(context, "spotify:playlist:", 17) == 0 ||
-			     strncmp(context, "spotify:album:", 14) == 0)) {
-		snprintf(body, BODY_MAX,
-			 "{\"context_uri\":\"%s\",\"offset\":{\"uri\":\"%s\"},\"position_ms\":%u}",
-			 context, model->play_uri, model->play_position_ms);
-		accepted = start_playback(body);
-	}
-	/* Also when the track is no longer part of the playlist */
-	if (body != NULL && !accepted) {
-		snprintf(body, BODY_MAX, "{\"uris\":[\"%s\"],\"position_ms\":%u}", model->play_uri,
-			 model->play_position_ms);
-		accepted = start_playback(body);
-	}
-
-	lvgl_lock();
-	lv_free(body);
-	lvgl_unlock();
-
-	/* Free for the next request before the caller hears of this one */
-	model->play_uri[0] = '\0';
-	model->play_done(accepted);
 }
 
 /* Appends @p text to @p url, percent-encoded. */
@@ -439,17 +382,13 @@ static void search(const char *query)
 	}
 }
 
-static void library_thread(void *p1, void *p2, void *p3)
+static void library_handler(struct k_work *work)
 {
 	struct request req;
 
-	ARG_UNUSED(p1);
-	ARG_UNUSED(p2);
-	ARG_UNUSED(p3);
+	ARG_UNUSED(work);
 
-	while (true) {
-		k_msgq_get(&library_requests, &req, K_FOREVER);
-
+	while (k_msgq_get(&library_requests, &req, K_NO_WAIT) == 0) {
 		switch (req.type) {
 		case REQUEST_OPEN:
 			load_collections();
@@ -478,31 +417,20 @@ static void library_thread(void *p1, void *p2, void *p3)
 				play_track(true, req.index);
 			}
 			break;
-		case REQUEST_PLAY:
-			play_given();
-			break;
 		}
 	}
 }
 
 int library_init(void)
 {
-	uint8_t *stack;
-
-	/* Like the rest of the UI, live in the LVGL pool. */
+	/* Like the rest of the UI, lives in the LVGL pool. */
 	lvgl_lock();
-	stack = lv_malloc(K_KERNEL_STACK_LEN(STACK_SIZE) + Z_KERNEL_STACK_OBJ_ALIGN);
 	model = lv_zalloc(sizeof(*model));
 	lvgl_unlock();
-	if (stack == NULL || model == NULL) {
+	if (model == NULL) {
 		LOG_ERR("LVGL memory pool too small for the library");
 		return -ENOMEM;
 	}
-
-	k_thread_create(&library_thread_data,
-			(k_thread_stack_t *)ROUND_UP(stack, Z_KERNEL_STACK_OBJ_ALIGN), STACK_SIZE,
-			library_thread, NULL, NULL, NULL, PRIORITY, 0, K_NO_WAIT);
-	k_thread_name_set(&library_thread_data, "library");
 	return 0;
 }
 
@@ -514,9 +442,13 @@ static void submit(enum request_type type, int index, const char *query)
 		snprintf(req.query, sizeof(req.query), "%s", query);
 	}
 
-	if (model != NULL && k_msgq_put(&library_requests, &req, K_NO_WAIT) != 0) {
+	if (model == NULL) {
+		return;
+	}
+	if (k_msgq_put(&library_requests, &req, K_NO_WAIT) != 0) {
 		LOG_WRN("Library busy, request dropped");
 	}
+	(void)webapi_submit(&library_work);
 }
 
 void library_open(void)
@@ -542,33 +474,4 @@ void library_search(const char *query)
 void library_search_select(int index)
 {
 	submit(REQUEST_SEARCH_SELECT, index, NULL);
-}
-
-int library_play(const char *track_uri, const char *context_uri, uint32_t position_ms,
-		 library_play_cb_t done)
-{
-	const struct request req = {.type = REQUEST_PLAY};
-
-	if (model == NULL) {
-		return -ENODEV;
-	}
-	if (strlen(track_uri) >= sizeof(model->play_uri) ||
-	    strlen(context_uri) >= sizeof(model->play_context)) {
-		return -EINVAL;
-	}
-	/* One at a time: the track waits in the model, not in the queue */
-	if (model->play_uri[0] != '\0') {
-		return -EBUSY;
-	}
-
-	strcpy(model->play_context, context_uri);
-	model->play_position_ms = position_ms;
-	model->play_done = done;
-	strcpy(model->play_uri, track_uri);
-
-	if (k_msgq_put(&library_requests, &req, K_NO_WAIT) != 0) {
-		model->play_uri[0] = '\0';
-		return -EBUSY;
-	}
-	return 0;
 }

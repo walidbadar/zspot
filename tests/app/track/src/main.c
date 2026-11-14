@@ -52,7 +52,7 @@ static int play_count;
 static char play_uri[TRACK_URI_MAX];
 static char play_context[TRACK_CONTEXT_MAX];
 static uint32_t play_position_ms;
-static library_play_cb_t play_done;
+static webapi_play_cb_t play_done;
 
 bool webapi_configured(void)
 {
@@ -75,8 +75,8 @@ void ui_set_paused(bool paused)
 	shown_paused = paused;
 }
 
-int library_play(const char *track_uri, const char *context_uri, uint32_t position_ms,
-		 library_play_cb_t done)
+int webapi_play(const char *track_uri, const char *context_uri, uint32_t position_ms,
+		webapi_play_cb_t done)
 {
 	play_count++;
 	strcpy(play_uri, track_uri);

@@ -283,6 +283,19 @@ int zspot_http_request(const char *method, const char *url, const char *const *h
 		       const char *content_type, const char *body, uint8_t *buf, size_t size,
 		       size_t *len);
 
+/**
+ * Allocates from where the library keeps its own large buffers: external
+ * memory when the board has some (CONFIG_ZSPOT_EXTERNAL_HEAP, PSRAM on
+ * ESP32), else the C heap. For the buffers and thread stacks of an
+ * application that would not fit the internal RAM.
+ *
+ * @return the block, aligned to 16 bytes, or NULL when there is no memory
+ */
+void *zspot_mem_alloc(size_t size);
+
+/** Releases a block of zspot_mem_alloc(); NULL is ignored. */
+void zspot_mem_free(void *ptr);
+
 #ifdef __cplusplus
 }
 #endif

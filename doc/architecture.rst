@@ -104,8 +104,11 @@ Memory
 
 On the ESP32-S3 the large buffers live in PSRAM: the Mbed TLS heap, the
 protocol thread stacks, the decoder buffers and the LVGL memory pool, which
-also holds the cover art and the Web API responses. The display's render
-buffer stays in internal RAM because the SPI DMA cannot read from PSRAM.
+also holds the cover art and the Web API responses of the library view. The
+stack of the player's Web API thread comes from the heap of the library
+(``zspot_mem_alloc()``), so that it does not take LVGL to have it. The
+display's render buffer stays in internal RAM because the SPI DMA cannot read
+from PSRAM.
 
 Discovery and hand-over
 ***********************
