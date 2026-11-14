@@ -118,7 +118,8 @@ config ZSPOT_UI
 	  Shows the cover art, title, artist and progress of the current track
 	  on the chosen display (the layout follows its resolution) and offers touch
 	  controls for play/pause, skipping, seeking and the volume. See
-	  prj.conf for the LVGL configuration it needs.
+	  prj.conf for the LVGL configuration it needs, and boards/<board>.conf
+	  for what depends on the display of a board.
 
 if ZSPOT_UI
 
