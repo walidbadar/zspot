@@ -37,6 +37,35 @@ ZTEST(zspot_json, test_first_of_string_array_missing)
 	zassert_equal(zspot_json_first_of_array("unknown", doc, strlen(doc), &first), -EINVAL);
 }
 
+ZTEST(zspot_json, test_strings_of_array)
+{
+	char doc[] = "{\"ap_list\":[\"ap-a.example:4070\",\"ap-a.example:443\",\"ap-b.example:80\"]}";
+	const char *items[4] = {NULL};
+
+	zassert_equal(zspot_json_strings_of_array("ap_list", doc, strlen(doc), items, 4), 3);
+	zassert_str_equal(items[0], "ap-a.example:4070");
+	zassert_str_equal(items[1], "ap-a.example:443");
+	zassert_str_equal(items[2], "ap-b.example:80");
+}
+
+ZTEST(zspot_json, test_strings_of_array_limits)
+{
+	char more[] = "{\"ap_list\":[\"a\",\"b\",\"c\"]}";
+	char empty[] = "{\"ap_list\":[]}";
+	char other[] = "{\"other\":[\"x\"]}";
+	const char *items[2] = {NULL};
+
+	/* No more than there is room for */
+	zassert_equal(zspot_json_strings_of_array("ap_list", more, strlen(more), items, 2), 2);
+	zassert_str_equal(items[1], "b");
+
+	zassert_equal(zspot_json_strings_of_array("ap_list", empty, strlen(empty), items, 2), 0);
+	zassert_equal(zspot_json_strings_of_array("ap_list", other, strlen(other), items, 2),
+		      -ENOENT);
+	zassert_equal(zspot_json_strings_of_array("unknown", other, strlen(other), items, 2),
+		      -EINVAL);
+}
+
 ZTEST(zspot_json, test_credentials_round_trip)
 {
 	const struct zspot_json_credentials in = {

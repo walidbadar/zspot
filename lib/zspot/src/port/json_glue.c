@@ -110,6 +110,41 @@ static int encode(const struct json_obj_descr *descr, size_t descr_len, const vo
 	return (int)needed;
 }
 
+int zspot_json_strings_of_array(const char *key, char *doc, size_t len, const char **items,
+				size_t max)
+{
+	const struct json_obj_descr *descr;
+	size_t descr_len;
+	struct string_array_doc parsed = {0};
+	size_t count = 0;
+	int ret;
+
+	if (strcmp(key, "ap_list") == 0) {
+		descr = ap_list_descr;
+		descr_len = ARRAY_SIZE(ap_list_descr);
+	} else if (strcmp(key, "cdnurl") == 0) {
+		descr = cdn_url_descr;
+		descr_len = ARRAY_SIZE(cdn_url_descr);
+	} else {
+		return -EINVAL;
+	}
+
+	ret = json_obj_parse(doc, len, descr, descr_len, &parsed);
+	if (ret < 0) {
+		return ret;
+	}
+	if ((ret & 1) == 0) {
+		return -ENOENT;
+	}
+
+	for (size_t i = 0; i < parsed.count && count < max; i++) {
+		if (parsed.items[i] != NULL) {
+			items[count++] = parsed.items[i];
+		}
+	}
+	return (int)count;
+}
+
 int zspot_json_first_of_array(const char *key, char *doc, size_t len, const char **first)
 {
 	const struct json_obj_descr *descr;

@@ -67,12 +67,28 @@ void Session::connectWithRandomAp() {
     return this->triggerTimeout();
   };
 
-  auto apAddr = apResolver->fetchFirstApAddress();
+  // Spotify names several, on different ports. One that cannot be reached,
+  // or that ends the handshake, is not the end: go on to the next
+  auto apAddresses = apResolver->fetchApAddresses();
 
-  CSPOT_LOG(debug, "Connecting with AP <%s>", apAddr.c_str());
-  conn->connect(apAddr);
-
-  this->connect(std::move(conn));
+  for (size_t i = 0; i < apAddresses.size(); i++) {
+    CSPOT_LOG(debug, "Connecting with AP <%s>", apAddresses[i].c_str());
+    try {
+      conn->connect(apAddresses[i]);
+      this->connect(std::move(conn));
+      return;
+    } catch (const std::exception& e) {
+      if (i + 1 == apAddresses.size()) {
+        throw;
+      }
+      CSPOT_LOG(info, "Access point %s: %s, trying the next",
+                apAddresses[i].c_str(), e.what());
+      conn = std::make_unique<cspot::PlainConnection>();
+      conn->timeoutHandler = [this]() {
+        return this->triggerTimeout();
+      };
+    }
+  }
 }
 
 std::vector<uint8_t> Session::authenticate(std::shared_ptr<LoginBlob> blob) {

@@ -8,6 +8,7 @@
 #pragma once
 
 #include <string>  // for string
+#include <vector>  // for vector
 
 namespace cspot {
 class ApResolve {
@@ -15,10 +16,10 @@ class ApResolve {
   ApResolve(std::string apOverride);
 
   /**
-   * @brief Connects to spotify's servers and returns first valid ap address
-   * @returns std::string Address in form of url:port
+   * @brief Asks spotify's servers for access points
+   * @returns the addresses in the form of url:port, in the order to try them
    */
-  std::string fetchFirstApAddress();
+  std::vector<std::string> fetchApAddresses();
 
  private:
   std::string apOverride;

@@ -8,6 +8,8 @@
 
 #include "port/json_glue.h"
 
+#include <zephyr/sys/util.h>
+
 namespace zspot::json
 {
 
@@ -45,6 +47,23 @@ bool firstOfStringArray(std::string_view document, std::string_view key, std::st
 	}
 	out = first;
 	return true;
+}
+
+std::vector<std::string> stringArray(std::string_view document, std::string_view key)
+{
+	/* The Zephyr parser works in place, so parse a private copy. */
+	std::string copy(document);
+	std::string key_str(key);
+	const char *items[16];
+	std::vector<std::string> out;
+
+	const int count = zspot_json_strings_of_array(key_str.c_str(), copy.data(), copy.size(),
+						      items, ARRAY_SIZE(items));
+
+	for (int i = 0; i < count; i++) {
+		out.emplace_back(items[i]);
+	}
+	return out;
 }
 
 bool parseCredentials(std::string_view document, Credentials &out)

@@ -16,12 +16,16 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace zspot::json
 {
 
 /** Reads the first element of the string array at @p key ("ap_list" or "cdnurl"). */
 bool firstOfStringArray(std::string_view document, std::string_view key, std::string &out);
+
+/** Reads the string array at @p key ("ap_list" or "cdnurl"); empty when it is not there. */
+std::vector<std::string> stringArray(std::string_view document, std::string_view key);
 
 /** Stored credentials: {"authData": <base64>, "authType": n, "username": s} */
 struct Credentials {

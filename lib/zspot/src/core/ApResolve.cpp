@@ -20,20 +20,20 @@ using namespace cspot;
 
 ApResolve::ApResolve(std::string apOverride) : apOverride(apOverride) {}
 
-std::string ApResolve::fetchFirstApAddress() {
+std::vector<std::string> ApResolve::fetchApAddresses() {
   if (!apOverride.empty()) {
-    return apOverride;
+    return {apOverride};
   }
 
   auto response = zspot::HttpConnection::fetch("GET", "https://apresolve.spotify.com/");
   std::string_view body(reinterpret_cast<const char*>(response.body.data()),
                         response.body.size());
+  auto addresses = zspot::json::stringArray(body, "ap_list");
 
-  std::string address;
-  if (!zspot::json::firstOfStringArray(body, "ap_list", address)) {
+  if (addresses.empty()) {
     CSPOT_LOG(error, "Unexpected apresolve response (status %d)",
               response.status);
     throw std::runtime_error("Cannot resolve access point");
   }
-  return address;
+  return addresses;
 }

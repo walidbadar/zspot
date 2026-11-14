@@ -31,6 +31,18 @@ extern "C" {
  */
 int zspot_json_first_of_array(const char *key, char *doc, size_t len, const char **first);
 
+/**
+ * @brief Reads the elements of the string array at @p key.
+ *
+ * @param key   "ap_list" or "cdnurl".
+ * @param doc   Document, modified in place by the parser.
+ * @param len   Document length.
+ * @param items Receives up to @p max pointers into @p doc.
+ * @return the number of elements stored, which may be 0, or a negative errno.
+ */
+int zspot_json_strings_of_array(const char *key, char *doc, size_t len, const char **items,
+				size_t max);
+
 struct zspot_json_credentials {
 	const char *auth_data;
 	int32_t auth_type;
