@@ -13,4 +13,4 @@ set(ZSPOT_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../..)
 # stand-ins in main.c for the UI and the Web API.
 target_sources(app PRIVATE src/main.c ../stubs/player_log.c)
 target_include_directories(app PRIVATE ${ZSPOT_ROOT}/app/src ${ZSPOT_ROOT}/include)
-target_compile_definitions(app PRIVATE CONFIG_ZSPOT_UI=1 CONFIG_ZSPOT_LAST_TRACK=1)
+target_compile_definitions(app PRIVATE CONFIG_ZSPOT_UI=1)

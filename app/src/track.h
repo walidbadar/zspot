@@ -5,7 +5,7 @@
  */
 
 /*
- * The last song across restarts (CONFIG_ZSPOT_LAST_TRACK): keeps what plays
+ * The last song across restarts, wherever there are settings: keeps what plays
  * in the settings, shows it paused on the Now Playing screen after a restart
  * instead of a notice, and starts it on this device when Play is tapped. The
  * song is started through the Web API, as a restarted device has no queue to
@@ -29,7 +29,7 @@
 
 #include <zspot/zspot.h>
 
-#if defined(CONFIG_ZSPOT_LAST_TRACK)
+#if defined(CONFIG_SETTINGS)
 
 /* --- What plays: from the zspot event callback ----------------------------- */
 
@@ -119,6 +119,6 @@ static inline bool track_seek(uint32_t position_ms)
 	return false;
 }
 
-#endif /* CONFIG_ZSPOT_LAST_TRACK */
+#endif /* CONFIG_SETTINGS */
 
 #endif /* ZSPOT_SAMPLE_TRACK_H_ */

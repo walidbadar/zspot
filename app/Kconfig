@@ -87,27 +87,6 @@ config ZSPOT_CREDENTIALS_STORED
 	  Credentials given to the build (ZSPOT_CREDENTIALS_JSON, or
 	  ZSPOT_USERNAME and ZSPOT_PASSWORD) take precedence over stored ones.
 
-config ZSPOT_LAST_TRACK
-	bool "Keep the last song across restarts"
-	default y
-	depends on ZSPOT_CREDENTIALS_STORED
-	help
-	  Stores the song that plays in the settings. After a restart it is
-	  there to go on with, paused where it was paused: the Now Playing
-	  screen shows it instead of the notice to pick the device in the
-	  Spotify app, and Play starts it on this device, within its playlist
-	  or album where it has one. A player without the screen keeps the
-	  song the same way, for what stands in for the Play button.
-
-	  The song is started through the Web API (ZSPOT_WEB_CLIENT_ID and its
-	  companions); without that set up, the notice is shown as before.
-
-	  Writing to the flash interrupts the audio, so the song is stored
-	  when none goes out: when it is paused, when it was just started,
-	  at the end of the queue or when another device takes over. After a
-	  loss of power in the middle of a queue that played without a break,
-	  the song shown is the one that the queue was started with.
-
 # The defaults come from the environment of the build, so that the values stay
 # out of the repository and of the command line.
 
@@ -122,7 +101,7 @@ config ZSPOT_WEB_CLIENT_ID
 	  three values default to the environment variables
 	  ZSPOT_WEB_CLIENT_ID, ZSPOT_WEB_CLIENT_SECRET and
 	  ZSPOT_WEB_REFRESH_TOKEN. Without them the library view only says that
-	  it is not set up, and the last song is not offered.
+	  it is not set up, and the last song is not offered after a restart.
 
 config ZSPOT_WEB_CLIENT_SECRET
 	string "Client secret of the Spotify developer application"

@@ -63,8 +63,9 @@ When the last track of the queue has been played, the device reports the end
 to Spotify and shows that track paused at its start.
 
 After a restart the Now Playing screen shows the last song, paused where it
-was paused, instead of the notice to pick the device
-(``CONFIG_ZSPOT_LAST_TRACK``). Play starts it on this device and goes on with
+was paused, instead of the notice to pick the device. The song is kept
+wherever the settings subsystem is enabled; there is no option for it. Play
+starts it on this device and goes on with
 its playlist or album when it was played from one; the progress slider picks
 where it starts. This uses the Web API set up for
 :ref:`search and Your Library <search-and-your-library>`; without that the
@@ -189,10 +190,6 @@ Application options
    * - ``ZSPOT_CREDENTIALS_STORED``
      - Keep the Spotify credentials across restarts (on by default where the
        settings subsystem is enabled)
-   * - ``ZSPOT_LAST_TRACK``
-     - Keep the last song across restarts, to show it and start it with
-       Play (on by default with ``ZSPOT_CREDENTIALS_STORED``, with or
-       without the screen)
    * - ``ZSPOT_CREDENTIALS_JSON``
      - Credentials given to the build; skips the zeroconf hand-over and
        takes precedence over stored ones
