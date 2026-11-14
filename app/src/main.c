@@ -441,6 +441,10 @@ static const struct ui_ops ui_ops = {
 };
 #endif
 
+/* The values of the option are those of enum zspot_audio_format */
+BUILD_ASSERT(ZSPOT_FORMAT_OGG_VORBIS_96 == 0 && ZSPOT_FORMAT_OGG_VORBIS_160 == 1 &&
+	     ZSPOT_FORMAT_OGG_VORBIS_320 == 2);
+
 /* A start-up step failed for good: the player stays as it is. */
 static void show_failure(const char *what, int error)
 {
@@ -457,7 +461,7 @@ int main(void)
 	bool zeroconf_started = false;
 	const struct zspot_config config = {
 		.device_name = CONFIG_ZSPOT_DEVICE_NAME,
-		.audio_format = ZSPOT_FORMAT_OGG_VORBIS_160,
+		.audio_format = CONFIG_ZSPOT_AUDIO_FORMAT,
 		.initial_volume = 0xFFFF, /* unity gain at the sink */
 	};
 	int ret;

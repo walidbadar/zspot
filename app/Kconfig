@@ -25,6 +25,31 @@ config ZSPOT_PCM_TAP_PORT
 	default 5000
 	depends on ZSPOT_PCM_TAP
 
+choice ZSPOT_AUDIO_QUALITY
+	prompt "Stream quality"
+	default ZSPOT_AUDIO_QUALITY_160
+	help
+	  Bit rate of the Ogg Vorbis stream that is asked for. A track that
+	  does not come in it is played at 96 kbit/s. More takes more of the
+	  network and of the processor.
+
+config ZSPOT_AUDIO_QUALITY_96
+	bool "96 kbit/s"
+
+config ZSPOT_AUDIO_QUALITY_160
+	bool "160 kbit/s"
+
+config ZSPOT_AUDIO_QUALITY_320
+	bool "320 kbit/s"
+
+endchoice
+
+config ZSPOT_AUDIO_FORMAT
+	int
+	default 0 if ZSPOT_AUDIO_QUALITY_96
+	default 2 if ZSPOT_AUDIO_QUALITY_320
+	default 1
+
 config ZSPOT_USERNAME
 	string "Spotify username (development only)"
 	default ""

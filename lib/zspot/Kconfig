@@ -79,6 +79,17 @@ config ZSPOT_PLAYER_STACK_SIZE
 	help
 	  Runs the Tremor Vorbis decoder, which makes heavy use of alloca().
 
+config ZSPOT_CDN_CHUNK_SIZE
+	int "Bytes of a track fetched per request"
+	default 14336
+	range 4096 1048576
+	help
+	  A track is downloaded in pieces of this size, one request each, as
+	  the decoder gets to them. It is rounded down to a multiple of the
+	  AES block size of 16. Larger pieces need fewer requests, each of
+	  which stops the decoder for a round trip to the server, and more
+	  memory: two of them are held while a piece is fetched.
+
 config ZSPOT_HTTP_TIMEOUT_MS
 	int "HTTP request timeout (ms)"
 	default 10000

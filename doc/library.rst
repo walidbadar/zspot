@@ -179,6 +179,8 @@ Configuration
      - CA credential tag for server verification (-1: no verification)
    * - ``ZSPOT_HTTP_TIMEOUT_MS``, ``ZSPOT_HTTP_RECV_BUF_SIZE``
      - HTTP client settings
+   * - ``ZSPOT_CDN_CHUNK_SIZE``
+     - Bytes of a track fetched per request (14 KB by default)
    * - ``ZSPOT_MDNS``, ``ZSPOT_ZEROCONF``, ``ZSPOT_ZEROCONF_PORT``
      - Discovery and the credential hand-over endpoint
    * - ``ZSPOT_I2S_SINK``, ``ZSPOT_I2S_BLOCK_SIZE``,

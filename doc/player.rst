@@ -176,6 +176,9 @@ Application options
    * - ``ZSPOT_CREDENTIALS_JSON``
      - Credentials given to the build; skips the zeroconf hand-over and
        takes precedence over stored ones
+   * - ``ZSPOT_AUDIO_QUALITY_96``, ``ZSPOT_AUDIO_QUALITY_160``,
+       ``ZSPOT_AUDIO_QUALITY_320``
+     - Bit rate of the stream that is asked for (160 kbit/s by default)
    * - ``ZSPOT_SCREEN_TIMEOUT_SECONDS``
      - Idle time before the screen turns off (0: never)
    * - ``ZSPOT_BATTERY_POLL_SECONDS``

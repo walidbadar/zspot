@@ -57,7 +57,8 @@ class CDNAudioFile {
   static constexpr size_t OPUS_HEADER_SIZE = 8 * 1024;
   static constexpr size_t OPUS_FOOTER_PREFFERED = 1024 * 12;  // 12K is safe
   static constexpr size_t SEEK_MARGIN_SIZE = 1024 * 4;
-  static constexpr size_t HTTP_BUFFER_SIZE = 1024 * 14;
+  // Whole AES blocks, so that a piece can be decrypted by itself
+  static constexpr size_t HTTP_BUFFER_SIZE = CONFIG_ZSPOT_CDN_CHUNK_SIZE & ~15U;
   static constexpr size_t SPOTIFY_OPUS_HEADER = 167;
 
   // Prefetched head and tail of the file, speeds up decoder probing
