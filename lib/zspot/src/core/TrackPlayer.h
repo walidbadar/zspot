@@ -89,6 +89,8 @@ class TrackPlayer : zspot::Task {
   std::atomic<bool> isRunning = false;
   std::atomic<bool> pendingReset = false;
   std::atomic<bool> inFuture = false;
+  // The last track of the queue was decoded to its end: nothing is read any more
+  std::atomic<bool> endOfQueueReached = false;
   std::atomic<size_t> pendingSeekPositionMs = 0;
   std::atomic<bool> startPaused = false;
 

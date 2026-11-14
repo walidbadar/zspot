@@ -103,8 +103,9 @@ void TrackPlayer::resetState(bool paused) {
 }
 
 void TrackPlayer::seekMs(size_t ms) {
-  if (inFuture) {
-    // We're in the middle of the next track, so we need to reset the player in order to seek
+  if (inFuture || endOfQueueReached) {
+    // We're in the middle of the next track, or through with the last one
+    // while its end still plays: the track has to be loaded again to seek in
     resetState();
   }
 
@@ -125,7 +126,8 @@ void TrackPlayer::runTask() {
 
   int trackOffset = 0;
   bool eof = false;
-  bool endOfQueueReached = false;
+
+  endOfQueueReached = false;
 
   while (isRunning) {
     // Ensure we even have any tracks to play
