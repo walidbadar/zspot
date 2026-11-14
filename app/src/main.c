@@ -14,6 +14,7 @@
  */
 #include <errno.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <zephyr/device.h>
@@ -440,6 +441,15 @@ static const struct ui_ops ui_ops = {
 };
 #endif
 
+/* A start-up step failed for good: the player stays as it is. */
+static void show_failure(const char *what, int error)
+{
+	char detail[UI_TEXT_MAX];
+
+	snprintf(detail, sizeof(detail), "Error %d. Restart the device to try again", error);
+	ui_show_message(what, detail);
+}
+
 int main(void)
 {
 	static char credentials[1024];
@@ -461,7 +471,10 @@ int main(void)
 	battery_init();
 	ui_show_message("Connecting", "Waiting for the network");
 
-	if (network_connect() != 0) {
+	/* Without a log the screen is the only place to say what went wrong. */
+	ret = network_connect();
+	if (ret != 0) {
+		show_failure("No network", ret);
 		return 0;
 	}
 
@@ -470,12 +483,14 @@ int main(void)
 	ret = zspot_init(&config);
 	if (ret != 0) {
 		LOG_ERR("zspot_init failed (%d)", ret);
+		show_failure("Cannot start the player", ret);
 		return 0;
 	}
 
 	ret = sink_init();
 	if (ret != 0) {
 		LOG_ERR("Audio sink init failed (%d)", ret);
+		show_failure("No audio output", ret);
 		return 0;
 	}
 
@@ -499,6 +514,7 @@ int main(void)
 				ret = zspot_zeroconf_start();
 				if (ret != 0) {
 					LOG_ERR("Zeroconf start failed (%d)", ret);
+					show_failure("Cannot be found by Spotify", ret);
 					return 0;
 				}
 				zeroconf_started = true;

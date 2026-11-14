@@ -87,6 +87,20 @@ cold parts, and a ``throw`` aborts the program. The library builds itself with
 ``-fno-reorder-blocks-and-partition`` on native targets to avoid it; projects
 that copy the library's sources need the same option.
 
+Seeing what the player does
+***************************
+
+The player is built without a log. ``app/debug.conf`` turns it on, for the
+application and the library, at the cost of processor time:
+
+.. code-block:: sh
+
+   west build -p -b <board> zspot/app -- -DEXTRA_CONF_FILE=debug.conf
+
+On the ESP32-S3 the log comes over the USB port (``west espressif monitor``),
+on ``native_sim`` on the terminal. A step that fails for good while the
+player starts is also named on the screen, with its error number.
+
 Reading a crash on ``native_sim``
 *********************************
 
