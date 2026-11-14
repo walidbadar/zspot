@@ -49,7 +49,11 @@ enum zspot_event_type {
 	ZSPOT_EVENT_NEXT,
 	ZSPOT_EVENT_PREV,
 	ZSPOT_EVENT_SEEK,           /**< event.position_ms */
-	ZSPOT_EVENT_DEPLETED,       /**< queue finished */
+	/**
+	 * The last track of the queue was decoded. Call
+	 * zspot_notify_audio_ended() once the output has played its audio.
+	 */
+	ZSPOT_EVENT_DEPLETED,
 	ZSPOT_EVENT_FLUSH,          /**< drop buffered audio */
 	ZSPOT_EVENT_PLAYBACK_START, /**< event.position_ms */
 	/**
@@ -195,7 +199,11 @@ enum zspot_repeat zspot_get_repeat(void);
 /** Call when the first PCM of a new track reached the output. */
 void zspot_notify_audio_reached_playback(void);
 
-/** Call when the output drained after the last track. */
+/**
+ * Call when the output drained after the last track (ZSPOT_EVENT_DEPLETED).
+ * Spotify is told that the playback ended, and the track is loaded again,
+ * paused at its start.
+ */
 void zspot_notify_audio_ended(void);
 
 /** Reports the playback position to keep the Spotify UI in sync. */

@@ -45,6 +45,14 @@
 /* Decoded PCM: 44.1 kHz, 16 bit, stereo */
 #define PCM_BYTES_PER_SECOND (44100 * 4)
 
+/* What the I2S driver has left to play when the sink has passed everything on */
+#if defined(CONFIG_ZSPOT_I2S_SINK)
+#define SINK_TAIL_MS                                                                               \
+	(CONFIG_ZSPOT_I2S_BLOCK_COUNT * CONFIG_ZSPOT_I2S_BLOCK_SIZE * 1000 / PCM_BYTES_PER_SECOND)
+#else
+#define SINK_TAIL_MS 0
+#endif
+
 LOG_MODULE_REGISTER(zspot_player, LOG_LEVEL_INF);
 
 static K_SEM_DEFINE(ipv4_ready, 0, 1);
@@ -67,15 +75,40 @@ static void position_set(uint32_t position_ms)
 	atomic_clear(&position_bytes);
 }
 
+/*
+ * End of playback: when the decoder is through with the last track of the
+ * queue, the sink still plays what it buffered. The main thread tells Spotify
+ * that playback ended once that audio is out, unless something else was
+ * started in the meantime.
+ */
+static K_SEM_DEFINE(end_sem, 0, 1);
+static atomic_t end_pending;
+/* PCM went to the sink since the last end; a track that cannot be loaded ends without */
+static atomic_t audio_played;
+
+/* Something else plays or the audio was dropped: there is no end to report. */
+static void end_cancel(void)
+{
+	atomic_clear(&end_pending);
+}
+
+/* PCM that the sink accepted and has not passed on to the I2S driver yet */
+static size_t sink_buffered(void)
+{
+#if defined(CONFIG_ZSPOT_I2S_SINK)
+	return zspot_i2s_sink_buffered();
+#else
+	return 0;
+#endif
+}
+
 /* Polled by the Now Playing screen */
 static __maybe_unused uint32_t position_get(void)
 {
 	int64_t bytes = atomic_get(&position_bytes);
 
-#if defined(CONFIG_ZSPOT_I2S_SINK)
 	/* What the sink still holds is not audible yet. */
-	bytes = MAX(bytes - (int64_t)zspot_i2s_sink_buffered(), 0);
-#endif
+	bytes = MAX(bytes - (int64_t)sink_buffered(), 0);
 	return position_base_ms + (uint32_t)(bytes * 1000 / PCM_BYTES_PER_SECOND);
 }
 
@@ -195,18 +228,22 @@ static void on_event(const struct zspot_event *event, void *user_data)
 		break;
 	case ZSPOT_EVENT_SEEK:
 		LOG_INF("Seek to %u ms", event->position_ms);
+		end_cancel();
 		sink_flush();
 		position_set(event->position_ms);
 		break;
 	case ZSPOT_EVENT_FLUSH:
+		end_cancel();
 		sink_flush();
 		break;
 	case ZSPOT_EVENT_PLAYBACK_START:
+		end_cancel();
 		sink_flush();
 		position_set(event->position_ms);
 		position_preset = true;
 		break;
 	case ZSPOT_EVENT_TRACK_BEGIN:
+		end_cancel();
 		/* A gapless transition comes without PLAYBACK_START. */
 		if (!position_preset) {
 			position_set(0);
@@ -215,19 +252,26 @@ static void on_event(const struct zspot_event *event, void *user_data)
 		zspot_notify_audio_reached_playback();
 		break;
 	case ZSPOT_EVENT_QUEUE_CHANGED:
+		end_cancel();
 		break;
 	case ZSPOT_EVENT_DISCONNECT:
 		LOG_INF("Playback moved to another device");
+		end_cancel();
 		sink_flush();
 		ui_show_message("Playing on another device",
 				"Pick this device in Spotify to listen here");
 		break;
 	case ZSPOT_EVENT_NEXT:
 	case ZSPOT_EVENT_PREV:
+		end_cancel();
 		sink_flush();
 		break;
 	case ZSPOT_EVENT_DEPLETED:
 		LOG_INF("Queue finished");
+		if (atomic_clear(&audio_played)) {
+			atomic_set(&end_pending, 1);
+			k_sem_give(&end_sem);
+		}
 		break;
 	case ZSPOT_EVENT_REPEAT:
 		LOG_INF("Repeat %s", event->repeat == ZSPOT_REPEAT_TRACK ? "track"
@@ -255,15 +299,45 @@ static size_t on_pcm(const uint8_t *pcm, size_t len, void *user_data)
 	}
 
 	accepted = sink_write(pcm, len, user_data);
+	if (accepted > 0) {
+		atomic_set(&audio_played, 1);
+	}
 	atomic_add(&position_bytes, accepted);
 	pcm_tap_write(pcm, accepted);
 	return accepted;
+}
+
+/*
+ * Waits for the end of the queue and reports it when the last audio has been
+ * played. Runs on the main thread: the event comes from the player thread,
+ * which must not be held up for that long.
+ */
+static void end_report(void)
+{
+	while (true) {
+		k_sem_take(&end_sem, K_FOREVER);
+
+		/* A pause keeps the audio in the sink, and the end waiting. */
+		while (atomic_get(&end_pending) && sink_buffered() > 0) {
+			k_msleep(50);
+		}
+		if (!atomic_get(&end_pending)) {
+			continue;
+		}
+		k_msleep(SINK_TAIL_MS);
+
+		if (atomic_cas(&end_pending, 1, 0)) {
+			LOG_INF("Playback ended");
+			zspot_notify_audio_ended();
+		}
+	}
 }
 
 #if defined(CONFIG_ZSPOT_UI)
 static void ui_next(void)
 {
 	if (zspot_next()) {
+		end_cancel();
 		sink_flush();
 	}
 }
@@ -271,6 +345,7 @@ static void ui_next(void)
 static void ui_previous(void)
 {
 	if (zspot_previous()) {
+		end_cancel();
 		sink_flush();
 	}
 }
@@ -430,6 +505,7 @@ int main(void)
 
 	ui_show_message("Ready", "Pick this device in Spotify to start playing");
 
-	/* Everything else happens on the library threads. */
+	/* The protocol runs on the library threads; this one reports the end of playback. */
+	end_report();
 	return 0;
 }
