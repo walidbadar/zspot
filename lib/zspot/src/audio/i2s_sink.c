@@ -25,7 +25,6 @@
 #include <zephyr/sys/atomic.h>
 #include <zephyr/sys/ring_buffer.h>
 
-#include "audio/gain.h"
 
 LOG_MODULE_DECLARE(zspot, CONFIG_ZSPOT_LOG_LEVEL);
 
@@ -47,12 +46,14 @@ LOG_MODULE_DECLARE(zspot, CONFIG_ZSPOT_LOG_LEVEL);
 /* Input that stopped growing for this long is played out as it is */
 #define STALL_MS     300
 
+/* Gain that leaves the samples as they are; gains are fractions of it */
+#define GAIN_UNITY 32768U
 /*
  * The gain moves by this much per frame: from silence to full volume, or
  * back, in about 20 ms. That goes for a change of the volume and for the
  * start and the end of the output, which would click otherwise.
  */
-#define GAIN_STEP (ZSPOT_GAIN_UNITY / (44100 * 20 / 1000))
+#define GAIN_STEP (GAIN_UNITY / (44100 * 20 / 1000))
 
 /* With immediate logging a warning is formatted on this stack */
 #define FEEDER_STACK_SIZE 4096
@@ -74,7 +75,7 @@ static struct {
 	volatile uint16_t gain_target;
 	uint16_t gain;
 } sink = {
-	.gain_target = ZSPOT_GAIN_UNITY,
+	.gain_target = GAIN_UNITY,
 };
 
 #if FIFO_SIZE > 0
@@ -207,10 +208,52 @@ int zspot_i2s_sink_init(const struct device *i2s_dev, const struct device *codec
 	return 0;
 }
 
+/*
+ * Gain for a volume of 0..65535: silence at 0, GAIN_UNITY at 65535 and the
+ * cube of the volume in between. Loudness is heard on a logarithmic scale,
+ * which a gain in proportion to the volume would squeeze into the bottom of
+ * the range.
+ */
+static uint16_t gain_from_volume(uint16_t volume)
+{
+	const uint64_t full = 65535U;
+	uint64_t cube = (uint64_t)volume * volume * volume;
+
+	/* Rounded; the largest product is just below 2^63 */
+	return (uint16_t)((cube * GAIN_UNITY + full * full * full / 2) / (full * full * full));
+}
+
+/*
+ * Applies a gain to interleaved 16-bit frames, moving it from @p current
+ * towards @p target by @p step per frame, so that a change is not heard as a
+ * click. Returns the gain of the last frame, to go on with.
+ */
+static uint16_t gain_apply(uint16_t current, uint16_t target, uint16_t step, int16_t *samples,
+			   size_t frames, unsigned int channels)
+{
+	if (current == target && current == GAIN_UNITY) {
+		return current;
+	}
+
+	for (size_t frame = 0; frame < frames; frame++) {
+		if (current < target) {
+			current = (target - current > step) ? current + step : target;
+		} else if (current > target) {
+			current = (current - target > step) ? current - step : target;
+		}
+
+		for (unsigned int channel = 0; channel < channels; channel++) {
+			*samples = (int16_t)(((int32_t)*samples * current) >> 15);
+			samples++;
+		}
+	}
+	return current;
+}
+
 /* Applies the volume to sink.block, or brings the gain down to nothing over it. */
 static void apply_gain(bool fade_out)
 {
-	sink.gain = zspot_gain_apply(sink.gain, fade_out ? 0 : sink.gain_target, GAIN_STEP,
+	sink.gain = gain_apply(sink.gain, fade_out ? 0 : sink.gain_target, GAIN_STEP,
 				     sink.block, sink.fill / (sink.channels * sizeof(int16_t)),
 				     sink.channels);
 }
@@ -433,7 +476,7 @@ size_t zspot_i2s_sink_buffered(void)
 
 void zspot_i2s_sink_set_volume(uint16_t volume)
 {
-	sink.gain_target = zspot_gain_from_volume(volume);
+	sink.gain_target = gain_from_volume(volume);
 }
 
 void zspot_i2s_sink_flush(void)

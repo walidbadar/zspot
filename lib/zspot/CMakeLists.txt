@@ -53,7 +53,7 @@ zephyr_library_sources(
 zephyr_library_sources_ifdef(CONFIG_ZSPOT_EXTERNAL_HEAP src/port/new.cpp)
 zephyr_library_sources_ifdef(CONFIG_ZSPOT_MDNS src/port/mdns.c)
 zephyr_library_sources_ifdef(CONFIG_ZSPOT_ZEROCONF src/port/zeroconf.cpp)
-zephyr_library_sources_ifdef(CONFIG_ZSPOT_I2S_SINK src/audio/gain.c src/audio/i2s_sink.c)
+zephyr_library_sources_ifdef(CONFIG_ZSPOT_I2S_SINK src/audio/i2s_sink.c)
 
 # C API facade
 zephyr_library_sources(src/api/zspot_api.cpp)

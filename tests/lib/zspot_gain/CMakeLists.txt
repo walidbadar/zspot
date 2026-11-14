@@ -8,5 +8,15 @@ project(zspot_gain_test)
 
 set(ZSPOT_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../..)
 
-target_sources(app PRIVATE src/main.c ${ZSPOT_ROOT}/lib/zspot/src/audio/gain.c)
-target_include_directories(app PRIVATE ${ZSPOT_ROOT}/lib/zspot/src)
+# src/main.c includes lib/zspot/src/audio/i2s_sink.c. These are the options of
+# the library that the sink reads, with the sink writing straight to the I2S
+# blocks so that no feeder thread is created.
+target_sources(app PRIVATE src/main.c)
+target_include_directories(app PRIVATE ${ZSPOT_ROOT}/lib/zspot/src ${ZSPOT_ROOT}/include)
+target_compile_definitions(app PRIVATE
+  CONFIG_ZSPOT_I2S_BLOCK_SIZE=4096
+  CONFIG_ZSPOT_I2S_BLOCK_COUNT=8
+  CONFIG_ZSPOT_I2S_TIMEOUT_MS=2000
+  CONFIG_ZSPOT_I2S_BUFFER_MS=0
+  CONFIG_ZSPOT_LOG_LEVEL=0
+)
