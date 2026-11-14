@@ -8,9 +8,15 @@
  * Spotify Web API access with the user's own developer application. The
  * session's access token is issued to Spotify's own client and is rate
  * limited on the public Web API (HTTP 429), so requests are authorised with
- * a token obtained through OAuth instead: CONFIG_ZSPOT_WEB_CLIENT_ID,
- * _CLIENT_SECRET and _REFRESH_TOKEN, the latter produced once by
+ * a token obtained through OAuth instead: with a client ID, a client secret
+ * and a refresh token, the latter produced once by
  * scripts/spotify_authorize.py.
+ *
+ * A build carries these credentials when it is told to
+ * (CONFIG_ZSPOT_WEB_CREDENTIALS_BUILT_IN). A player that keeps credentials
+ * (CONFIG_ZSPOT_CREDENTIALS_STORED) stores them encrypted at its first start,
+ * and uses the stored ones when a later build comes without: one build
+ * carries them to the device, and the firmware after it no longer holds them.
  *
  * A request blocks for as long as the network takes. The requests have a
  * thread of their own, which webapi_submit() gives work to. Nothing here
@@ -27,13 +33,15 @@
 #include <zephyr/kernel.h>
 
 /**
- * Starts the thread of the requests. Call before anything else here.
+ * Takes up the credentials of the build, or else the stored ones, and starts
+ * the thread of the requests. Reads the flash and may write to it: call from
+ * the main thread, before anything else here.
  *
  * @return 0 on success or -ENOMEM
  */
 int webapi_init(void);
 
-/** Whether the build has the application credentials that the requests need. */
+/** Whether there are credentials for the requests. */
 bool webapi_configured(void);
 
 /**

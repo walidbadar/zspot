@@ -5,8 +5,10 @@
  */
 
 #include <errno.h>
+#include <stdio.h>
 #include <string.h>
 
+#include <zephyr/settings/settings.h>
 #include <zephyr/ztest.h>
 
 /*
@@ -17,6 +19,12 @@
 
 #define BASIC  "Authorization: Basic "
 #define BEARER "Authorization: Bearer "
+
+/* The credentials of the build (see CMakeLists.txt), and others */
+#define TOKEN  CONFIG_ZSPOT_WEB_REFRESH_TOKEN
+#define SECRET "fedcba9876543210fedcba9876543210"
+/* The subtree of the secure storage in the settings */
+#define SECURE "its"
 
 #define TRACK    "spotify:track:5sWHDYs0csV6RS48xBl0tH"
 #define PLAYLIST "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"
@@ -35,6 +43,14 @@ static struct {
 	bool hold;
 } http;
 static K_SEM_DEFINE(http_gate, 0, 1);
+
+/* The entry of the secure storage as the settings hold it */
+static struct {
+	int count;
+	char name[32];
+	uint8_t value[600];
+	size_t len;
+} stored;
 
 /* What webapi_play() reported */
 static K_SEM_DEFINE(play_reported, 0, 1);
@@ -104,9 +120,61 @@ static void on_play_done(bool accepted)
 	k_sem_give(&play_reported);
 }
 
+static int read_stored(const char *key, size_t len, settings_read_cb read_cb, void *cb_arg,
+		       void *param)
+{
+	ARG_UNUSED(param);
+
+	stored.count++;
+	snprintf(stored.name, sizeof(stored.name), SECURE "/%s", key);
+	zassert_true(len <= sizeof(stored.value));
+	stored.len = read_cb(cb_arg, stored.value, len);
+	return 0;
+}
+
+/* Reads what the secure storage put into the settings. */
+static void find_stored(void)
+{
+	memset(&stored, 0, sizeof(stored));
+	zassert_ok(settings_load_subtree_direct(SECURE, read_stored, NULL));
+}
+
+static bool holds(const uint8_t *data, size_t len, const char *text)
+{
+	size_t text_len = strlen(text);
+
+	for (size_t i = 0; i + text_len <= len; i++) {
+		if (memcmp(&data[i], text, text_len) == 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/* What a token request was authorised with, after one request. */
+static const char *basic_of_a_request(void)
+{
+	uint8_t buf[32];
+	size_t len = 0;
+
+	memset(&http, 0, sizeof(http));
+	bearer[0] = '\0';
+	http.status[0] = 200;
+	http.response[0] = TOKEN_OK;
+	http.status[1] = 200;
+	zassert_equal(webapi_request("GET", "https://api.example/a", NULL, buf, sizeof(buf), &len),
+		      200);
+	return http.header[0];
+}
+
 static void before(void *fixture)
 {
 	ARG_UNUSED(fixture);
+
+	/* A device that never had credentials, started with a build that carries some */
+	(void)psa_its_remove(KEYS_UID);
+	zassert_ok(settings_subsys_init());
+	(void)settings_delete(KEYS_PLAIN_SETTING);
 
 	memset(&http, 0, sizeof(http));
 	k_sem_reset(&http_gate);
@@ -318,6 +386,121 @@ ZTEST(zspot_webapi, test_submit)
 	zassert_true(webapi_submit(&other_work) >= 0);
 	zassert_ok(k_sem_take(&other_done, K_SECONDS(5)));
 	zassert_equal(other_thread, k_work_queue_thread_get(&work_queue));
+}
+
+/* The build carried them to the device: there they are, and nothing of them can be read. */
+ZTEST(zspot_webapi, test_keys_of_the_build_are_stored_encrypted)
+{
+	struct keys plain;
+
+	zassert_true(webapi_configured());
+	find_stored();
+	zassert_equal(stored.count, 1);
+	zassert_true(stored.len > sizeof(struct keys));
+	zassert_false(holds(stored.value, stored.len, "secret"));
+	zassert_false(holds(stored.value, stored.len, TOKEN));
+	zassert_equal(settings_load_one(KEYS_PLAIN_SETTING, &plain, sizeof(plain)), 0);
+}
+
+/* The firmware after it comes without them and finds them on the device. */
+ZTEST(zspot_webapi, test_stored_keys_serve_a_build_without)
+{
+	keys_init("", "", "");
+	zassert_true(webapi_configured());
+	/* base64 of "id:secret" */
+	zassert_str_equal(basic_of_a_request(), BASIC "aWQ6c2VjcmV0");
+	zassert_str_equal(http.body[0], "grant_type=refresh_token&refresh_token=" TOKEN);
+}
+
+ZTEST(zspot_webapi, test_without_keys)
+{
+	uint8_t buf[32];
+	size_t len = 0;
+
+	zassert_ok(psa_its_remove(KEYS_UID));
+	keys_init("", "", "");
+
+	zassert_false(webapi_configured());
+	zassert_equal(webapi_request("GET", "https://api.example/a", NULL, buf, sizeof(buf), &len),
+		      -ENOENT);
+	zassert_equal(http.calls, 0);
+	zassert_equal(webapi_play(TRACK, "", 0, on_play_done), 0);
+	zassert_ok(k_sem_take(&play_reported, K_SECONDS(5)));
+	zassert_false(play_accepted);
+}
+
+/* A build that carries others replaces the stored ones. */
+ZTEST(zspot_webapi, test_keys_of_a_build_replace_the_stored)
+{
+	keys_init("second", SECRET, TOKEN);
+	keys_init("", "", "");
+
+	/* base64 of "second:fedcba9876543210fedcba9876543210" */
+	zassert_str_equal(basic_of_a_request(),
+			  BASIC "c2Vjb25kOmZlZGNiYTk4NzY1NDMyMTBmZWRjYmE5ODc2NTQzMjEw");
+}
+
+/* Half a set, or what would need escaping in a request, is none: the stored ones stay. */
+ZTEST(zspot_webapi, test_unusable_keys_of_a_build)
+{
+	keys_init("other", "", TOKEN);
+	zassert_true(webapi_configured());
+	zassert_str_equal(basic_of_a_request(), BASIC "aWQ6c2VjcmV0");
+
+	keys_init("other", "se cret", TOKEN);
+	zassert_str_equal(basic_of_a_request(), BASIC "aWQ6c2VjcmV0");
+
+	keys_init("other", "secret\"", TOKEN);
+	zassert_str_equal(basic_of_a_request(), BASIC "aWQ6c2VjcmV0");
+}
+
+/* An entry that was altered is refused and removed. */
+ZTEST(zspot_webapi, test_altered_keys_are_removed)
+{
+	find_stored();
+	stored.value[stored.len / 2] ^= 0x01;
+	zassert_ok(settings_save_one(stored.name, stored.value, stored.len));
+
+	keys_init("", "", "");
+	zassert_false(webapi_configured());
+	find_stored();
+	zassert_equal(stored.count, 0);
+}
+
+/* What an earlier version left in the clear is used once, encrypted and removed. */
+ZTEST(zspot_webapi, test_plain_keys_are_taken_over)
+{
+	struct keys plain;
+
+	zassert_ok(psa_its_remove(KEYS_UID));
+	zassert_true(keys_fill(&plain, "earlier", SECRET, TOKEN));
+	zassert_ok(settings_save_one(KEYS_PLAIN_SETTING, &plain, sizeof(plain)));
+
+	keys_init("", "", "");
+	zassert_true(webapi_configured());
+	zassert_equal(settings_load_one(KEYS_PLAIN_SETTING, &plain, sizeof(plain)), 0);
+	find_stored();
+	zassert_equal(stored.count, 1);
+	zassert_false(holds(stored.value, stored.len, SECRET));
+
+	/* From the secure storage from now on */
+	keys_init("", "", "");
+	/* base64 of "earlier:fedcba9876543210fedcba9876543210" */
+	zassert_str_equal(basic_of_a_request(),
+			  BASIC "ZWFybGllcjpmZWRjYmE5ODc2NTQzMjEwZmVkY2JhOTg3NjU0MzIxMA==");
+}
+
+/* Once they are stored encrypted, a copy in the clear does not stay either. */
+ZTEST(zspot_webapi, test_plain_keys_do_not_stay)
+{
+	struct keys plain;
+
+	zassert_true(keys_fill(&plain, "earlier", SECRET, TOKEN));
+	zassert_ok(settings_save_one(KEYS_PLAIN_SETTING, &plain, sizeof(plain)));
+
+	keys_init("id", "secret", TOKEN);
+	zassert_equal(settings_load_one(KEYS_PLAIN_SETTING, &plain, sizeof(plain)), 0);
+	zassert_str_equal(basic_of_a_request(), BASIC "aWQ6c2VjcmV0");
 }
 
 ZTEST_SUITE(zspot_webapi, NULL, NULL, before, NULL, NULL);

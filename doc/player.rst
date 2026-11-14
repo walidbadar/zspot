@@ -62,12 +62,10 @@ somebody who has the device in hand, since the device ID can be read from it
 as well; that takes the flash encryption of the SoC, which burns eFuses and
 is left for when the firmware is no longer in development.
 
-Two other secrets are not encrypted. The Wi-Fi passwords are stored by
-Zephyr's Wi-Fi credentials library, in the clear. The Web API credentials
-(client ID, client secret and refresh token) are not stored at all: the build
-takes them from its environment and compiles them into the firmware as plain
-text, so whoever has the firmware file or a copy of the flash can read them.
-Do not hand out a firmware file that was built with them.
+The Web API credentials (client ID, client secret and refresh token) are kept
+the same way, once a build has carried them to the device; see
+:ref:`search-and-your-library`. The Wi-Fi passwords are not encrypted: they
+are stored by Zephyr's Wi-Fi credentials library, in the clear.
 
 Another account takes the device over by picking it in its Spotify app, on
 the same network: the device signs out, signs in with that account and
@@ -118,12 +116,29 @@ These use the Spotify Web API and need a one-time setup:
    sources.
 #. Run ``scripts/spotify_authorize.py --save <that file>`` and approve the
    access in the browser; it adds ``ZSPOT_WEB_REFRESH_TOKEN``.
-#. Rebuild with ``west build -p`` from a shell that has the three variables.
+#. Build once with ``-DCONFIG_ZSPOT_WEB_CREDENTIALS_BUILT_IN=y`` from a shell
+   that has the three variables, and flash that. It carries the credentials
+   to the device, which stores them encrypted at its first start.
+#. Build again without that option and flash that. The device uses the stored
+   credentials, and its firmware no longer holds them.
+
+.. code-block:: sh
+
+   west build -p -b <board> zspot/app -- -DCONFIG_ZSPOT_WEB_CREDENTIALS_BUILT_IN=y
+   west flash
+   west build -p -b <board> zspot/app
+   west flash
+
+A build without the option leaves the variables alone, whatever the shell has
+set. To change the credentials of a device, carry the new ones to it the same
+way. A player without settings storage, as the simulator is configured, has
+nowhere to keep them and needs the option at every build.
 
 .. warning::
 
-   The values give access to the account: keep them out of version control
-   and do not share the build directory.
+   The values give access to the account: keep them out of version control.
+   A build made with ``CONFIG_ZSPOT_WEB_CREDENTIALS_BUILT_IN`` holds them as
+   plain text: do not share its firmware file or its build directory.
 
 Search covers songs only; podcasts and episodes are not searched.
 
@@ -203,8 +218,8 @@ Application options
    * - Kconfig
      - Purpose
    * - ``ZSPOT_CREDENTIALS_STORED``
-     - Keep the Spotify credentials across restarts (on by default where the
-       settings subsystem is enabled)
+     - Keep the Spotify and the Web API credentials on the device, encrypted
+       (on by default where the settings subsystem is enabled)
    * - ``ZSPOT_CREDENTIALS_JSON``
      - Credentials given to the build; skips the zeroconf hand-over and
        takes precedence over stored ones
@@ -217,8 +232,8 @@ Application options
      - Interval between two fuel gauge readings
    * - ``ZSPOT_PCM_TAP`` / ``ZSPOT_PCM_TAP_PORT``
      - Copy of the audio over TCP
-   * - ``ZSPOT_WEB_CLIENT_ID``, ``ZSPOT_WEB_CLIENT_SECRET``,
-       ``ZSPOT_WEB_REFRESH_TOKEN``
-     - Web API access for search and Your Library
+   * - ``ZSPOT_WEB_CREDENTIALS_BUILT_IN``
+     - Build the Web API credentials of the environment into the firmware,
+       to carry them to a device once; off by default
 
 The full list is in ``app/Kconfig``.

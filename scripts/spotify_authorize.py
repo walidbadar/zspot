@@ -12,9 +12,11 @@ its credentials as ZSPOT_WEB_CLIENT_ID and ZSPOT_WEB_CLIENT_SECRET, then run:
 
 The script opens the Spotify consent page in the browser, receives the
 authorisation code on the redirect URI and exchanges it for a refresh token.
-The build reads that from ZSPOT_WEB_REFRESH_TOKEN: the script prints the export
-line, or with --save stores it in the given shell file (e.g. the one that
-already exports the other two variables)."""
+A build with CONFIG_ZSPOT_WEB_CREDENTIALS_BUILT_IN=y reads that from
+ZSPOT_WEB_REFRESH_TOKEN and carries the three values to the device, which
+stores them: the script prints the export line, or with --save stores it in
+the given shell file (e.g. the one that already exports the other two
+variables)."""
 import base64, http.server, json, os, re, secrets, sys, urllib.parse, urllib.request, webbrowser
 
 REDIRECT_URI = "http://127.0.0.1:8888/callback"
@@ -77,7 +79,13 @@ if save_to:
     with os.fdopen(fd, "w") as f:
         f.write(content + ("" if content.endswith("\n") or not content else "\n") + line + "\n")
     print("Authorised. The refresh token is stored in %s; source that file (or open a new" % save_to)
-    print("shell) and rebuild with \"west build -p\" so that the build picks it up.")
+    print("shell).")
 else:
     print("Authorised. Make this available to the build (keep it out of version control):\n")
     print("  " + line)
+print("\nCarry the credentials to the device with one build that has them, then flash")
+print("one without, so that the firmware no longer holds them:\n")
+print("  west build -p -b <board> zspot/app -- -DCONFIG_ZSPOT_WEB_CREDENTIALS_BUILT_IN=y")
+print("  west flash")
+print("  west build -p -b <board> zspot/app")
+print("  west flash")

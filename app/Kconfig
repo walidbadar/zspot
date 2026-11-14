@@ -72,7 +72,7 @@ config ZSPOT_CREDENTIALS_JSON
 	  set, the sample skips the zeroconf hand-over.
 
 config ZSPOT_CREDENTIALS_STORED
-	bool "Keep the Spotify credentials across restarts"
+	bool "Keep the Spotify and the Web API credentials on the device"
 	default y
 	depends on SETTINGS
 	select SECURE_STORAGE
@@ -85,13 +85,15 @@ config ZSPOT_CREDENTIALS_STORED
 	  The device then stays signed in to the account that picked it last,
 	  until another one picks it in its Spotify app.
 
-	  The credentials go through the secure storage subsystem, which
-	  encrypts them (AES-GCM) with a key derived from the ID of the device
-	  before they reach the settings. That keeps them out of a plain copy
-	  of the flash; it is no protection from somebody who also reads the
-	  device ID, which takes the flash encryption of the SoC. The Wi-Fi
-	  passwords are stored by Zephyr's Wi-Fi credentials library, in the
-	  clear.
+	  The credentials of the Web API are kept the same way, once a build
+	  has carried them to the device (ZSPOT_WEB_CREDENTIALS_BUILT_IN).
+
+	  Both go through the secure storage subsystem, which encrypts them
+	  (AES-GCM) with a key derived from the ID of the device before they
+	  reach the settings. That keeps them out of a plain copy of the
+	  flash; it is no protection from somebody who also reads the device
+	  ID, which takes the flash encryption of the SoC. The Wi-Fi passwords
+	  are stored by Zephyr's Wi-Fi credentials library, in the clear.
 
 	  Credentials given to the build (ZSPOT_CREDENTIALS_JSON, or
 	  ZSPOT_USERNAME and ZSPOT_PASSWORD) take precedence over stored ones.
@@ -100,21 +102,38 @@ config ZSPOT_CREDENTIALS_STORED
 configdefault SECURE_STORAGE_ITS_MAX_DATA_SIZE
 	default 1024 if ZSPOT_CREDENTIALS_STORED
 
+config ZSPOT_WEB_CREDENTIALS_BUILT_IN
+	bool "Build the Web API credentials into the firmware"
+	help
+	  The last song after a restart, and "Your Library" and the search on
+	  the Now Playing screen, use the Spotify Web API, which needs an
+	  application registered at developer.spotify.com and a one-time
+	  authorisation by the user with scripts/spotify_authorize.py. That
+	  gives a client ID, a client secret and a refresh token.
+
+	  With this option the build takes the three from its environment
+	  (ZSPOT_WEB_CLIENT_ID, ZSPOT_WEB_CLIENT_SECRET and
+	  ZSPOT_WEB_REFRESH_TOKEN) and makes them part of the firmware, where
+	  they are plain text: whoever has the firmware file can read them.
+
+	  A player that keeps credentials (ZSPOT_CREDENTIALS_STORED) stores
+	  them encrypted at its first start and uses the stored ones from then
+	  on. Build it with this option once, to carry them to the device, and
+	  without it afterwards, so that the firmware no longer holds them.
+	  Building with it again replaces the stored ones.
+
+	  A player that has nowhere to store them has to be built with it
+	  every time. Without credentials the library view only says that it
+	  is not set up, and the last song is not offered after a restart.
+
+if ZSPOT_WEB_CREDENTIALS_BUILT_IN
+
 # The defaults come from the environment of the build, so that the values stay
 # out of the repository and of the command line.
 
 config ZSPOT_WEB_CLIENT_ID
 	string "Client ID of the Spotify developer application"
 	default "$(ZSPOT_WEB_CLIENT_ID)"
-	help
-	  The last song after a restart, and "Your Library" and the search on
-	  the Now Playing screen, use the Spotify Web API, which needs an
-	  application registered at developer.spotify.com and a one-time
-	  authorisation by the user with scripts/spotify_authorize.py. The
-	  three values default to the environment variables
-	  ZSPOT_WEB_CLIENT_ID, ZSPOT_WEB_CLIENT_SECRET and
-	  ZSPOT_WEB_REFRESH_TOKEN. Without them the library view only says that
-	  it is not set up, and the last song is not offered after a restart.
 
 config ZSPOT_WEB_CLIENT_SECRET
 	string "Client secret of the Spotify developer application"
@@ -123,6 +142,8 @@ config ZSPOT_WEB_CLIENT_SECRET
 config ZSPOT_WEB_REFRESH_TOKEN
 	string "Refresh token of the authorised user"
 	default "$(ZSPOT_WEB_REFRESH_TOKEN)"
+
+endif # ZSPOT_WEB_CREDENTIALS_BUILT_IN
 
 config ZSPOT_UI
 	bool "Now Playing screen (LVGL)"
