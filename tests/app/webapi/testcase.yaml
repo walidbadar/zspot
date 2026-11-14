@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
 tests:
-  app.zspot.web_keys:
+  app.zspot.webapi:
     tags: zspot
     platform_allow:
       - native_sim

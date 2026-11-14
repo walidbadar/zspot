@@ -40,11 +40,10 @@
 #include "certs.h"
 #include "credentials.h"
 #include "resume.h"
-#include "websetup.h"
+#include "webapi.h"
 #if defined(CONFIG_ZSPOT_UI)
 #include "library.h"
 #include "lyrics.h"
-#include "webapi.h"
 #endif
 
 /* Decoded PCM: 44.1 kHz, 16 bit, stereo */
