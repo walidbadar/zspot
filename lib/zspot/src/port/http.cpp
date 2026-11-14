@@ -188,13 +188,31 @@ void HttpConnection::open(const HttpUrl &url)
 namespace
 {
 
+/* A transfer in progress: the response and the buffer of the caller, if any */
+struct Transfer {
+	HttpResponse *response;
+	uint8_t *into;
+	size_t into_size;
+};
+
 int on_response(struct http_response *rsp, enum http_final_call final_data, void *user_data)
 {
-	auto *out = static_cast<HttpResponse *>(user_data);
+	auto *transfer = static_cast<Transfer *>(user_data);
+	auto *out = transfer->response;
 
 	if (rsp->body_frag_start != nullptr && rsp->body_frag_len > 0) {
-		out->body.insert(out->body.end(), rsp->body_frag_start,
-				 rsp->body_frag_start + rsp->body_frag_len);
+		if (transfer->into == nullptr) {
+			out->body.insert(out->body.end(), rsp->body_frag_start,
+					 rsp->body_frag_start + rsp->body_frag_len);
+		} else {
+			/* What does not fit is read and dropped, to leave the connection usable */
+			const size_t room = transfer->into_size - out->stored;
+			const size_t take = rsp->body_frag_len < room ? rsp->body_frag_len : room;
+
+			memcpy(transfer->into + out->stored, rsp->body_frag_start, take);
+			out->stored += take;
+			out->overflow = out->overflow || take < rsp->body_frag_len;
+		}
 	}
 
 	if (final_data == HTTP_DATA_FINAL) {
@@ -231,11 +249,12 @@ enum http_method to_method(const char *method)
 
 int HttpConnection::execute(const char *method, const HttpUrl &url, const Headers &headers,
 			    const std::vector<uint8_t> &payload, const char *content_type,
-			    HttpResponse &response)
+			    uint8_t *into, size_t into_size, HttpResponse &response)
 {
 	std::vector<std::string> lines;
 	std::vector<const char *> header_fields;
 	std::vector<uint8_t> recv_buf(CONFIG_ZSPOT_HTTP_RECV_BUF_SIZE);
+	Transfer transfer = {&response, into, into_size};
 	struct http_request req;
 
 	lines.reserve(headers.size());
@@ -249,6 +268,8 @@ int HttpConnection::execute(const char *method, const HttpUrl &url, const Header
 	header_fields.push_back(nullptr);
 
 	response.body.clear();
+	response.stored = 0;
+	response.overflow = false;
 
 	memset(&req, 0, sizeof(req));
 	req.method = to_method(method);
@@ -265,12 +286,12 @@ int HttpConnection::execute(const char *method, const HttpUrl &url, const Header
 	}
 	req.content_type_value = content_type;
 
-	return http_client_req(sock_, &req, CONFIG_ZSPOT_HTTP_TIMEOUT_MS, &response);
+	return http_client_req(sock_, &req, CONFIG_ZSPOT_HTTP_TIMEOUT_MS, &transfer);
 }
 
 HttpResponse HttpConnection::request(const char *method, const std::string &url,
 				     const Headers &headers, const std::vector<uint8_t> &payload,
-				     const char *content_type)
+				     const char *content_type, uint8_t *into, size_t into_size)
 {
 	HttpUrl parsed = HttpUrl::parse(url);
 	HttpResponse response;
@@ -281,12 +302,14 @@ HttpResponse HttpConnection::request(const char *method, const std::string &url,
 		open(parsed);
 	}
 
-	ret = execute(method, parsed, headers, payload, content_type, response);
+	ret = execute(method, parsed, headers, payload, content_type, into, into_size,
+			      response);
 	if (ret < 0 && used_) {
 		/* The keep-alive connection was dropped by the server; retry once. */
 		LOG_DBG("Keep-alive request failed (%d), reconnecting", ret);
 		open(parsed);
-		ret = execute(method, parsed, headers, payload, content_type, response);
+		ret = execute(method, parsed, headers, payload, content_type, into, into_size,
+			      response);
 	}
 
 	if (ret < 0) {
@@ -297,18 +320,19 @@ HttpResponse HttpConnection::request(const char *method, const std::string &url,
 
 	LOG_DBG("%s %s%s -> %d, %u bytes (ret %d)", method, parsed.host.c_str(),
 		parsed.path.substr(0, 40).c_str(), response.status,
-		static_cast<unsigned int>(response.body.size()), ret);
+		static_cast<unsigned int>(into != nullptr ? response.stored : response.body.size()),
+		ret);
 	used_ = true;
 	return response;
 }
 
 HttpResponse HttpConnection::fetch(const char *method, const std::string &url,
 				   const Headers &headers, const std::vector<uint8_t> &payload,
-				   const char *content_type)
+				   const char *content_type, uint8_t *into, size_t into_size)
 {
 	HttpConnection connection;
 
-	return connection.request(method, url, headers, payload, content_type);
+	return connection.request(method, url, headers, payload, content_type, into, into_size);
 }
 
 std::string HttpConnection::rangeHeader(size_t from, size_t to)

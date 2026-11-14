@@ -661,17 +661,17 @@ int zspot_http_get(const char *url, uint8_t *buf, size_t size)
 	}
 
 	try {
-		auto response = zspot::HttpConnection::fetch("GET", url);
+		/* Straight into the buffer of the caller: nothing is held twice */
+		auto response = zspot::HttpConnection::fetch("GET", url, {}, {}, nullptr, buf, size);
 
 		if (response.status != 200) {
 			LOG_WRN("GET %s: HTTP %d", url, response.status);
 			return -EIO;
 		}
-		if (response.body.size() > size) {
+		if (response.overflow) {
 			return -ENOMEM;
 		}
-		memcpy(buf, response.body.data(), response.body.size());
-		return static_cast<int>(response.body.size());
+		return static_cast<int>(response.stored);
 	} catch (const std::exception &e) {
 		LOG_WRN("GET %s failed: %s", url, e.what());
 		return -EIO;
@@ -698,13 +698,12 @@ int zspot_http_request(const char *method, const char *url, const char *const *h
 		}
 
 		auto response = zspot::HttpConnection::fetch(method, url, header_lines, payload,
-							     content_type);
+							     content_type, buf, size);
 
-		if (response.body.size() > size) {
+		if (response.overflow) {
 			return -ENOMEM;
 		}
-		memcpy(buf, response.body.data(), response.body.size());
-		*len = response.body.size();
+		*len = response.stored;
 		return response.status;
 	} catch (const std::exception &e) {
 		LOG_WRN("%s %s failed: %s", method, url, e.what());

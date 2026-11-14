@@ -43,6 +43,14 @@ struct HttpResponse {
 
 	std::vector<uint8_t> body;
 
+	/**
+	 * Where the body went instead of into @ref body, for a request that
+	 * named a buffer: how much of it was stored, and whether there was
+	 * more than the buffer holds.
+	 */
+	size_t stored = 0;
+	bool overflow = false;
+
 	/** Total size reported by Content-Range, or Content-Length otherwise. */
 	size_t totalLength() const
 	{
@@ -54,7 +62,9 @@ struct HttpResponse {
  * @brief A keep-alive HTTP connection.
  *
  * Requests are executed synchronously; the body is collected into
- * HttpResponse::body.
+ * HttpResponse::body, or stored in the buffer that the request names. The
+ * latter saves a response of unknown size from being held twice, or without
+ * a limit.
  */
 class HttpConnection
 {
@@ -81,7 +91,8 @@ public:
 	 */
 	HttpResponse request(const char *method, const std::string &url,
 			     const Headers &headers = {}, const std::vector<uint8_t> &payload = {},
-			     const char *content_type = nullptr);
+			     const char *content_type = nullptr, uint8_t *into = nullptr,
+			     size_t into_size = 0);
 
 	HttpResponse get(const std::string &url, const Headers &headers = {})
 	{
@@ -92,7 +103,8 @@ public:
 	static HttpResponse fetch(const char *method, const std::string &url,
 				  const Headers &headers = {},
 				  const std::vector<uint8_t> &payload = {},
-				  const char *content_type = nullptr);
+				  const char *content_type = nullptr, uint8_t *into = nullptr,
+				  size_t into_size = 0);
 
 	static std::string rangeHeader(size_t from, size_t to);
 	static std::string lastBytesHeader(size_t bytes);
@@ -100,7 +112,7 @@ public:
 private:
 	int execute(const char *method, const HttpUrl &url, const Headers &headers,
 		    const std::vector<uint8_t> &payload, const char *content_type,
-		    HttpResponse &response);
+		    uint8_t *into, size_t into_size, HttpResponse &response);
 
 	int sock_ = -1;
 	HttpUrl url_;
