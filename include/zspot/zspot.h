@@ -62,7 +62,10 @@ enum zspot_event_type {
 	 * audio is audible to receive ZSPOT_EVENT_TRACK_INFO.
 	 */
 	ZSPOT_EVENT_TRACK_BEGIN,
-	/** The controlling app replaced or edited the play queue. */
+	/**
+	 * The controlling app replaced or edited the play queue:
+	 * event.context_uri, valid during the callback.
+	 */
 	ZSPOT_EVENT_QUEUE_CHANGED,
 	/**
 	 * The connection to Spotify was lost. The library reconnects on its
@@ -89,6 +92,8 @@ struct zspot_track_info {
 	const char *artist;
 	const char *image_url;
 	const char *track_id;
+	/** "spotify:track:..." or "spotify:episode:...", as the Web API takes it */
+	const char *uri;
 	uint32_t duration_ms;
 	uint32_t number;
 	uint32_t disc_number;
@@ -102,6 +107,11 @@ struct zspot_event {
 		uint32_t position_ms;
 		struct zspot_track_info track;
 		enum zspot_repeat repeat;
+		/**
+		 * URI of what the queue plays from ("spotify:playlist:...",
+		 * "spotify:album:...", ...); empty for a plain list of tracks
+		 */
+		const char *context_uri;
 	};
 };
 

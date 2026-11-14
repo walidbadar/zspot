@@ -208,7 +208,7 @@ void SpircHandler::handleFrame(std::vector<uint8_t>& data) {
                                true);
 
       this->notify();
-      sendEvent(EventType::QUEUE);
+      sendQueueEvent();
 
       // Stop the current track, if any
       trackPlayer->resetState();
@@ -227,7 +227,7 @@ void SpircHandler::handleFrame(std::vector<uint8_t>& data) {
           false);
 
       this->notify();
-      sendEvent(EventType::QUEUE);
+      sendQueueEvent();
 
       // need to re-load all if streaming track is completed
       if (cleared) {
@@ -249,6 +249,13 @@ void SpircHandler::handleFrame(std::vector<uint8_t>& data) {
     default:
       break;
   }
+}
+
+void SpircHandler::sendQueueEvent() {
+  // What the queue plays from, as syncWithRemote() took it over
+  const char* context = playbackState->innerFrame.state.context_uri;
+
+  sendEvent(EventType::QUEUE, std::string(context != nullptr ? context : ""));
 }
 
 void SpircHandler::setRemoteVolume(int volume) {

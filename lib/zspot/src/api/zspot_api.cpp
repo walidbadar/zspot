@@ -127,6 +127,7 @@ void on_spirc_event(std::unique_ptr<cspot::SpircHandler::Event> ev)
 		out.track.artist = info.artist.c_str();
 		out.track.image_url = info.imageUrl.c_str();
 		out.track.track_id = info.trackId.c_str();
+		out.track.uri = info.uri.c_str();
 		out.track.duration_ms = info.duration;
 		out.track.number = info.number;
 		out.track.disc_number = info.discNumber;
@@ -162,6 +163,7 @@ void on_spirc_event(std::unique_ptr<cspot::SpircHandler::Event> ev)
 		break;
 	case EventType::QUEUE:
 		out.type = ZSPOT_EVENT_QUEUE_CHANGED;
+		out.context_uri = std::get<std::string>(ev->data).c_str();
 		break;
 	default:
 		return;
@@ -635,6 +637,7 @@ int zspot_queue_get_track(int index, zspot_queue_track_cb_t cb, void *user_data)
 			track.artist = info->artist.c_str();
 			track.image_url = info->imageUrl.c_str();
 			track.track_id = info->trackId.c_str();
+			track.uri = info->uri.c_str();
 			track.duration_ms = info->duration;
 			track.number = info->number;
 			track.disc_number = info->discNumber;

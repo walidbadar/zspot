@@ -16,6 +16,7 @@
 #include <mutex>
 
 #include "core/AccessKeyFetcher.h"
+#include "port/base62.h"
 #include "port/thread.h"
 #include "core/CDNAudioFile.h"
 #include "core/Context.h"
@@ -81,9 +82,19 @@ bool canPlayTrack(Track& trackInfo, int altIndex, const char* country) {
 }
 }  // namespace TrackDataUtils
 
+// The URI that Spotify's apps and its Web API know the track or episode by
+static std::string spotifyUri(const char* type,
+                              const std::vector<uint8_t>& gid) {
+  char id[ZSPOT_BASE62_ID_DIGITS + 1];
+
+  zspot_base62_encode(gid.data(), gid.size(), id, ZSPOT_BASE62_ID_DIGITS);
+  return std::string("spotify:") + type + ":" + id;
+}
+
 void TrackInfo::loadPbTrack(Track* pbTrack, const std::vector<uint8_t>& gid) {
   // Generate ID based on GID
   trackId = bytesToHexString(gid);
+  uri = spotifyUri("track", gid);
 
   name = std::string(pbTrack->name);
 
@@ -113,6 +124,7 @@ void TrackInfo::loadPbEpisode(Episode* pbEpisode,
                               const std::vector<uint8_t>& gid) {
   // Generate ID based on GID
   trackId = bytesToHexString(gid);
+  uri = spotifyUri("episode", gid);
 
   name = std::string(pbEpisode->name);
 
@@ -199,6 +211,8 @@ void QueuedTrack::stepParseMetadata(Track* pbTrack, Episode* pbEpisode) {
     if (trackId.size() > 0) {
       // Load track information
       trackInfo.loadPbTrack(pbTrack, trackId);
+      // Named as the queue has it, also when an alternative plays in its place
+      trackInfo.uri = spotifyUri("track", ref.gid);
     }
   } else {
     // Handle episodes

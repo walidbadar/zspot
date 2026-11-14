@@ -41,7 +41,7 @@ class SpircHandler {
     REPEAT
   };
 
-  typedef std::variant<TrackInfo, int, bool> EventData;
+  typedef std::variant<TrackInfo, int, bool, std::string> EventData;
 
   struct Event {
     EventType eventType;
@@ -91,6 +91,7 @@ class SpircHandler {
 
   void sendEvent(EventType type);
   void sendEvent(EventType type, EventData data);
+  void sendQueueEvent();
 
   bool skipSong(TrackQueue::SkipDirection dir);
   void handleFrame(std::vector<uint8_t>& data);
