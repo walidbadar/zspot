@@ -9,12 +9,12 @@ project(zspot_webapi_test)
 set(ZSPOT_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../..)
 
 # src/main.c includes app/src/webapi.c, to get at what is internal to it, with
-# stand-ins for LVGL (../stubs) and, in main.c, for the HTTP client. The file
-# is built without the setup endpoint and without credentials of the build.
+# a stand-in for the HTTP client in main.c. The file is built with made-up
+# credentials in the form of the real ones.
 target_sources(app PRIVATE src/main.c ../stubs/player_log.c ${ZSPOT_ROOT}/app/src/json_scan.c)
-target_include_directories(app PRIVATE ../stubs ${ZSPOT_ROOT}/app/src ${ZSPOT_ROOT}/include)
+target_include_directories(app PRIVATE ${ZSPOT_ROOT}/app/src ${ZSPOT_ROOT}/include)
 target_compile_definitions(app PRIVATE
-  "CONFIG_ZSPOT_WEB_CLIENT_ID=\"\""
-  "CONFIG_ZSPOT_WEB_CLIENT_SECRET=\"\""
-  "CONFIG_ZSPOT_WEB_REFRESH_TOKEN=\"\""
+  "CONFIG_ZSPOT_WEB_CLIENT_ID=\"id\""
+  "CONFIG_ZSPOT_WEB_CLIENT_SECRET=\"secret\""
+  "CONFIG_ZSPOT_WEB_REFRESH_TOKEN=\"AQBx-Example_refresh-token_0123456789abcdefghijklmnopqrstuvwxyz\""
 )

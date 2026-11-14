@@ -100,27 +100,14 @@ These use the Spotify Web API and need a one-time setup:
 #. Export its credentials as ``ZSPOT_WEB_CLIENT_ID`` and
    ``ZSPOT_WEB_CLIENT_SECRET``, e.g. from a private file that ``~/.bashrc``
    sources.
-#. Run ``scripts/spotify_authorize.py --device zspot.local`` (or the address
-   of the device) and approve the access in the browser. The script sends
-   the client ID, the client secret and the refresh token it got to the
-   device, which keeps them (``CONFIG_ZSPOT_WEB_SETUP``).
-
-The device takes these credentials while it has none. To replace them, open
-its Wi-Fi settings (hold the Wi-Fi symbol) and run the script within five
-minutes. They cross the local network unencrypted, and the device never
-gives them out again.
-
-Alternatively the three values can be part of the firmware, which they also
-are for a board without settings storage such as ``native_sim``: run
-``scripts/spotify_authorize.py --save <that file>``, which adds
-``ZSPOT_WEB_REFRESH_TOKEN``, and rebuild with ``west build -p`` from a shell
-that has the three variables. Credentials that were sent to the device come
-before those of the build.
+#. Run ``scripts/spotify_authorize.py --save <that file>`` and approve the
+   access in the browser; it adds ``ZSPOT_WEB_REFRESH_TOKEN``.
+#. Rebuild with ``west build -p`` from a shell that has the three variables.
 
 .. warning::
 
    The values give access to the account: keep them out of version control
-   and, when they are part of the firmware, do not share the build directory.
+   and do not share the build directory.
 
 Search covers songs only; podcasts and episodes are not searched.
 
@@ -202,10 +189,8 @@ Application options
      - Interval between two fuel gauge readings
    * - ``ZSPOT_PCM_TAP`` / ``ZSPOT_PCM_TAP_PORT``
      - Copy of the audio over TCP
-   * - ``ZSPOT_WEB_SETUP`` / ``ZSPOT_WEB_SETUP_PORT``
-     - Take the Web API credentials over the network and store them
    * - ``ZSPOT_WEB_CLIENT_ID``, ``ZSPOT_WEB_CLIENT_SECRET``,
        ``ZSPOT_WEB_REFRESH_TOKEN``
-     - Web API access for search and Your Library, as part of the firmware
+     - Web API access for search and Your Library
 
 The full list is in ``app/Kconfig``.

@@ -21,7 +21,7 @@ tests:
       - native_sim/native/64
       - uedx32480035e_wb_a/esp32s3/procpu
   # What the board has and native_sim lacks: the settings, and with them the
-  # stored credentials, the last song and the Web API setup
+  # stored credentials and the last song
   app.zspot.player.settings:
     extra_configs:
       - CONFIG_FLASH=y
