@@ -107,6 +107,9 @@ static char *request(const char *method, const char *url, const char *body, char
 	lvgl_unlock();
 	if (response == NULL) {
 		snprintf(error, error_size, "Out of memory");
+		if (status_out != NULL) {
+			*status_out = -ENOMEM;
+		}
 		return NULL;
 	}
 
