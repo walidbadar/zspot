@@ -45,6 +45,28 @@ std::vector<uint8_t> stringHexToBytes(const std::string& s) {
   return v;
 }
 
+const char* const base62Alphabet =
+    "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+std::string base62Encode(const std::vector<uint8_t>& data, size_t digits) {
+  std::vector<uint8_t> number = data;
+  std::string out(digits, '0');
+
+  // Long division by 62: the remainders are the digits, last one first
+  for (size_t digit = digits; digit-- > 0;) {
+    unsigned int remainder = 0;
+
+    for (auto& byte : number) {
+      unsigned int value = (remainder << 8) | byte;
+
+      byte = static_cast<uint8_t>(value / 62);
+      remainder = value % 62;
+    }
+    out[digit] = base62Alphabet[remainder];
+  }
+  return out;
+}
+
 std::string bytesToHexString(const std::vector<uint8_t>& v) {
   std::stringstream ss;
   ss << std::hex << std::setfill('0');

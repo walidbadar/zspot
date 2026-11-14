@@ -8,5 +8,6 @@ project(zspot_base62_test)
 
 set(ZSPOT_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../..)
 
-target_sources(app PRIVATE src/main.c ${ZSPOT_ROOT}/lib/zspot/src/port/base62.c)
+# The helpers of the protocol core, which need nothing of the library around them
+target_sources(app PRIVATE src/main.cpp ${ZSPOT_ROOT}/lib/zspot/src/core/Utils.cpp)
 target_include_directories(app PRIVATE ${ZSPOT_ROOT}/lib/zspot/src)

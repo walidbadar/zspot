@@ -32,6 +32,22 @@ unsigned long long getCurrentTimestamp();
  */
 uint64_t hton64(uint64_t value);
 
+/**
+ * @brief The digits of base62 as Spotify writes its ids in URIs: digits,
+ * then lower-case, then upper-case letters
+ */
+extern const char* const base62Alphabet;
+
+/**
+ * @brief Writes a big-endian number in base62, padded with leading zeros
+ *
+ * @param data the number, e.g. the 16 bytes of the id of a track
+ * @param digits how many digits to write: 22 for an id. A number that needs
+ * more loses its upper ones
+ * @return std::string the digits
+ */
+std::string base62Encode(const std::vector<uint8_t>& data, size_t digits);
+
 std::vector<uint8_t> bigNumDivide(std::vector<uint8_t> num, int n);
 
 /**

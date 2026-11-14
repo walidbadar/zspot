@@ -39,7 +39,6 @@ zephyr_library_sources(
 
 # Zephyr port layer
 zephyr_library_sources(
-  src/port/base62.c
   src/port/crypto.cpp
   src/port/http.cpp
   src/port/json.cpp

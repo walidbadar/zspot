@@ -13,9 +13,6 @@
 
 using namespace cspot;
 
-static constexpr auto base62Alphabet =
-    "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
 TrackReference::TrackReference() : type(Type::TRACK) {}
 
 void TrackReference::decodeURI() {

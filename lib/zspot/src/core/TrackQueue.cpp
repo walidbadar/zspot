@@ -16,7 +16,6 @@
 #include <mutex>
 
 #include "core/AccessKeyFetcher.h"
-#include "port/base62.h"
 #include "port/crypto.h"
 #include "port/thread.h"
 #include "core/CDNAudioFile.h"
@@ -86,10 +85,8 @@ bool canPlayTrack(Track& trackInfo, int altIndex, const char* country) {
 // The URI that Spotify's apps and its Web API know the track or episode by
 static std::string spotifyUri(const char* type,
                               const std::vector<uint8_t>& gid) {
-  char id[ZSPOT_BASE62_ID_DIGITS + 1];
-
-  zspot_base62_encode(gid.data(), gid.size(), id, ZSPOT_BASE62_ID_DIGITS);
-  return std::string("spotify:") + type + ":" + id;
+  // An id is 16 bytes, which are 22 digits in base62
+  return std::string("spotify:") + type + ":" + base62Encode(gid, 22);
 }
 
 void TrackInfo::loadPbTrack(Track* pbTrack, const std::vector<uint8_t>& gid) {
