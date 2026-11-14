@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Muhammad Waleed Badar
+# SPDX-License-Identifier: GPL-3.0-only
+
+tests:
+  app.zspot.json_scan:
+    tags: zspot
+    platform_allow:
+      - native_sim
+      - native_sim/native/64
+    integration_platforms:
+      - native_sim/native/64
