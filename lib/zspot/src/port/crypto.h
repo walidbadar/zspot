@@ -77,6 +77,9 @@ public:
 					    const std::vector<uint8_t> &salt, int iterations,
 					    int digest_size);
 
+	/** A random number below @p bound, which must not be 0 */
+	static uint32_t randomBelow(uint32_t bound);
+
 	/* Cryptographically secure random bytes */
 	std::vector<uint8_t> generateVectorWithRandomData(size_t length);
 

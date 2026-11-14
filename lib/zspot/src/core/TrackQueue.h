@@ -131,6 +131,13 @@ class TrackQueue : public zspot::Task {
   // decodes stay as they are
   void setRepeat(RepeatMode mode);
   RepeatMode getRepeat();
+
+  /**
+   * Puts the tracks after the current one into a random order; the current
+   * one becomes the first of the queue. It is the device that shuffles: the
+   * controlling app only asks for it and shows the order it is told.
+   */
+  void shuffle();
   std::shared_ptr<QueuedTrack> consumeTrack(
       std::shared_ptr<QueuedTrack> prevSong, int& offset);
 

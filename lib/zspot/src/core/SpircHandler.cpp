@@ -202,6 +202,9 @@ void SpircHandler::handleFrame(std::vector<uint8_t>& data) {
 
       playbackState->syncWithRemote();
       applyRemoteRepeat(false);
+      // Only the state: the tracks of a Load come in the order to play them in
+      playbackState->setShuffle(playbackState->remoteFrame.state.has_shuffle &&
+                                playbackState->remoteFrame.state.shuffle);
 
       // Update track list in case we have a new one
       trackQueue->updateTracks(playbackState->remoteFrame.state.position_ms,
@@ -237,8 +240,18 @@ void SpircHandler::handleFrame(std::vector<uint8_t>& data) {
       break;
     }
     case MessageType_kMessageTypeShuffle: {
-      CSPOT_LOG(debug, "Got shuffle frame");
+      const bool on = playbackState->remoteFrame.state.has_shuffle &&
+                      playbackState->remoteFrame.state.shuffle;
+
+      CSPOT_LOG(info, "Shuffle %s", on ? "on" : "off");
+      // Turning it off leaves the order as it is: the original one is not
+      // kept, and the app sends the queue again when it wants it back
+      if (on) {
+        trackQueue->shuffle();
+      }
+      playbackState->setShuffle(on);
       this->notify();
+      sendQueueEvent();
       break;
     }
     case MessageType_kMessageTypeRepeat: {

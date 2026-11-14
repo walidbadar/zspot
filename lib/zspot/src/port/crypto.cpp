@@ -413,6 +413,17 @@ std::vector<uint8_t> Crypto::dhCalculateShared(const std::vector<uint8_t> &remot
 
 /* Random ------------------------------------------------------------------ */
 
+uint32_t Crypto::randomBelow(uint32_t bound)
+{
+	uint32_t value = 0;
+
+	ensure_psa();
+	if (psa_generate_random(reinterpret_cast<uint8_t *>(&value), sizeof(value)) != PSA_SUCCESS) {
+		throw std::runtime_error("psa_generate_random failed");
+	}
+	return value % bound;
+}
+
 std::vector<uint8_t> Crypto::generateVectorWithRandomData(size_t length)
 {
 	std::vector<uint8_t> random(length);

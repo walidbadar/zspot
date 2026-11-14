@@ -17,6 +17,7 @@
 
 #include "core/AccessKeyFetcher.h"
 #include "port/base62.h"
+#include "port/crypto.h"
 #include "port/thread.h"
 #include "core/CDNAudioFile.h"
 #include "core/Context.h"
@@ -643,6 +644,51 @@ void TrackQueue::setRepeat(RepeatMode mode) {
   }
 
   // The player may wait at the end of the queue, which now goes on
+  playableSemaphore->give();
+  processSemaphore->give();
+}
+
+void TrackQueue::shuffle() {
+  {
+    std::scoped_lock lock(tracksMutex);
+    const size_t count = currentTracks.size();
+
+    if (currentTracksIndex < 0 ||
+        static_cast<size_t>(currentTracksIndex) >= count) {
+      return;
+    }
+
+    // The track that plays stays where the player is, at the front. So does
+    // the one the player has begun behind it, if any.
+    size_t fixed = 1;
+
+    std::swap(currentTracks[0], currentTracks[currentTracksIndex]);
+    if (preloadedTracks.size() > 1 && preloadedTracks[1]->loading) {
+      auto begun = std::find(currentTracks.begin() + 1, currentTracks.end(),
+                             preloadedTracks[1]->ref);
+
+      if (begun != currentTracks.end()) {
+        std::swap(currentTracks[1], *begun);
+        fixed = 2;
+      }
+    }
+
+    // Fisher-Yates over the rest
+    for (size_t i = count; i > fixed + 1; i--) {
+      const size_t pick = fixed + zspot::Crypto::randomBelow(i - fixed);
+
+      std::swap(currentTracks[i - 1], currentTracks[pick]);
+    }
+
+    currentTracksIndex = 0;
+    playbackState->innerFrame.state.playing_track_index = 0;
+    for (size_t i = 0; i < fixed && i < preloadedTracks.size(); i++) {
+      preloadedTracks[i]->index = static_cast<int>(i);
+    }
+    // What was preloaded behind them followed in the old order
+    refreshPreloaded(true);
+  }
+
   playableSemaphore->give();
   processSemaphore->give();
 }

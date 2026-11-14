@@ -90,6 +90,11 @@ class PlaybackState {
   void setRepeat(bool repeat);
 
   /**
+   * Sets the shuffle state as the apps show it.
+   */
+  void setShuffle(bool shuffle);
+
+  /**
    * @brief Updates local track queue from remote data.
      */
   void syncWithRemote();
