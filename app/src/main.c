@@ -37,6 +37,7 @@
 #include "ui.h"
 #include "battery.h"
 #include "credentials.h"
+#include "resume.h"
 #if defined(CONFIG_ZSPOT_UI)
 #include "library.h"
 #include "lyrics.h"
@@ -68,6 +69,8 @@ static volatile uint32_t position_base_ms;
 static atomic_t position_bytes;
 /* PLAYBACK_START already set the position of the track that begins next */
 static bool position_preset;
+/* The track that begins was started anew: the sink is empty, no audio goes out */
+static bool output_idle;
 
 static void position_set(uint32_t position_ms)
 {
@@ -214,6 +217,10 @@ static void on_event(const struct zspot_event *event, void *user_data)
 		zspot_i2s_sink_set_paused(event->paused);
 #endif
 		ui_set_paused(event->paused);
+		/* Not for a track that is loaded paused: it is not known yet */
+		if (event->paused && !position_preset) {
+			resume_set_position(position_get());
+		}
 		break;
 	case ZSPOT_EVENT_VOLUME:
 		LOG_INF("Volume %u", event->volume);
@@ -225,12 +232,14 @@ static void on_event(const struct zspot_event *event, void *user_data)
 			event->track.album);
 		ui_show_track(event->track.name, event->track.artist, event->track.image_url,
 			      event->track.duration_ms);
+		resume_set_track(&event->track, position_get(), output_idle);
 		break;
 	case ZSPOT_EVENT_SEEK:
 		LOG_INF("Seek to %u ms", event->position_ms);
 		end_cancel();
 		sink_flush();
 		position_set(event->position_ms);
+		resume_set_position(event->position_ms);
 		break;
 	case ZSPOT_EVENT_FLUSH:
 		end_cancel();
@@ -238,25 +247,31 @@ static void on_event(const struct zspot_event *event, void *user_data)
 		break;
 	case ZSPOT_EVENT_PLAYBACK_START:
 		end_cancel();
+		resume_playback_begun();
 		sink_flush();
 		position_set(event->position_ms);
 		position_preset = true;
 		break;
 	case ZSPOT_EVENT_TRACK_BEGIN:
 		end_cancel();
+		resume_playback_begun();
 		/* A gapless transition comes without PLAYBACK_START. */
 		if (!position_preset) {
 			position_set(0);
 		}
+		output_idle = position_preset;
 		position_preset = false;
 		zspot_notify_audio_reached_playback();
 		break;
 	case ZSPOT_EVENT_QUEUE_CHANGED:
 		end_cancel();
+		resume_set_context(event->context_uri);
+		resume_playback_begun();
 		break;
 	case ZSPOT_EVENT_DISCONNECT:
 		LOG_INF("Playback moved to another device");
 		end_cancel();
+		resume_set_position(position_get());
 		sink_flush();
 		ui_show_message("Playing on another device",
 				"Pick this device in Spotify to listen here");
@@ -334,9 +349,27 @@ static void end_report(void)
 }
 
 #if defined(CONFIG_ZSPOT_UI)
+/*
+ * While the song shown after a restart waits to be started, Play and the
+ * progress slider act on it; there is no queue yet to skip in.
+ */
+static void ui_pause(bool pause)
+{
+	if (!resume_pause(pause)) {
+		zspot_set_pause(pause);
+	}
+}
+
+static void ui_seek(uint32_t position_ms)
+{
+	if (!resume_seek(position_ms)) {
+		zspot_seek(position_ms);
+	}
+}
+
 static void ui_next(void)
 {
-	if (zspot_next()) {
+	if (!resume_waiting() && zspot_next()) {
 		end_cancel();
 		sink_flush();
 	}
@@ -344,7 +377,7 @@ static void ui_next(void)
 
 static void ui_previous(void)
 {
-	if (zspot_previous()) {
+	if (!resume_waiting() && zspot_previous()) {
 		end_cancel();
 		sink_flush();
 	}
@@ -388,11 +421,11 @@ static void wifi_forget(const char *ssid)
 #endif
 
 static const struct ui_ops ui_ops = {
-	.set_paused = zspot_set_pause,
+	.set_paused = ui_pause,
 	.next = ui_next,
 	.previous = ui_previous,
 	.set_repeat = ui_repeat,
-	.seek = zspot_seek,
+	.seek = ui_seek,
 	.set_volume = ui_volume,
 	.position_ms = position_get,
 	.library_open = library_open,
@@ -503,7 +536,10 @@ int main(void)
 		LOG_INF("Reusable credentials (store these): %s", credentials);
 	}
 
-	ui_show_message("Ready", "Pick this device in Spotify to start playing");
+	/* The last song, ready to go on with, or how to get one */
+	if (!resume_show(position_set)) {
+		ui_show_message("Ready", "Pick this device in Spotify to start playing");
+	}
 
 	/* The protocol runs on the library threads; this one reports the end of playback. */
 	end_report();

@@ -79,13 +79,18 @@ static int renew_token(void)
 	return 0;
 }
 
+bool webapi_configured(void)
+{
+	return strlen(CLIENT_ID) > 0 && strlen(CLIENT_SECRET) > 0 && strlen(REFRESH_TOKEN) > 0;
+}
+
 int webapi_request(const char *method, const char *url, const char *body, uint8_t *buf,
 		   size_t size, size_t *len)
 {
 	const char *const headers[] = {bearer, NULL};
 	int status;
 
-	if (strlen(CLIENT_ID) == 0 || strlen(CLIENT_SECRET) == 0 || strlen(REFRESH_TOKEN) == 0) {
+	if (!webapi_configured()) {
 		return -ENOENT;
 	}
 

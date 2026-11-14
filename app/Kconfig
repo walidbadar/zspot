@@ -110,6 +110,25 @@ config ZSPOT_BATTERY_POLL_SECONDS
 	default 30
 	range 1 3600
 
+config ZSPOT_LAST_TRACK
+	bool "Show the last song after a restart"
+	default y
+	depends on ZSPOT_STORE_CREDENTIALS
+	help
+	  Stores the song that plays in the settings. After a restart the Now
+	  Playing screen shows it, paused where it was paused, instead of the
+	  notice to pick the device in the Spotify app, and Play starts it on
+	  this device, within its playlist or album where it has one.
+
+	  The song is started through the Web API (ZSPOT_WEB_CLIENT_ID and its
+	  companions); without that set up, the notice is shown as before.
+
+	  Writing to the flash interrupts the audio, so the song is stored
+	  when none goes out: when it is paused, when it was just started,
+	  at the end of the queue or when another device takes over. After a
+	  loss of power in the middle of a queue that played without a break,
+	  the song shown is the one that the queue was started with.
+
 config ZSPOT_SCREEN_TIMEOUT_SECONDS
 	int "Seconds without a touch after which the screen turns off"
 	default 60

@@ -16,8 +16,12 @@
 #ifndef ZSPOT_SAMPLE_WEBAPI_H_
 #define ZSPOT_SAMPLE_WEBAPI_H_
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
+/** Whether the build has the application credentials that the requests need. */
+bool webapi_configured(void);
 
 /**
  * Performs a Web API request, fetching or renewing the access token first

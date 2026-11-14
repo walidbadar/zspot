@@ -44,6 +44,7 @@ enum request_type {
 	REQUEST_SELECT,
 	REQUEST_SEARCH,
 	REQUEST_SEARCH_SELECT,
+	REQUEST_PLAY,
 };
 
 struct request {
@@ -74,6 +75,12 @@ struct model {
 	/* Hits of the last search */
 	char search_uris[UI_LIST_MAX][48];
 	int search_count;
+
+	/* The track of library_play(), from the request until it was sent */
+	char play_uri[48];
+	char play_context[64];
+	uint32_t play_position_ms;
+	library_play_cb_t play_done;
 };
 
 K_MSGQ_DEFINE(library_requests, sizeof(struct request), 4, 4);
@@ -261,8 +268,11 @@ static void open_collection(int index)
 	}
 }
 
-/* Sends a play request for this device; @p body is the JSON of what to play. */
-static void start_playback(const char *body)
+/*
+ * Sends a play request for this device; @p body is the JSON of what to play.
+ * Returns whether Spotify accepted it.
+ */
+static bool start_playback(const char *body)
 {
 	char url[120];
 	char error[72];
@@ -270,11 +280,12 @@ static void start_playback(const char *body)
 
 	snprintf(url, sizeof(url), API "/me/player/play?device_id=%s", zspot_device_id());
 	response = request("PUT", url, body, error, sizeof(error), NULL);
-	if (response != NULL) {
-		response_free(response);
-	} else {
+	if (response == NULL) {
 		LOG_WRN("Cannot start playback: %s", error);
+		return false;
 	}
+	response_free(response);
+	return true;
 }
 
 /* Play request for a list of tracks, starting with the one at @p index. */
@@ -319,6 +330,41 @@ static void play_track(bool search_hit, int index)
 	lvgl_lock();
 	lv_free(body);
 	lvgl_unlock();
+}
+
+/* Starts the track of library_play(), within its playlist or album if it has one. */
+static void play_given(void)
+{
+	const char *context = model->play_context;
+	bool accepted = false;
+	char *body;
+
+	lvgl_lock();
+	body = lv_malloc(BODY_MAX);
+	lvgl_unlock();
+
+	/* The Web API takes an offset into these contexts only */
+	if (body != NULL && (strncmp(context, "spotify:playlist:", 17) == 0 ||
+			     strncmp(context, "spotify:album:", 14) == 0)) {
+		snprintf(body, BODY_MAX,
+			 "{\"context_uri\":\"%s\",\"offset\":{\"uri\":\"%s\"},\"position_ms\":%u}",
+			 context, model->play_uri, model->play_position_ms);
+		accepted = start_playback(body);
+	}
+	/* Also when the track is no longer part of the playlist */
+	if (body != NULL && !accepted) {
+		snprintf(body, BODY_MAX, "{\"uris\":[\"%s\"],\"position_ms\":%u}", model->play_uri,
+			 model->play_position_ms);
+		accepted = start_playback(body);
+	}
+
+	lvgl_lock();
+	lv_free(body);
+	lvgl_unlock();
+
+	/* Free for the next request before the caller hears of this one */
+	model->play_uri[0] = '\0';
+	model->play_done(accepted);
 }
 
 /* Appends @p text to @p url, percent-encoded. */
@@ -429,6 +475,9 @@ static void library_thread(void *p1, void *p2, void *p3)
 				play_track(true, req.index);
 			}
 			break;
+		case REQUEST_PLAY:
+			play_given();
+			break;
 		}
 	}
 }
@@ -490,4 +539,33 @@ void library_search(const char *query)
 void library_search_select(int index)
 {
 	submit(REQUEST_SEARCH_SELECT, index, NULL);
+}
+
+int library_play(const char *track_uri, const char *context_uri, uint32_t position_ms,
+		 library_play_cb_t done)
+{
+	const struct request req = {.type = REQUEST_PLAY};
+
+	if (model == NULL) {
+		return -ENODEV;
+	}
+	if (strlen(track_uri) >= sizeof(model->play_uri) ||
+	    strlen(context_uri) >= sizeof(model->play_context)) {
+		return -EINVAL;
+	}
+	/* One at a time: the track waits in the model, not in the queue */
+	if (model->play_uri[0] != '\0') {
+		return -EBUSY;
+	}
+
+	strcpy(model->play_context, context_uri);
+	model->play_position_ms = position_ms;
+	model->play_done = done;
+	strcpy(model->play_uri, track_uri);
+
+	if (k_msgq_put(&library_requests, &req, K_NO_WAIT) != 0) {
+		model->play_uri[0] = '\0';
+		return -EBUSY;
+	}
+	return 0;
 }
