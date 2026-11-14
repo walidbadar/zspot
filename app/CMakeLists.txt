@@ -28,6 +28,5 @@ target_sources_ifdef(CONFIG_ZSPOT_LAST_TRACK app PRIVATE src/last_track.c src/re
 target_sources_ifdef(CONFIG_ZSPOT_PCM_TAP app PRIVATE src/pcm_tap.c)
 target_sources_ifdef(CONFIG_ZSPOT_BATTERY app PRIVATE src/battery.c)
 target_sources_ifdef(CONFIG_ZSPOT_UI app PRIVATE
-  src/ui.c src/cover.c src/library.c src/webapi.c src/web_keys.c src/lyrics.c src/lrc.c
-  src/json_scan.c)
+  src/ui.c src/cover.c src/library.c src/webapi.c src/web_keys.c src/lyrics.c src/json_scan.c)
 target_sources_ifdef(CONFIG_ZSPOT_WEB_SETUP app PRIVATE src/websetup.c)
