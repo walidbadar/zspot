@@ -54,6 +54,21 @@ a restart, so it only has to be picked once
 (``CONFIG_ZSPOT_CREDENTIALS_STORED``). When Spotify no longer accepts the
 stored credentials, they are removed and the device waits to be picked again.
 
+The Spotify credentials are stored encrypted: they go through Zephyr's secure
+storage, which seals them with AES-GCM under a key derived from the ID of the
+device before they reach the settings. A copy of the flash does not show
+them, and an entry that was altered is refused. This is not protection from
+somebody who has the device in hand, since the device ID can be read from it
+as well; that takes the flash encryption of the SoC, which burns eFuses and
+is left for when the firmware is no longer in development.
+
+Two other secrets are not encrypted. The Wi-Fi passwords are stored by
+Zephyr's Wi-Fi credentials library, in the clear. The Web API credentials
+(client ID, client secret and refresh token) are not stored at all: the build
+takes them from its environment and compiles them into the firmware as plain
+text, so whoever has the firmware file or a copy of the flash can read them.
+Do not hand out a firmware file that was built with them.
+
 Another account takes the device over by picking it in its Spotify app, on
 the same network: the device signs out, signs in with that account and
 remembers it instead. Should Spotify reject the new account, the device goes

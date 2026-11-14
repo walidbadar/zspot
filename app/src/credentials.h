@@ -6,9 +6,14 @@
 
 /*
  * Spotify credentials kept across restarts (CONFIG_ZSPOT_CREDENTIALS_STORED):
- * the reusable credentials of a session go into the settings, and the device
- * signs in with them at the next start instead of waiting to be picked in the
- * Spotify app.
+ * the reusable credentials of a session are stored, and the device signs in
+ * with them at the next start instead of waiting to be picked in the Spotify
+ * app.
+ *
+ * They go through Zephyr's secure storage, which encrypts and authenticates
+ * them (AES-GCM) before they reach the settings. The key is derived from the
+ * ID of the device: a copy of the flash does not give them away by itself,
+ * but whoever also reads the device ID can work the key out.
  *
  * The functions share a buffer: call them from one thread, after zspot_init().
  */

@@ -6,20 +6,51 @@
 
 #include "credentials.h"
 
+#include <errno.h>
+
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/settings/settings.h>
+
+#include <psa/internal_trusted_storage.h>
 
 #include <zspot/zspot.h>
 
 LOG_MODULE_DECLARE(zspot_player, LOG_LEVEL_INF);
 
-#define KEY "zspot/credentials"
+/* The entry of the credentials in the secure storage ("zs") */
+#define CREDENTIALS_UID 0x7a73
+/* Where an earlier version of the player kept them in the clear */
+#define PLAIN_SETTING   "zspot/credentials"
 
-/* The JSON on its way between the library and the settings, NUL terminated */
+/* The JSON on its way between the library and the storage, NUL terminated */
 static char json[1024];
 
-int credentials_load(void)
+BUILD_ASSERT(CONFIG_SECURE_STORAGE_ITS_MAX_DATA_SIZE >= sizeof(json) - 1,
+	     "The secure storage must take the credentials of a session");
+
+/* Hands the @p len bytes in the buffer to the library. */
+static int use(size_t len)
+{
+	if (len >= sizeof(json)) {
+		return -EINVAL;
+	}
+	json[len] = '\0';
+	return zspot_credentials_load_json(json);
+}
+
+static void forget_plain(void)
+{
+	if (settings_subsys_init() == 0) {
+		(void)settings_delete(PLAIN_SETTING);
+	}
+}
+
+/*
+ * Credentials that an earlier version stored in the clear are taken over
+ * once: used, stored encrypted, and removed from where they were.
+ */
+static int load_plain(void)
 {
 	ssize_t len;
 	int ret;
@@ -31,7 +62,7 @@ int credentials_load(void)
 	}
 
 	/* The length of the value, also of one that does not fit; 0 without one */
-	len = settings_load_one(KEY, json, sizeof(json) - 1);
+	len = settings_load_one(PLAIN_SETTING, json, sizeof(json) - 1);
 	if (len == 0) {
 		return -ENOENT;
 	}
@@ -40,14 +71,43 @@ int credentials_load(void)
 		return (int)len;
 	}
 
-	if ((size_t)len >= sizeof(json)) {
-		ret = -EINVAL;
-	} else {
-		json[len] = '\0';
-		ret = zspot_credentials_load_json(json);
-	}
+	ret = use(len);
 	if (ret != 0) {
 		LOG_WRN("The stored credentials cannot be used, removing them");
+		forget_plain();
+		return ret;
+	}
+
+	/* Kept in the clear until they are there encrypted */
+	if (psa_its_set(CREDENTIALS_UID, len, json, PSA_STORAGE_FLAG_NONE) == PSA_SUCCESS) {
+		LOG_INF("Stored credentials are encrypted from now on");
+		forget_plain();
+	}
+	return 0;
+}
+
+int credentials_load(void)
+{
+	size_t len = 0;
+	psa_status_t status;
+	int ret;
+
+	status = psa_its_get(CREDENTIALS_UID, 0, sizeof(json), json, &len);
+	if (status == PSA_ERROR_DOES_NOT_EXIST) {
+		return load_plain();
+	}
+
+	if (status != PSA_SUCCESS) {
+		/* Also an entry that was altered, or that another device encrypted */
+		LOG_WRN("The stored credentials cannot be read (%d), removing them", (int)status);
+		ret = -EIO;
+	} else {
+		ret = use(len);
+		if (ret != 0) {
+			LOG_WRN("The stored credentials cannot be used, removing them");
+		}
+	}
+	if (ret != 0) {
 		(void)credentials_forget();
 	}
 	return ret;
@@ -55,14 +115,8 @@ int credentials_load(void)
 
 int credentials_store(void)
 {
+	psa_status_t status;
 	int len;
-	int ret;
-
-	ret = settings_subsys_init();
-	if (ret != 0) {
-		LOG_ERR("Settings are not available (%d)", ret);
-		return ret;
-	}
 
 	len = zspot_credentials_save_json(json, sizeof(json));
 	if (len <= 0) {
@@ -71,13 +125,13 @@ int credentials_store(void)
 	}
 
 	/*
-	 * Called at every start. That does not wear the flash: NVS and ZMS
-	 * write nothing when the value is the one they hold.
+	 * Called at every start. That does not wear the flash: the secure
+	 * storage writes nothing when the entry holds this data already.
 	 */
-	ret = settings_save_one(KEY, json, len);
-	if (ret != 0) {
-		LOG_ERR("Cannot store the credentials (%d)", ret);
-		return ret;
+	status = psa_its_set(CREDENTIALS_UID, len, json, PSA_STORAGE_FLAG_NONE);
+	if (status != PSA_SUCCESS) {
+		LOG_ERR("Cannot store the credentials (%d)", (int)status);
+		return -EIO;
 	}
 
 	LOG_INF("Credentials kept for the next start");
@@ -86,13 +140,13 @@ int credentials_store(void)
 
 int credentials_forget(void)
 {
-	int ret = settings_subsys_init();
+	psa_status_t status = psa_its_remove(CREDENTIALS_UID);
 
-	if (ret == 0) {
-		ret = settings_delete(KEY);
+	forget_plain();
+
+	if (status != PSA_SUCCESS && status != PSA_ERROR_DOES_NOT_EXIST) {
+		LOG_ERR("Cannot remove the stored credentials (%d)", (int)status);
+		return -EIO;
 	}
-	if (ret != 0) {
-		LOG_ERR("Cannot remove the stored credentials (%d)", ret);
-	}
-	return ret;
+	return 0;
 }

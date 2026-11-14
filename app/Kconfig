@@ -75,6 +75,7 @@ config ZSPOT_CREDENTIALS_STORED
 	bool "Keep the Spotify credentials across restarts"
 	default y
 	depends on SETTINGS
+	select SECURE_STORAGE
 	help
 	  Stores the reusable credentials of a session in the settings and
 	  signs in with them at the next start, so that the device does not
@@ -82,10 +83,22 @@ config ZSPOT_CREDENTIALS_STORED
 	  rejects are removed, and the device waits for the hand-over again.
 
 	  The device then stays signed in to the account that picked it last,
-	  until another one picks it in its Spotify app. The credentials are
-	  stored unencrypted, like the Wi-Fi passwords.
+	  until another one picks it in its Spotify app.
+
+	  The credentials go through the secure storage subsystem, which
+	  encrypts them (AES-GCM) with a key derived from the ID of the device
+	  before they reach the settings. That keeps them out of a plain copy
+	  of the flash; it is no protection from somebody who also reads the
+	  device ID, which takes the flash encryption of the SoC. The Wi-Fi
+	  passwords are stored by Zephyr's Wi-Fi credentials library, in the
+	  clear.
+
 	  Credentials given to the build (ZSPOT_CREDENTIALS_JSON, or
 	  ZSPOT_USERNAME and ZSPOT_PASSWORD) take precedence over stored ones.
+
+# The credentials of a session are a JSON text of a few hundred bytes
+configdefault SECURE_STORAGE_ITS_MAX_DATA_SIZE
+	default 1024 if ZSPOT_CREDENTIALS_STORED
 
 # The defaults come from the environment of the build, so that the values stay
 # out of the repository and of the command line.
