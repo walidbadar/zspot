@@ -46,7 +46,7 @@ config ZSPOT_CREDENTIALS_JSON
 	  Output of zspot_credentials_save_json() from a previous session. When
 	  set, the sample skips the zeroconf hand-over.
 
-config ZSPOT_STORE_CREDENTIALS
+config ZSPOT_CREDENTIALS_STORED
 	bool "Keep the Spotify credentials across restarts"
 	default y
 	depends on SETTINGS
@@ -113,7 +113,7 @@ config ZSPOT_BATTERY_POLL_SECONDS
 config ZSPOT_LAST_TRACK
 	bool "Show the last song after a restart"
 	default y
-	depends on ZSPOT_STORE_CREDENTIALS
+	depends on ZSPOT_CREDENTIALS_STORED
 	help
 	  Stores the song that plays in the settings. After a restart the Now
 	  Playing screen shows it, paused where it was paused, instead of the

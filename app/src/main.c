@@ -530,7 +530,7 @@ int main(void)
 		}
 	}
 
-	if (IS_ENABLED(CONFIG_ZSPOT_STORE_CREDENTIALS)) {
+	if (IS_ENABLED(CONFIG_ZSPOT_CREDENTIALS_STORED)) {
 		(void)credentials_store();
 	} else if (zspot_credentials_save_json(credentials, sizeof(credentials)) > 0) {
 		LOG_INF("Reusable credentials (store these): %s", credentials);

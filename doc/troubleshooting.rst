@@ -44,7 +44,7 @@ network, so another account cannot pick it. To make it forget the account:
 - ``west flash --erase`` removes the stored credentials, together with the
   stored Wi-Fi networks. The device then waits to be picked in the Spotify
   app again.
-- Building with ``-DCONFIG_ZSPOT_STORE_CREDENTIALS=n`` makes the device wait
+- Building with ``-DCONFIG_ZSPOT_CREDENTIALS_STORED=n`` makes the device wait
   to be picked at every start, without storing anything.
 
 The song shown after a restart is not the last one

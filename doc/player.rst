@@ -51,7 +51,7 @@ the display.
 
 The device remembers the account that picked it and signs in on its own after
 a restart, so it only has to be picked once
-(``CONFIG_ZSPOT_STORE_CREDENTIALS``). When Spotify no longer accepts the
+(``CONFIG_ZSPOT_CREDENTIALS_STORED``). When Spotify no longer accepts the
 stored credentials, they are removed and the device waits to be picked again.
 See :doc:`troubleshooting` for handing the device to another account.
 
@@ -167,12 +167,12 @@ Application options
 
    * - Kconfig
      - Purpose
-   * - ``ZSPOT_STORE_CREDENTIALS``
+   * - ``ZSPOT_CREDENTIALS_STORED``
      - Keep the Spotify credentials across restarts (on by default where the
        settings subsystem is enabled)
    * - ``ZSPOT_LAST_TRACK``
      - Show the last song after a restart and start it with Play (on by
-       default with ``ZSPOT_STORE_CREDENTIALS``)
+       default with ``ZSPOT_CREDENTIALS_STORED``)
    * - ``ZSPOT_CREDENTIALS_JSON``
      - Credentials given to the build; skips the zeroconf hand-over and
        takes precedence over stored ones

@@ -5,7 +5,7 @@
  */
 
 /*
- * Spotify credentials kept across restarts (CONFIG_ZSPOT_STORE_CREDENTIALS):
+ * Spotify credentials kept across restarts (CONFIG_ZSPOT_CREDENTIALS_STORED):
  * the reusable credentials of a session go into the settings, and the device
  * signs in with them at the next start instead of waiting to be picked in the
  * Spotify app.
@@ -18,7 +18,7 @@
 
 #include <errno.h>
 
-#if defined(CONFIG_ZSPOT_STORE_CREDENTIALS)
+#if defined(CONFIG_ZSPOT_CREDENTIALS_STORED)
 
 /**
  * Hands the stored credentials to the library.
@@ -56,6 +56,6 @@ static inline int credentials_forget(void)
 	return 0;
 }
 
-#endif /* CONFIG_ZSPOT_STORE_CREDENTIALS */
+#endif /* CONFIG_ZSPOT_CREDENTIALS_STORED */
 
 #endif /* ZSPOT_SAMPLE_CREDENTIALS_H_ */
