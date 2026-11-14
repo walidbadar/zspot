@@ -24,7 +24,7 @@ foreach(root digicert_global_root_g2 starfield_root_g2 digicert_global_root_g3
 endforeach()
 target_sources_ifdef(CONFIG_WIFI_CREDENTIALS_CONNECT_STORED app PRIVATE src/wifi.c)
 target_sources_ifdef(CONFIG_ZSPOT_CREDENTIALS_STORED app PRIVATE src/credentials.c)
-target_sources_ifdef(CONFIG_ZSPOT_LAST_TRACK app PRIVATE src/last_track.c src/resume.c)
+target_sources_ifdef(CONFIG_ZSPOT_LAST_TRACK app PRIVATE src/track.c)
 target_sources_ifdef(CONFIG_ZSPOT_PCM_TAP app PRIVATE src/pcm_tap.c)
 target_sources_ifdef(CONFIG_ZSPOT_BATTERY app PRIVATE src/battery.c)
 target_sources_ifdef(CONFIG_ZSPOT_UI app PRIVATE

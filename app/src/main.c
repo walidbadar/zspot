@@ -39,7 +39,7 @@
 #include "battery.h"
 #include "certs.h"
 #include "credentials.h"
-#include "resume.h"
+#include "track.h"
 #include "webapi.h"
 #if defined(CONFIG_ZSPOT_UI)
 #include "library.h"
@@ -222,7 +222,7 @@ static void on_event(const struct zspot_event *event, void *user_data)
 		ui_set_paused(event->paused);
 		/* Not for a track that is loaded paused: it is not known yet */
 		if (event->paused && !position_preset) {
-			resume_set_position(position_get());
+			track_set_position(position_get());
 		}
 		break;
 	case ZSPOT_EVENT_VOLUME:
@@ -235,14 +235,14 @@ static void on_event(const struct zspot_event *event, void *user_data)
 			event->track.album);
 		ui_show_track(event->track.name, event->track.artist, event->track.image_url,
 			      event->track.duration_ms);
-		resume_set_track(&event->track, position_get(), output_idle);
+		track_set(&event->track, position_get(), output_idle);
 		break;
 	case ZSPOT_EVENT_SEEK:
 		LOG_INF("Seek to %u ms", event->position_ms);
 		end_cancel();
 		sink_flush();
 		position_set(event->position_ms);
-		resume_set_position(event->position_ms);
+		track_set_position(event->position_ms);
 		break;
 	case ZSPOT_EVENT_FLUSH:
 		end_cancel();
@@ -250,14 +250,14 @@ static void on_event(const struct zspot_event *event, void *user_data)
 		break;
 	case ZSPOT_EVENT_PLAYBACK_START:
 		end_cancel();
-		resume_playback_begun();
+		track_playback_begun();
 		sink_flush();
 		position_set(event->position_ms);
 		position_preset = true;
 		break;
 	case ZSPOT_EVENT_TRACK_BEGIN:
 		end_cancel();
-		resume_playback_begun();
+		track_playback_begun();
 		/* A gapless transition comes without PLAYBACK_START. */
 		if (!position_preset) {
 			position_set(0);
@@ -268,13 +268,13 @@ static void on_event(const struct zspot_event *event, void *user_data)
 		break;
 	case ZSPOT_EVENT_QUEUE_CHANGED:
 		end_cancel();
-		resume_set_context(event->context_uri);
-		resume_playback_begun();
+		track_set_context(event->context_uri);
+		track_playback_begun();
 		break;
 	case ZSPOT_EVENT_DISCONNECT:
 		LOG_INF("Playback moved to another device");
 		end_cancel();
-		resume_set_position(position_get());
+		track_set_position(position_get());
 		sink_flush();
 		ui_show_message("Playing on another device",
 				"Pick this device in Spotify to listen here");
@@ -366,21 +366,21 @@ static void end_poll(void)
  */
 static void ui_pause(bool pause)
 {
-	if (!resume_pause(pause)) {
+	if (!track_pause(pause)) {
 		zspot_set_pause(pause);
 	}
 }
 
 static void ui_seek(uint32_t position_ms)
 {
-	if (!resume_seek(position_ms)) {
+	if (!track_seek(position_ms)) {
 		zspot_seek(position_ms);
 	}
 }
 
 static void ui_next(void)
 {
-	if (!resume_waiting() && zspot_next()) {
+	if (!track_waiting() && zspot_next()) {
 		end_cancel();
 		sink_flush();
 	}
@@ -388,7 +388,7 @@ static void ui_next(void)
 
 static void ui_previous(void)
 {
-	if (!resume_waiting() && zspot_previous()) {
+	if (!track_waiting() && zspot_previous()) {
 		end_cancel();
 		sink_flush();
 	}
@@ -610,7 +610,7 @@ int main(void)
 		}
 
 		/* The last song, ready to go on with, or how to get one */
-		if (!resume_show(position_set)) {
+		if (!track_show(position_set)) {
 			ui_show_message("Ready", "Pick this device in Spotify to start playing");
 		}
 
