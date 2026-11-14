@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Muhammad Waleed Badar
 # SPDX-License-Identifier: GPL-3.0-only
 #
-# cspot-zephyr: Spotify Connect receiver library for Zephyr RTOS.
+# zspot: Spotify Connect receiver library for Zephyr RTOS.
 
 if(CONFIG_ZSPOT)
 

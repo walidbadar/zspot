@@ -5,7 +5,7 @@
  */
 
 /*
- * cspot-zephyr: Spotify Connect receiver for Zephyr RTOS.
+ * zspot: Spotify Connect receiver for Zephyr RTOS.
  *
  * Public C API. The protocol implementation (derived from cspot,
  * https://github.com/feelfreelinux/cspot, GPL-3.0) is internal to the

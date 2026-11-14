@@ -5,7 +5,7 @@
  */
 
 /*
- * cspot-zephyr: I2S PCM sink using the Zephyr I2S driver API.
+ * zspot: I2S PCM sink using the Zephyr I2S driver API.
  *
  * The PCM always goes through the I2S driver. A codec that needs setting up
  * over a control bus can be passed in addition; it is then configured through
@@ -45,7 +45,7 @@ LOG_MODULE_DECLARE(zspot, CONFIG_ZSPOT_LOG_LEVEL);
 /* Input that stopped growing for this long is played out as it is */
 #define STALL_MS     300
 
-/* Logging is immediate, so a warning is formatted on this stack */
+/* With immediate logging a warning is formatted on this stack */
 #define FEEDER_STACK_SIZE 4096
 /* Above the player thread: the feeder only copies, and must not wait for it */
 #define FEEDER_PRIORITY   K_PRIO_PREEMPT(1)

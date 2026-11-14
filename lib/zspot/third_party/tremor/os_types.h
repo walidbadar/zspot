@@ -28,7 +28,7 @@
 /* make it easy on the folks that want to compile the libs with a
    different malloc than stdlib */
 #ifdef ZSPOT_TREMOR_ALLOC
-/* cspot-zephyr: route decoder buffers through the library allocator */
+/* zspot: route decoder buffers through the library allocator */
 #include "port/mem.h"
 #define _ogg_malloc  zspot_mem_alloc
 #define _ogg_calloc  zspot_mem_calloc

@@ -5,7 +5,7 @@
  */
 
 /*
- * cspot-zephyr: ready-made PCM sink on top of the Zephyr I2S driver API.
+ * zspot: ready-made PCM sink on top of the Zephyr I2S driver API.
  * Enabled with CONFIG_ZSPOT_I2S_SINK.
  */
 #ifndef ZSPOT_ZSPOT_I2S_SINK_H_
