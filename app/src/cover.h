@@ -13,6 +13,7 @@
  * Called with the LVGL lock held once a requested cover was downloaded and
  * decoded. Ownership of @p image passes to the callee, which releases it with
  * lv_draw_buf_destroy(). @p accent is the average colour of the image.
+ * @p image is NULL when the cover could not be loaded.
  */
 typedef void (*cover_ready_cb_t)(lv_draw_buf_t *image, lv_color_t accent);
 

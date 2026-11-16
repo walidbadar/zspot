@@ -228,11 +228,15 @@ static void cover_thread(void *p1, void *p2, void *p3)
 
 		lvgl_lock();
 		jpeg = lv_malloc(COVER_JPEG_MAX);
-		lvgl_unlock();
 		if (jpeg == NULL) {
 			LOG_WRN("No memory for the cover download");
+			if (request.generation == atomic_get(&cover_generation)) {
+				cover_ready_cb(NULL, lv_color_black());
+			}
+			lvgl_unlock();
 			continue;
 		}
+		lvgl_unlock();
 
 		len = zspot_http_get(request.url, jpeg, COVER_JPEG_MAX);
 		if (len > 0) {
@@ -243,13 +247,11 @@ static void cover_thread(void *p1, void *p2, void *p3)
 
 		lvgl_lock();
 		lv_free(jpeg);
-		if (image != NULL) {
-			/* The track may have changed during the download. */
-			if (request.generation == atomic_get(&cover_generation)) {
-				cover_ready_cb(image, accent);
-			} else {
-				lv_draw_buf_destroy(image);
-			}
+		/* The track may have changed during the download. */
+		if (request.generation == atomic_get(&cover_generation)) {
+			cover_ready_cb(image, image != NULL ? accent : lv_color_black());
+		} else if (image != NULL) {
+			lv_draw_buf_destroy(image);
 		}
 		lvgl_unlock();
 	}

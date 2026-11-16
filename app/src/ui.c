@@ -454,10 +454,19 @@ static void drop_cover(void)
 	cover_request(NULL);
 }
 
-/* Called by the cover loader with the LVGL lock held. */
+/*
+ * Called by the cover loader with the LVGL lock held. The cover and the
+ * backdrop of the track before stay until then, and change together.
+ */
 static void on_cover_ready(lv_draw_buf_t *image, lv_color_t accent)
 {
 	lv_draw_buf_t *old = cover_buf;
+
+	if (image == NULL) {
+		/* Asked for again with the next track that has this address */
+		drop_cover();
+		return;
+	}
 
 	cover_buf = image;
 	lv_image_set_src(cover_image, cover_buf);
@@ -775,9 +784,14 @@ static void apply(const struct ui_msg *msg)
 		set_time(elapsed_label, 0);
 		set_time(duration_label, msg->track.duration_ms);
 		set_controls_enabled(true);
-		/* Tracks of one album share the cover: keep it. */
-		if (strcmp(cover_url, msg->track.image_url) != 0) {
+		/*
+		 * Tracks of one album share the cover: keep it. Another one
+		 * replaces it once it is loaded, rather than leaving the box
+		 * empty and the backdrop plain in the meantime.
+		 */
+		if (msg->track.image_url[0] == '\0') {
 			drop_cover();
+		} else if (strcmp(cover_url, msg->track.image_url) != 0) {
 			strcpy(cover_url, msg->track.image_url);
 			cover_request(cover_url);
 		}
