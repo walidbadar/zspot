@@ -18,9 +18,13 @@ typedef void (*cover_ready_cb_t)(lv_draw_buf_t *image, lv_color_t accent);
 
 /**
  * Starts the cover loader thread. Call with the LVGL lock held.
+ *
+ * @param edge  width and height the cover is shown at: the image handed to
+ *              @p ready_cb has that size, so that LVGL draws it without
+ *              scaling. 0 leaves it at the size it was decoded at.
  * @return 0 on success, -ENOMEM when the LVGL pool is exhausted.
  */
-int cover_init(cover_ready_cb_t ready_cb);
+int cover_init(cover_ready_cb_t ready_cb, uint32_t edge);
 
 /**
  * Requests the JPEG behind @p url. A request that is still queued or being

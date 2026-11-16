@@ -9,6 +9,9 @@
  * a TLS handshake) and decodes it into an RGB565 image with the TJpgDec copy
  * that ships with LVGL. Spotify serves baseline JPEGs, 300x300 for the
  * default size, which is what TJpgDec supports.
+ *
+ * The image is then scaled to the size the cover is shown at, once. Left to
+ * LVGL, the scaling would be done at every redraw of the cover.
  */
 
 #include "cover.h"
@@ -55,6 +58,8 @@ K_MSGQ_DEFINE(cover_requests, sizeof(struct cover_request), 1, 4);
 /* Bumped by every request; a result of an older generation is stale. */
 static atomic_t cover_generation;
 static cover_ready_cb_t cover_ready_cb;
+/* Width and height of the images handed to cover_ready_cb; 0 for any */
+static uint32_t cover_edge;
 
 /*
  * The thread stack and the decoder's work area come from the LVGL pool, which
@@ -103,6 +108,63 @@ static int jpeg_output(JDEC *jd, void *bitmap, JRECT *rect)
 	return 1;
 }
 
+/*
+ * Scales @p src to cover_edge x cover_edge, each pixel the average of the
+ * pixels of @p src that fall on it, and releases @p src. When there is no
+ * memory for that, @p src is returned as it is and LVGL scales it.
+ */
+static lv_draw_buf_t *cover_fit(lv_draw_buf_t *src)
+{
+	const uint32_t src_w = src->header.w;
+	const uint32_t src_h = src->header.h;
+	lv_draw_buf_t *dst;
+
+	if (cover_edge == 0 || (src_w == cover_edge && src_h == cover_edge)) {
+		return src;
+	}
+
+	lvgl_lock();
+	dst = lv_draw_buf_create(cover_edge, cover_edge, LV_COLOR_FORMAT_RGB565, LV_STRIDE_AUTO);
+	lvgl_unlock();
+	if (dst == NULL) {
+		LOG_WRN("No memory to fit the cover, it is scaled at every redraw");
+		return src;
+	}
+
+	for (uint32_t y = 0; y < cover_edge; y++) {
+		uint16_t *row = (uint16_t *)(dst->data + y * dst->header.stride);
+		uint32_t y0 = y * src_h / cover_edge;
+		uint32_t y1 = MAX((y + 1) * src_h / cover_edge, y0 + 1);
+
+		for (uint32_t x = 0; x < cover_edge; x++) {
+			uint32_t x0 = x * src_w / cover_edge;
+			uint32_t x1 = MAX((x + 1) * src_w / cover_edge, x0 + 1);
+			uint32_t r = 0;
+			uint32_t g = 0;
+			uint32_t b = 0;
+			uint32_t n = (y1 - y0) * (x1 - x0);
+
+			for (uint32_t sy = y0; sy < y1; sy++) {
+				const uint16_t *src_row =
+					(const uint16_t *)(src->data + sy * src->header.stride);
+
+				for (uint32_t sx = x0; sx < x1; sx++) {
+					r += src_row[sx] >> 11;
+					g += (src_row[sx] >> 5) & 0x3F;
+					b += src_row[sx] & 0x1F;
+				}
+			}
+			row[x] = (((r + n / 2) / n) << 11) | (((g + n / 2) / n) << 5) |
+				 ((b + n / 2) / n);
+		}
+	}
+
+	lvgl_lock();
+	lv_draw_buf_destroy(src);
+	lvgl_unlock();
+	return dst;
+}
+
 static lv_draw_buf_t *cover_decode(const uint8_t *jpeg, size_t len, lv_color_t *accent)
 {
 	struct jpeg_session session = {.data = jpeg, .len = len, .step = 1};
@@ -142,7 +204,7 @@ static lv_draw_buf_t *cover_decode(const uint8_t *jpeg, size_t len, lv_color_t *
 	pixels = session.image->header.w * session.image->header.h;
 	*accent = lv_color_make(session.sum[0] / pixels, session.sum[1] / pixels,
 				session.sum[2] / pixels);
-	return session.image;
+	return cover_fit(session.image);
 }
 
 static void cover_thread(void *p1, void *p2, void *p3)
@@ -193,7 +255,7 @@ static void cover_thread(void *p1, void *p2, void *p3)
 	}
 }
 
-int cover_init(cover_ready_cb_t ready_cb)
+int cover_init(cover_ready_cb_t ready_cb, uint32_t edge)
 {
 	uint8_t *stack = lv_malloc(K_KERNEL_STACK_LEN(COVER_STACK_SIZE) + Z_KERNEL_STACK_OBJ_ALIGN);
 
@@ -203,6 +265,7 @@ int cover_init(cover_ready_cb_t ready_cb)
 	}
 
 	cover_ready_cb = ready_cb;
+	cover_edge = edge;
 	k_thread_create(&cover_thread_data,
 			(k_thread_stack_t *)ROUND_UP(stack, Z_KERNEL_STACK_OBJ_ALIGN),
 			COVER_STACK_SIZE, cover_thread, NULL, NULL, NULL, COVER_PRIORITY, 0,

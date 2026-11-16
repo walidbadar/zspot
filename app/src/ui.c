@@ -1490,14 +1490,15 @@ int ui_init(const struct ui_ops *ui_ops)
 	ops = ui_ops;
 
 	lvgl_lock();
+	/* The cover is decoded to the size it is shown at */
+	compute_layout();
 	msgq_buf = lv_malloc(UI_MSGQ_LEN * sizeof(struct ui_msg));
-	if (msgq_buf == NULL || cover_init(on_cover_ready) != 0) {
+	if (msgq_buf == NULL || cover_init(on_cover_ready, lay.cover_size) != 0) {
 		lvgl_unlock();
 		LOG_ERR("LVGL memory pool too small for the UI");
 		return -ENOMEM;
 	}
 	k_msgq_init(&ui_msgq, msgq_buf, sizeof(struct ui_msg), UI_MSGQ_LEN);
-	compute_layout();
 	create_screen();
 	lvgl_unlock();
 
