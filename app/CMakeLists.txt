@@ -31,3 +31,21 @@ target_sources_ifdef(CONFIG_ZSPOT_BATTERY app PRIVATE src/battery.c)
 # What draws on the screen or only feeds it
 target_sources_ifdef(CONFIG_ZSPOT_UI app PRIVATE
   src/ui.c src/cover.c src/library.c src/lyrics.c)
+
+if(CONFIG_ETH_NATIVE_TAP)
+  if(DEFINED ENV{ZEPHYR_NET_TOOLS})
+    set(zspot_net_tools $ENV{ZEPHYR_NET_TOOLS})
+  else()
+    set(zspot_net_tools ${ZEPHYR_BASE}/../tools/net-tools)
+  endif()
+  add_custom_target(run_tap
+    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/native_sim_run.py
+            --net-tools ${zspot_net_tools}
+            ${APPLICATION_BINARY_DIR}/zephyr/${KERNEL_EXE_NAME}
+    DEPENDS
+      ${logical_target_for_zephyr_elf}
+      $<$<TARGET_EXISTS:native_runner_executable>:native_runner_executable>
+    WORKING_DIRECTORY ${APPLICATION_BINARY_DIR}
+    USES_TERMINAL
+  )
+endif()

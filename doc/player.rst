@@ -153,18 +153,18 @@ packages (``SDL2-devel`` and ``alsa-lib-devel`` on Fedora, ``libsdl2-dev`` and
 picked with ``--i2s_tx_tx=<path>``, e.g. ``--i2s_tx_tx=alsa:hw:0,0`` or
 ``--i2s_tx_tx=out.pcm`` for raw 16-bit little-endian stereo PCM at 44.1 kHz.
 
-Create the TAP interface once per boot and give it internet access:
-
-.. code-block:: sh
-
-   sudo tools/net-tools/net-setup.sh start --config nat.conf
-
-Then build and run:
+The simulator reaches the network through a TAP interface, ``zeth``, with
+internet access through NAT on the host. Build, then run with the ``run_tap``
+target, which creates the interface before the player starts and removes it
+once the player has ended, also by Ctrl+C or when it is killed:
 
 .. code-block:: sh
 
    west build -p -b native_sim/native/64 zspot/app
-   ./build/zephyr/zephyr.exe
+   west build -t run_tap
+
+``sudo`` asks for the password. The net-tools are taken from
+``tools/net-tools`` next to the Zephyr tree, or from ``ZEPHYR_NET_TOOLS``.
 
 The simulator has no settings storage, so it does not remember the account
 and waits to be picked in the Spotify app at every start. To skip that, build
