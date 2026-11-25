@@ -92,8 +92,9 @@ config ZSPOT_CREDENTIALS_STORED
 	  (AES-GCM) with a key derived from the ID of the device before they
 	  reach the settings. That keeps them out of a plain copy of the
 	  flash; it is no protection from somebody who also reads the device
-	  ID, which takes the flash encryption of the SoC. The Wi-Fi passwords
-	  are stored by Zephyr's Wi-Fi credentials library, in the clear.
+	  ID, which takes the flash encryption of the SoC. Zephyr's Wi-Fi
+	  credentials library keeps the Wi-Fi passwords in the secure storage
+	  as well.
 
 	  Credentials given to the build (ZSPOT_CREDENTIALS_JSON, or
 	  ZSPOT_USERNAME and ZSPOT_PASSWORD) take precedence over stored ones.

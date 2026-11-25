@@ -64,8 +64,8 @@ is left for when the firmware is no longer in development.
 
 The Web API credentials (client ID, client secret and refresh token) are kept
 the same way, once a build has carried them to the device; see
-:ref:`search-and-your-library`. The Wi-Fi passwords are not encrypted: they
-are stored by Zephyr's Wi-Fi credentials library, in the clear.
+:ref:`search-and-your-library`. So are the Wi-Fi passwords, which Zephyr's
+Wi-Fi credentials library keeps in the secure storage.
 
 Another account takes the device over by picking it in its Spotify app, on
 the same network: the device signs out, signs in with that account and

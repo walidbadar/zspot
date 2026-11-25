@@ -80,7 +80,7 @@ static struct {
 
 #if FIFO_SIZE > 0
 /* Too large for the internal RAM of the ESP32: placed in PSRAM there. */
-#if defined(CONFIG_ESP_SPIRAM)
+#if defined(CONFIG_SOC_FAMILY_ESPRESSIF_SPIRAM)
 #define FIFO_SECTION Z_GENERIC_SECTION(.ext_ram.bss.zspot_i2s)
 #else
 #define FIFO_SECTION

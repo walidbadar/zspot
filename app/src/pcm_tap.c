@@ -31,7 +31,7 @@ LOG_MODULE_DECLARE(zspot_player, LOG_LEVEL_INF);
  * The buffer is too large for the internal RAM of the ESP32: there it goes
  * into the section that the SoC linker script places in PSRAM.
  */
-#if defined(CONFIG_ESP_SPIRAM)
+#if defined(CONFIG_SOC_FAMILY_ESPRESSIF_SPIRAM)
 #define BUFFER_SECTION Z_GENERIC_SECTION(.ext_ram.bss.pcm_tap)
 #else
 #define BUFFER_SECTION

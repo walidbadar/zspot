@@ -16,9 +16,9 @@ manifest:
   projects:
     - name: zephyr
       remote: zephyrproject-rtos
-      # main after v4.5.0 (v4.5.0-2533-g073e47854ed), with the ALSA backend
-      # of the native_sim I2S driver
-      revision: 073e47854ede6baf45acf49aa5439cafd2a7bbf9
+      # main after v4.5.0 (v4.5.0-4652-ga844adec70f), with the Wi-Fi
+      # credentials stored through PSA Protected Storage (PR #121466)
+      revision: a844adec70ff2802c3b769b47c03a3a52001b84b
       import:
         # Only the modules the library and the player application need
         name-allowlist:
