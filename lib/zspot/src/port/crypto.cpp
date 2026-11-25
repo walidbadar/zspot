@@ -315,16 +315,23 @@ bool Crypto::rsaSha1Verify(const std::vector<uint8_t> &modulus,
 #if defined(PSA_WANT_ALG_RSA_PKCS1V15_SIGN) && defined(PSA_WANT_KEY_TYPE_RSA_PUBLIC_KEY)
 	const psa_algorithm_t alg = PSA_ALG_RSA_PKCS1V15_SIGN(PSA_ALG_SHA_1);
 	std::vector<uint8_t> integers;
-	std::vector<uint8_t> key;
 
 	/* PSA takes the key as RSAPublicKey: SEQUENCE { modulus, publicExponent } */
 	der_integer(integers, modulus.data(), modulus.size());
 	der_integer(integers, SERVER_KEY_EXPONENT, sizeof(SERVER_KEY_EXPONENT));
-	key.push_back(0x30);
-	key.push_back(0x82);
-	key.push_back(static_cast<uint8_t>(integers.size() >> 8));
-	key.push_back(static_cast<uint8_t>(integers.size()));
-	key.insert(key.end(), integers.begin(), integers.end());
+
+	/*
+	 * Sized once and filled in: grown byte by byte and then by insert(),
+	 * GCC 13 took the vector to be empty where the integers are copied in
+	 * and reported an overflow (-Wstringop-overflow).
+	 */
+	std::vector<uint8_t> key(4 + integers.size());
+
+	key[0] = 0x30;
+	key[1] = 0x82;
+	key[2] = static_cast<uint8_t>(integers.size() >> 8);
+	key[3] = static_cast<uint8_t>(integers.size());
+	memcpy(&key[4], integers.data(), integers.size());
 
 	ensure_psa();
 
